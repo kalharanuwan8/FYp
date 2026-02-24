@@ -1,0 +1,65 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+
+# ── Virtual environments ───────────────────────────────
+venv/
+venvpy312/
+.venv/
+
+# ── Data (raw + processed — too large for git) ─────────
+data/
+
+# ── Outputs (checkpoints, logs, model artifacts) ───────
+outputs/
+
+# ── Training / experiment logs ─────────────────────────
+logs/
+
+# ── Reports & samples (generated artifacts) ────────────
+reports/
+samples/
+
+# ── Debug files ────────────────────────────────────────
+fusion_debug.txt
+fusion_debug_full.txt
+
+# ── Model weights & serialized objects ─────────────────
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# ── Large data formats ─────────────────────────────────
+*.npy
+*.npz
+*.mat
+*.csv
+
+# ── Media files ────────────────────────────────────────
+*.mp4
+*.avi
+*.mov
+*.wav
+*.mp3
+
+# ── OS / editor junk ──────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# ── Environment / secrets ─────────────────────────────
+.env
+.env.*
