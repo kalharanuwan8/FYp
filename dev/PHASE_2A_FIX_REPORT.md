@@ -17,7 +17,7 @@ Prior phase: [PHASE_1_FIX_REPORT.md](PHASE_1_FIX_REPORT.md). Audit: [FINAL_SYSTE
 | Baseline (source freeze) | `3128555a847e62c602aaf62888cca09c78f1e33c` |
 | Phase 1 corrected | `3e2ce9025d3ada89dc04507fbbcee5a58b91a24c` |
 | Pre–Phase-2A tip (docs) | `ae57313caed7ff109e3c284018ec4003ae1a25be` |
-| **Phase 2A corrected** | *(filled after local commit — see §9)* |
+| **Phase 2A corrected** | `6b1d6541fc551a367038b569f18db1904c7df481` |
 
 This phase is **not** an improvement in model accuracy. It makes monitoring accounting and session isolation trustworthy.
 
@@ -162,8 +162,8 @@ No training jobs run.
 
 ## 9. Commit identifier
 
-**Phase 2A corrected commit:** `PENDING_LOCAL_COMMIT`  
-*(Updated immediately after `git commit` on `camtesting`.)*
+**Phase 2A corrected commit:** `6b1d6541fc551a367038b569f18db1904c7df481`  
+Branch: `camtesting` (local only; not pushed).
 
 ---
 
