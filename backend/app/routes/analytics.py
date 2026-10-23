@@ -14,7 +14,8 @@ from app.db_models import (
     QuizAttempt,
     LearningSession,
 )
-from app.services.focus_metrics import average_focus_percentage
+from app.services.focus_metrics import average_coverage_pct, average_focus_percentage
+from app.services.observation_coverage import FOCUS_METRIC_VERSION
 from app.utils.decorators import role_required
 
 analytics_bp = Blueprint("analytics", __name__)
@@ -42,7 +43,9 @@ def get_teacher_analytics():
         return jsonify({
             "total_students": 0,
             "total_sessions": 0,
-            "avg_focus_percentage": 0.0,
+            "avg_focus_percentage": None,
+            "avg_monitoring_coverage_pct": None,
+            "focus_metric_version": FOCUS_METRIC_VERSION,
             "avg_quiz_score": 0.0,
             "subject_breakdown": [],
         }), 200
@@ -59,6 +62,7 @@ def get_teacher_analytics():
     )
     total_sessions = len(sessions)
     avg_focus_percentage = average_focus_percentage(sessions)
+    avg_coverage = average_coverage_pct(sessions)
 
     avg_quiz_score = 0.0
     if module_ids:
@@ -83,6 +87,7 @@ def get_teacher_analytics():
 
         subj_sessions = [s for s in sessions if s.module_id in subj_mod_ids]
         subj_focus = average_focus_percentage(subj_sessions)
+        subj_cov = average_coverage_pct(subj_sessions)
 
         subj_quiz_avg = 0.0
         if subj_mod_ids:
@@ -108,6 +113,7 @@ def get_teacher_analytics():
             "grade_level_name": gl_name,
             "enrolled_students": enrolled_cnt,
             "avg_focus_percentage": subj_focus,
+            "avg_monitoring_coverage_pct": subj_cov,
             "avg_quiz_score": subj_quiz_avg,
         })
 
@@ -115,6 +121,8 @@ def get_teacher_analytics():
         "total_students": total_students,
         "total_sessions": total_sessions,
         "avg_focus_percentage": avg_focus_percentage,
+        "avg_monitoring_coverage_pct": avg_coverage,
+        "focus_metric_version": FOCUS_METRIC_VERSION,
         "avg_quiz_score": avg_quiz_score,
         "subject_breakdown": subject_breakdown,
     }), 200
@@ -141,6 +149,7 @@ def get_student_analytics():
 
     total_study_minutes = round(total_study_seconds / 60.0, 1)
     avg_focus_percentage = average_focus_percentage(sessions)
+    avg_coverage = average_coverage_pct(sessions)
 
     attempts = QuizAttempt.query.filter_by(student_id=student.id).filter(
         QuizAttempt.completed_at.isnot(None)
@@ -158,6 +167,7 @@ def get_student_analytics():
 
             s_sessions = [s for s in sessions if s.module_id in subj_mod_ids]
             s_focus = average_focus_percentage(s_sessions)
+            s_cov = average_coverage_pct(s_sessions)
 
             gl_name = subject.grade_level.name if subject.grade_level else "Standard Grade"
             subject_progress.append({
@@ -166,12 +176,15 @@ def get_student_analytics():
                 "grade_level_name": gl_name,
                 "sessions_count": len(s_sessions),
                 "avg_focus_percentage": s_focus,
+                "avg_monitoring_coverage_pct": s_cov,
             })
 
     return jsonify({
         "total_study_minutes": total_study_minutes,
         "total_sessions": len(sessions),
         "avg_focus_percentage": avg_focus_percentage,
+        "avg_monitoring_coverage_pct": avg_coverage,
+        "focus_metric_version": FOCUS_METRIC_VERSION,
         "avg_quiz_score": avg_quiz_score,
         "completed_quizzes": len(attempts),
         "subject_progress": subject_progress,
@@ -189,6 +202,7 @@ def get_admin_analytics():
     sessions = LearningSession.query.all()
     total_sessions = len(sessions)
     platform_avg_focus = average_focus_percentage(sessions)
+    platform_avg_coverage = average_coverage_pct(sessions)
 
     completed_quizzes = QuizAttempt.query.filter(
         QuizAttempt.completed_at.isnot(None)
@@ -201,5 +215,7 @@ def get_admin_analytics():
         "total_subjects": total_subjects,
         "total_sessions": total_sessions,
         "platform_avg_focus": platform_avg_focus,
+        "avg_monitoring_coverage_pct": platform_avg_coverage,
+        "focus_metric_version": FOCUS_METRIC_VERSION,
         "completed_quizzes": completed_quizzes,
     }), 200

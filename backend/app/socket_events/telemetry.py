@@ -119,18 +119,32 @@ def init_telemetry_events():
         now_dt = datetime.utcnow()
         ml_service = MLService()
 
+        ml_feats = {}
         if data.get("image"):
-            verdict, confidence, _feats = ml_service.predict_frame_image(
+            verdict, confidence, ml_feats = ml_service.predict_frame_image(
                 data["image"], session_id=session_id
             )
         elif features:
             verdict, confidence = ml_service.predict_window_features(features)
+            ml_feats = {"face_detected": features.get("face_detected")}
         else:
             emit("session_error", {"error": "image or features required"})
             return
 
+        from app.routes.session import record_monitoring_observation
+
+        record_monitoring_observation(
+            session_id,
+            state=verdict,
+            now_dt=now_dt,
+            confidence=confidence,
+            face_detected=ml_feats.get("face_detected"),
+            ml_mode=ml_feats.get("ml_mode") or ml_service.ml_mode,
+            reason=ml_feats.get("reason"),
+        )
+
         episode, just_closed = upsert_distraction_episode(
-            session_id, verdict, confidence, now_dt
+            session_id, verdict, confidence if confidence is not None else 0.0, now_dt
         )
 
         engine = _ensure_engine(session)
@@ -142,11 +156,25 @@ def init_telemetry_events():
             is_distracted=is_distracted,
             is_quiz_context=is_quiz_context,
             wall_now=now_dt,
+            observation_state=verdict,
         )
+
+        face_out = ml_feats.get("face_detected")
+        conf_out = confidence
+        if verdict == "UNKNOWN":
+            conf_out = None
+            if face_out is not False:
+                face_out = None
 
         emit(
             "telemetry_verdict",
-            {"verdict": verdict, "confidence": confidence, "session_id": session_id},
+            {
+                "verdict": verdict,
+                "confidence": conf_out,
+                "session_id": session_id,
+                "reason": ml_feats.get("reason"),
+                "face_detected": face_out,
+            },
             room=str(session_id),
         )
 

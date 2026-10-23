@@ -108,14 +108,17 @@ def test_analytics_endpoints(client, app):
     assert res_teacher.status_code == 200
     assert res_teacher.json["total_students"] == 1
     assert res_teacher.json["total_sessions"] == 1
-    assert res_teacher.json["avg_focus_percentage"] == 50.0
+    # Legacy session without monitoring_observations / observed_v1 snapshot:
+    # do not invent or mix wall-clock focus into observed_v1 aggregates.
+    assert res_teacher.json["avg_focus_percentage"] is None
+    assert res_teacher.json.get("focus_metric_version") == "observed_v1"
 
     res_student = client.get(
         "/api/analytics/student", headers={"Authorization": f"Bearer {s_token}"}
     )
     assert res_student.status_code == 200
     assert res_student.json["total_sessions"] == 1
-    assert res_student.json["avg_focus_percentage"] == 50.0
+    assert res_student.json["avg_focus_percentage"] is None
     assert len(res_student.json["subject_progress"]) == 1
 
     res_admin = client.get(
@@ -124,4 +127,4 @@ def test_analytics_endpoints(client, app):
     assert res_admin.status_code == 200
     assert res_admin.json["total_users"] >= 3
     assert res_admin.json["total_subjects"] >= 1
-    assert res_admin.json["platform_avg_focus"] == 50.0
+    assert res_admin.json["platform_avg_focus"] is None

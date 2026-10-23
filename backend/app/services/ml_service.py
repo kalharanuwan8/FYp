@@ -9,7 +9,6 @@ from __future__ import annotations
 import base64
 import os
 import sys
-import time
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
@@ -71,8 +70,13 @@ class MLService:
         self.fusion_model = None
         self.fusion_threshold = 0.5
         self.fusion_feat_names = list(FUSION_FEATURES_DEFAULT)
-        self._pose_landmarker = None
+        # Shared task path only — each session gets its own VIDEO landmarker
+        # so temporal tracking state never crosses sessions (Phase 2A).
+        self._pose_landmarker_task_path: Optional[Path] = None
+        self._session_landmarkers: Dict[Any, Any] = {}
+        self._session_lm_ts: Dict[Any, int] = {}  # strictly increasing ms per session
         self._mp_available = False
+        self._mp_module = None
         self._torch = None
         self._Image = None
 
@@ -91,7 +95,6 @@ class MLService:
         # ~3s window at ~0.5 Hz heartbeat ≈ 2 frames; keep enough for short bursts
         self.window_size = int(os.environ.get("ML_WINDOW_FRAMES", "3"))
         self._session_bufs: Dict[Any, Dict[str, Deque]] = defaultdict(self._new_session_buf)
-        self._session_t0: Dict[Any, float] = {}
 
         self._load_torch_models()
         self._load_sklearn_models()
@@ -208,22 +211,75 @@ class MLService:
             print(f"[MLService] Warning: fusion checkpoint missing: {fusion_ckpt}")
 
     def _init_mediapipe(self):
+        """Resolve task asset; landmarker instances are created per session."""
         task_path = self._ckpt("src", "model4_engagement", "pose_landmarker_lite.task")
         try:
             import mediapipe as mp
             if not task_path.exists():
                 print(f"[MLService] Warning: MediaPipe task missing: {task_path}")
                 return
-            options = mp.tasks.vision.PoseLandmarkerOptions(
-                base_options=mp.tasks.BaseOptions(model_asset_path=str(task_path)),
-                running_mode=mp.tasks.vision.RunningMode.VIDEO,
-                min_pose_detection_confidence=0.5,
-            )
-            self._pose_landmarker = mp.tasks.vision.PoseLandmarker.create_from_options(options)
+            self._mp_module = mp
+            self._pose_landmarker_task_path = task_path
             self._mp_available = True
-            print("[MLService] MediaPipe PoseLandmarker loaded")
+            print(
+                "[MLService] MediaPipe PoseLandmarker ready "
+                "(per-session VIDEO instances; no shared tracker)"
+            )
         except Exception as e:
             print(f"[MLService] Warning: MediaPipe unavailable ({e})")
+
+    def _create_session_landmarker(self):
+        """Fresh VIDEO-mode PoseLandmarker with isolated temporal state."""
+        mp = self._mp_module
+        if mp is None or self._pose_landmarker_task_path is None:
+            return None
+        options = mp.tasks.vision.PoseLandmarkerOptions(
+            base_options=mp.tasks.BaseOptions(
+                model_asset_path=str(self._pose_landmarker_task_path)
+            ),
+            running_mode=mp.tasks.vision.RunningMode.VIDEO,
+            min_pose_detection_confidence=0.5,
+        )
+        return mp.tasks.vision.PoseLandmarker.create_from_options(options)
+
+    def _landmarker_for_session(self, session_id: Any):
+        if not self._mp_available:
+            return None
+        if session_id not in self._session_landmarkers:
+            try:
+                lm = self._create_session_landmarker()
+            except Exception as e:
+                print(f"[MLService] Failed to create session landmarker: {e}")
+                return None
+            if lm is None:
+                return None
+            self._session_landmarkers[session_id] = lm
+            self._session_lm_ts[session_id] = 0
+        return self._session_landmarkers[session_id]
+
+    def _next_landmark_timestamp_ms(self, session_id: Any) -> int:
+        """Strictly increasing timestamp for this session's landmarker only."""
+        prev = self._session_lm_ts.get(session_id, 0)
+        # Advance by at least 1 ms; prefer wall-delta from last call when available.
+        nxt = prev + max(1, int(round(1000.0 / max(self.window_size, 1))))
+        # Also allow real elapsed spacing without colliding with other sessions
+        # (each session has its own counter starting at 0).
+        wall_step = prev + 33  # ~30 fps-equivalent step as a floor when heartbeats are slow
+        nxt = max(nxt, wall_step)
+        self._session_lm_ts[session_id] = nxt
+        return nxt
+
+    def _close_session_landmarker(self, session_id: Any) -> None:
+        landmarker = self._session_landmarkers.pop(session_id, None)
+        self._session_lm_ts.pop(session_id, None)
+        if landmarker is None:
+            return
+        close = getattr(landmarker, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception as e:
+                print(f"[MLService] Landmarker close warning for session {session_id}: {e}")
 
     def _update_ml_mode(self):
         has_gaze = self.gaze_model is not None
@@ -238,8 +294,9 @@ class MLService:
             self.ml_mode = "fallback"
 
     def clear_session(self, session_id: Any):
+        """Drop frame buffers and destroy this session's MediaPipe landmarker."""
         self._session_bufs.pop(session_id, None)
-        self._session_t0.pop(session_id, None)
+        self._close_session_landmarker(session_id)
 
     # ── Detection helpers (from models/webcam_test.py) ────────────────────────
 
@@ -278,13 +335,23 @@ class MLService:
             return frame_bgr[y1:y2, x1:x2], True
         return center, False
 
-    def extract_landmarks(self, frame_rgb: np.ndarray, timestamp_ms: int) -> Optional[dict]:
-        if not self._mp_available or self._pose_landmarker is None:
+    def extract_landmarks(
+        self,
+        frame_rgb: np.ndarray,
+        session_id: Any,
+    ) -> Optional[dict]:
+        """
+        Run pose landmarks on a per-session VIDEO landmarker.
+        Temporal tracking state is isolated; timestamps never cross sessions.
+        """
+        landmarker = self._landmarker_for_session(session_id)
+        if landmarker is None or self._mp_module is None:
             return None
         try:
-            import mediapipe as mp
+            mp = self._mp_module
+            timestamp_ms = self._next_landmark_timestamp_ms(session_id)
             mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-            result = self._pose_landmarker.detect_for_video(mp_img, timestamp_ms)
+            result = landmarker.detect_for_video(mp_img, timestamp_ms)
             if not result.pose_landmarks:
                 return None
             lms = result.pose_landmarks[0]
@@ -467,11 +534,8 @@ class MLService:
                 fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
                 yaw = abs((fx + fw / 2) - (w / 2)) / (w / 2) * 45.0
 
-        if session_id not in self._session_t0:
-            self._session_t0[session_id] = time.time()
-        timestamp_ms = int((time.time() - self._session_t0[session_id]) * 1000)
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        lm = self.extract_landmarks(frame_rgb, timestamp_ms)
+        lm = self.extract_landmarks(frame_rgb, session_id)
 
         meta = {
             "face_detected": bool(face_detected or eye_crop is not None),
@@ -526,11 +590,14 @@ class MLService:
                     conf = 0.9
                     dist_prob = 1.0 if verdict == "DISTRACTED" else 0.0
                 features["distract_prob"] = round(float(dist_prob), 4)
+                features["inference_path"] = "fusion"
                 return verdict, float(conf), features
             except Exception as e:
                 print(f"[MLService] Fusion scoring error: {e}")
 
-        # Heuristic gate (same thresholds as webcam_test.py) when fusion unavailable
+        # Heuristic gate (same thresholds as webcam_test.py) when fusion unavailable.
+        # Valid heuristic results remain FOCUSED/DISTRACTED (not UNKNOWN).
+        features["inference_path"] = "heuristic"
         gaze_arr = np.array(gaze_buf, dtype=np.float32)
         pose_arr = np.array(pose_buf, dtype=np.float32)
         p_c = float(np.mean(gaze_arr[:, 0]))
@@ -542,7 +609,14 @@ class MLService:
         pitch_mean = float(np.mean(pose_arr[:, 1]))
 
         if not last_meta.get("face_detected", True):
-            return "DISTRACTED", 0.92, {**features, "reason": "no_face"}
+            # Usable decode but no face → UNKNOWN (not a valid classification).
+            return "UNKNOWN", None, {
+                **features,
+                "reason": "no_face",
+                "face_detected": False,
+                "inference_path": "unusable",
+                "confidence": None,
+            }
         if gaze_away > 0.70 or abs(yaw_mean) > 25.0 or abs(pitch_mean) > 20.0:
             return "DISTRACTED", 0.88, {
                 **features,
@@ -555,21 +629,31 @@ class MLService:
             "reason": "heuristic_gate",
         }
 
+    @staticmethod
+    def _unknown_result(reason: str, ml_mode: str, **extra) -> Tuple[str, Optional[float], dict]:
+        """Explicit unusable observation — never fabricates focus or face_detected."""
+        meta = {
+            "reason": reason,
+            "face_detected": None,
+            "ml_mode": ml_mode,
+            "inference_path": "unusable",
+            **extra,
+        }
+        return "UNKNOWN", None, meta
+
     def predict_frame_image(
         self,
         image_base64: str,
         session_id: Any = None,
-    ) -> Tuple[str, float, dict]:
+    ) -> Tuple[str, Optional[float], dict]:
         """
         Decode a base64 JPEG frame, run M1/M2/M4→M5 (or fallback), return verdict.
+
+        Verdict is FOCUSED, DISTRACTED, or UNKNOWN. Confidence is None for UNKNOWN.
         """
         frame = self._decode_frame(image_base64)
-        if frame is None:
-            return "DISTRACTED", 0.85, {
-                "reason": "no_frame_data",
-                "face_detected": False,
-                "ml_mode": self.ml_mode,
-            }
+        if frame is None or getattr(frame, "size", 0) == 0:
+            return self._unknown_result("no_frame_data", self.ml_mode)
 
         sid = session_id if session_id is not None else "_default"
         try:
@@ -588,30 +672,39 @@ class MLService:
                 pose_list = pose_list[-self.window_size :]
                 lm_list = lm_list[-self.window_size :]
 
-            # Face missing from frame → treat as distracted before fusion
+            # Decoded image, no detected face → UNKNOWN (not focused/distracted).
             if not meta.get("face_detected", False):
-                return "DISTRACTED", 0.92, {
-                    **meta,
-                    "engagement_score": 0.0,
-                    "ml_mode": self.ml_mode,
-                    "reason": "no_face",
-                }
+                return self._unknown_result(
+                    "no_face",
+                    self.ml_mode,
+                    face_detected=False,
+                )
 
             return self._score_window(gaze_list, pose_list, lm_list, meta)
         except Exception as e:
             print(f"[MLService] Frame processing error: {e}")
-            return "FOCUSED", 0.80, {"error": str(e), "face_detected": True, "ml_mode": self.ml_mode}
+            return self._unknown_result(
+                "inference_exception",
+                self.ml_mode,
+                error=str(e),
+            )
 
-    def predict_window_features(self, features_dict: dict) -> Tuple[str, float]:
+    def predict_window_features(self, features_dict: dict) -> Tuple[str, Optional[float]]:
         """
         Socket / feature-only path. Uses fusion when possible, else heuristic thresholds.
+
+        Explicit face_detected=False → UNKNOWN (no fabricated distraction confidence).
+        Other weak signals remain valid DISTRACTED classifications.
         """
         gaze_conf = float(features_dict.get("gaze_confidence", 0.85))
         engagement = float(features_dict.get("engagement_score", 0.80))
         head_yaw = abs(float(features_dict.get("head_pose_yaw", 0.0)))
         face_detected = features_dict.get("face_detected", True)
 
-        if not face_detected or gaze_conf < 0.40 or head_yaw > 25.0 or engagement < 0.35:
+        if face_detected is False:
+            return "UNKNOWN", None
+
+        if gaze_conf < 0.40 or head_yaw > 25.0 or engagement < 0.35:
             return "DISTRACTED", 0.88
 
         if self.fusion_model is not None:

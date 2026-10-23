@@ -219,10 +219,14 @@ def test_heartbeat_with_image_returns_ml_verdict(client, app):
     )
     assert res.status_code == 200
     body = res.json
-    assert body["verdict"] == "DISTRACTED"
-    assert body["ml_mode"] in ("full", "partial", "fallback")
+    # Decoded blank frame → no face → UNKNOWN (not DISTRACTED)
+    assert body["verdict"] == "UNKNOWN"
+    assert body["confidence"] is None
+    assert body["reason"] == "no_face"
     assert body["face_detected"] is False
+    assert body["ml_mode"] in ("full", "partial", "fallback")
     assert "intervention_triggered" in body
+    assert body["intervention_triggered"] is False
 
 
 def test_sustained_background_noise_triggers_one_time_notice(client, app):
@@ -365,10 +369,31 @@ def test_repeated_stop_awards_xp_only_once(client, app):
         sess.start_time = datetime.utcnow() - timedelta(minutes=10)
         db.session.commit()
 
+    # Phase 2A: XP from observed focused time only — seed focused observations.
+    with app.app_context():
+        from app.db_models import MonitoringObservation
+
+        sess = db.session.get(LearningSession, session_id)
+        t0 = sess.start_time
+        for i in range(0, 600, 2):
+            db.session.add(
+                MonitoringObservation(
+                    session_id=session_id,
+                    observed_at=t0 + timedelta(seconds=i),
+                    state="FOCUSED",
+                    confidence=0.9,
+                    face_detected=True,
+                    ml_mode="fallback",
+                )
+            )
+        db.session.commit()
+
     res1 = client.post(f"/api/session/{session_id}/stop", headers=headers)
     assert res1.status_code == 200
     xp_first = res1.json.get("xp_gained", 0)
     assert xp_first > 0
+    assert res1.json.get("focus_metric_version") == "observed_v1"
+    assert res1.json.get("focus_percentage") is not None
 
     with app.app_context():
         progress = StudentProgress.query.filter_by(

@@ -34,7 +34,7 @@ export default function SessionSummary({ summary, onClose, onContinue }) {
         <div className="flex flex-wrap items-center justify-center gap-2">
           {xp > 0 && <XPChip xp={xp} />}
           {streak != null && (
-            <span className="inline-flex items-center min-h-11 px-3 rounded-full bg-mint/20 text-sm font-semibold text-text">
+            <span className="inline-flex items-center min-h-9 px-3 rounded-2xl border border-border bg-surface text-sm font-medium text-text-muted">
               Streak: {streak} day{streak === 1 ? '' : 's'}
             </span>
           )}

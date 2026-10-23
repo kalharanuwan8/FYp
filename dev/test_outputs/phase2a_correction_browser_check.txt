@@ -1,0 +1,26 @@
+Phase 2A correction — browser verification
+Date: 2026-10-23
+Fixture: backend/seed_phase2a_demo.py
+  Login: demo.phase2a@luma.com / DemoPhase2A!
+  Course: Phase 2A Demo Course (Grade 1)
+  Video: /uploads/phase2a_demo.mp4 (local Flask upload; not learner data)
+
+Method: Cursor IDE browser + mocked getUserMedia (automation has no real camera).
+
+Results:
+1. Ambient cue leaves playback running — PASS
+   - Demo panel T1 → ambient overlay ("I'm here"), pauseCalls=0, video still playing (t≈4.4s).
+
+2. Pacing pause stops playback — PASS
+   - After dismissing ambient (I'm here), Demo panel T2 → pacing overlay present,
+     pauseCalls≥1, video.paused=true.
+
+3. UNKNOWN displays appropriately — PASS
+   - Demo panel: Verdict=UNKNOWN, Confidence=—, Model=full (blank synthetic frames / no face).
+
+4. Session stop releases device capture — PASS
+   - Complete session → player closed; no live MediaStream tracks remain on video elements.
+
+Notes:
+- External CDN sample MP4 was MEDIA_ERR_SRC_NOT_SUPPORTED in this browser; fixture uses local /uploads/phase2a_demo.mp4.
+- Camera permission unavailable in automation; canvas captureStream mock used for monitored session boot.

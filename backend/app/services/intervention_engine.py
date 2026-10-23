@@ -93,10 +93,18 @@ class InterventionEngine:
             self.last_outcome = "reengaged"
 
     def reset_on_focus(self):
-        """Full de-escalate when verdict flips to focused."""
+        """Full de-escalate when verdict flips to focused (confirmed re-engagement)."""
         self.last_tier = None
         self.last_outcome = None
         self._pending_intervention = False
+
+    def hold_on_unknown(self):
+        """
+        UNKNOWN observations: do not escalate visual distraction and do not
+        fabricate a student outcome. Pending interventions and cooldown clocks
+        stay as-is until FOCUSED (reset) or an explicit record_outcome.
+        """
+        return None
 
     def force_intervention(
         self,
@@ -127,10 +135,24 @@ class InterventionEngine:
         is_quiz_context: bool = False,
         now: Optional[float] = None,
         wall_now: Optional[datetime] = None,
+        observation_state: Optional[str] = None,
     ) -> Optional[TriggeredIntervention]:
-        ts = now if now is not None else self._now()
+        """
+        Decide visual intervention from the current observation.
 
-        if not is_distracted or distraction_event is None:
+        Pass ``observation_state`` explicitly. Do not rely on
+        ``is_distracted=False`` alone for UNKNOWN — that path historically
+        invoked focus-reset and would fabricate re-engagement.
+        """
+        ts = now if now is not None else self._now()
+        state = (observation_state or "").upper().strip()
+        if not state:
+            state = "DISTRACTED" if is_distracted else "FOCUSED"
+
+        if state == "UNKNOWN":
+            return self.hold_on_unknown()
+
+        if state != "DISTRACTED" or not is_distracted or distraction_event is None:
             self.reset_on_focus()
             return None
 
@@ -226,6 +248,7 @@ class InterventionEngine:
             is_distracted=is_distracted,
             is_quiz_context=False,
             now=timestamp,
+            observation_state="DISTRACTED" if is_distracted else "FOCUSED",
         )
 
     def _resolve_enabled_tier(self, tier: int) -> Optional[int]:

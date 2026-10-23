@@ -38,8 +38,8 @@ class HeartbeatSchema(BaseModel):
         if not v:
             return None
         v_upper = v.upper().strip()
-        if v_upper not in {"DISTRACTED", "FOCUSED"}:
-            raise ValueError("verdict must be either 'DISTRACTED' or 'FOCUSED'")
+        if v_upper not in {"DISTRACTED", "FOCUSED", "UNKNOWN"}:
+            raise ValueError("verdict must be one of 'DISTRACTED', 'FOCUSED', or 'UNKNOWN'")
         return v_upper
 
 class InterventionResponseSchema(BaseModel):

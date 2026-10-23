@@ -14,7 +14,7 @@ from app.db_models.course import (
     Enrollment,
 )
 from app.db_models.quiz import Quiz, QuizQuestion, QuizQuestionOption, QuizAttempt, QuizAnswer
-from app.db_models.session import LearningSession
+from app.db_models.session import LearningSession, MonitoringObservation
 from app.db_models.analytics import (
     DistractionEvent,
     InterventionLog,
@@ -43,6 +43,7 @@ __all__ = [
     "QuizAttempt",
     "QuizAnswer",
     "LearningSession",
+    "MonitoringObservation",
     "DistractionEvent",
     "InterventionLog",
     "DSMSummary",

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -13,6 +13,7 @@ from app.db_models import (
     ModuleMilestoneItem,
     Enrollment,
     LearningSession,
+    MonitoringObservation,
     DistractionEvent,
     InterventionLog,
     GuardianConsent,
@@ -34,7 +35,11 @@ from app.services.intervention_engine import (
 )
 from app.services.ml_service import MLService
 from app.services.noise_monitor import NoiseMonitor
-from app.services.focus_metrics import compute_session_focus_percentage
+from app.services.focus_metrics import (
+    apply_coverage_to_session,
+    compute_session_coverage,
+)
+from app.services.observation_coverage import FOCUS_METRIC_VERSION, T_SUPPORT
 from app.utils.decorators import role_required
 
 session_bp = Blueprint("session", __name__)
@@ -48,6 +53,9 @@ SESSION_NOISE_MONITORS = {}
 # Postgres enum monitoring_verdict is lowercase; API/ML stay UPPERCASE.
 DB_DISTRACTED = "distracted"
 DB_FOCUSED = "focused"
+API_UNKNOWN = "UNKNOWN"
+API_FOCUSED = "FOCUSED"
+API_DISTRACTED = "DISTRACTED"
 
 
 def format_validation_errors(err: ValidationError):
@@ -74,12 +82,15 @@ def _get_enabled_tiers(subject_id: int):
     return cfg.enabled_tiers()
 
 
-def claim_session_xp_award(session_id: int) -> bool:
+def claim_session_xp_award(session_id: int, *, commit: bool = True) -> bool:
     """
     Atomically claim the one-time session XP award.
 
     Returns True only for the caller that flipped xp_awarded from False→True.
     Safe under concurrent stop requests (UPDATE ... WHERE xp_awarded = false).
+
+    When commit=False, the UPDATE stays in the current transaction so XP reward
+    updates can share the same commit/rollback (Phase 2A).
     """
     result = db.session.execute(
         update(LearningSession)
@@ -89,8 +100,58 @@ def claim_session_xp_award(session_id: int) -> bool:
         )
         .values(xp_awarded=True)
     )
-    db.session.commit()
+    if commit:
+        db.session.commit()
     return int(result.rowcount or 0) == 1
+
+
+def award_claimed_session_xp(
+    *,
+    session_id: int,
+    student_id: int,
+    observed_focused_seconds: float,
+    max_retries: int = 1,
+) -> dict:
+    """
+    Claim xp_awarded and apply reward updates in one DB transaction.
+    On reward failure, roll back the claim so a later stop can retry.
+    """
+    from app.services.gamification_service import award_session_xp, get_progress_payload
+
+    empty = {
+        "xp_gained": 0,
+        "focus_minutes": 0,
+        "progress": None,
+        "new_badges": [],
+    }
+    attempt = 0
+    while attempt <= max_retries:
+        attempt += 1
+        try:
+            claimed = claim_session_xp_award(session_id, commit=False)
+            if not claimed:
+                db.session.rollback()
+                try:
+                    empty["progress"] = get_progress_payload(student_id)
+                except Exception:
+                    pass
+                return empty
+            gamification = award_session_xp(
+                student_id,
+                observed_focused_seconds=observed_focused_seconds,
+                commit=False,
+            )
+            db.session.commit()
+            return gamification
+        except Exception:
+            db.session.rollback()
+            if attempt > max_retries:
+                try:
+                    empty["progress"] = get_progress_payload(student_id)
+                except Exception:
+                    pass
+                return empty
+    return empty
 
 
 def _build_engine(subject_id: int) -> InterventionEngine:
@@ -109,21 +170,59 @@ def get_open_distraction_event(session_id: int):
     )
 
 
+def _prior_observation(session_id: int, before_dt: datetime):
+    """Most recent MonitoringObservation strictly before ``before_dt``."""
+    return (
+        MonitoringObservation.query.filter_by(session_id=session_id)
+        .filter(MonitoringObservation.observed_at < before_dt)
+        .order_by(MonitoringObservation.observed_at.desc())
+        .first()
+    )
+
+
 def upsert_distraction_episode(session_id: int, verdict: str, confidence: float, now_dt: datetime):
     """
     Open-episode semantics:
       DISTRACTED + no open → create
-      DISTRACTED + open → keep open
-      FOCUSED + open → close with ended_at
+      DISTRACTED + open, gap ≤ T_SUPPORT from prior valid DISTRACTED → keep open
+      DISTRACTED + open, gap > T_SUPPORT → close at prior+T_SUPPORT, open new
+        (unknown gap must not accumulate toward visual escalation)
+      FOCUSED + open → close with ended_at (re-engagement)
+      UNKNOWN + open → close at UNKNOWN time (interrupted; not re-engagement)
+      UNKNOWN + no open → no-op
     Returns (open_or_closed_event, just_closed: bool)
 
     `verdict` is the API/ML uppercase value; DB rows use lowercase enum values.
     """
     open_event = get_open_distraction_event(session_id)
+    verdict_u = (verdict or "").upper().strip()
 
-    if verdict == "DISTRACTED":
+    if verdict_u == API_DISTRACTED:
         if open_event:
-            open_event.confidence = confidence if confidence is not None else open_event.confidence
+            prior = _prior_observation(session_id, now_dt)
+            prior_at = None
+            if prior is not None and (prior.state or "").upper() == API_DISTRACTED:
+                prior_at = prior.observed_at
+            elif open_event.started_at is not None:
+                prior_at = open_event.started_at
+            if prior_at is not None:
+                gap = (now_dt - prior_at).total_seconds()
+                if gap > T_SUPPORT:
+                    # Break continuity across the unknown remainder after support.
+                    open_event.ended_at = prior_at + timedelta(seconds=T_SUPPORT)
+                    db.session.commit()
+                    event = DistractionEvent(
+                        session_id=session_id,
+                        verdict=DB_DISTRACTED,
+                        confidence=confidence if confidence is not None else 0.0,
+                        started_at=now_dt,
+                    )
+                    db.session.add(event)
+                    db.session.commit()
+                    return event, False
+            open_event.confidence = (
+                confidence if confidence is not None else open_event.confidence
+            )
             db.session.commit()
             return open_event, False
         event = DistractionEvent(
@@ -136,11 +235,50 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
         db.session.commit()
         return event, False
 
-    if open_event:
+    if verdict_u == API_UNKNOWN:
+        if open_event:
+            open_event.ended_at = now_dt
+            db.session.commit()
+            return open_event, True
+        return None, False
+
+    if verdict_u == API_FOCUSED and open_event:
         open_event.ended_at = now_dt
         db.session.commit()
         return open_event, True
     return None, False
+
+
+def record_monitoring_observation(
+    session_id: int,
+    *,
+    state: str,
+    now_dt: datetime,
+    confidence,
+    face_detected,
+    ml_mode,
+    reason,
+) -> MonitoringObservation:
+    """Persist one heartbeat observation for coverage accounting."""
+    state_u = (state or API_UNKNOWN).upper().strip()
+    conf = None
+    if state_u in (API_FOCUSED, API_DISTRACTED) and confidence is not None:
+        conf = float(confidence)
+    face = face_detected if state_u != API_UNKNOWN else (
+        face_detected if face_detected is False else None
+    )
+    row = MonitoringObservation(
+        session_id=session_id,
+        observed_at=now_dt,
+        state=state_u,
+        confidence=conf,
+        face_detected=face,
+        ml_mode=ml_mode,
+        reason=reason,
+    )
+    db.session.add(row)
+    db.session.commit()
+    return row
 
 
 def _resolve_module_and_content_ids(session: LearningSession):
@@ -305,6 +443,7 @@ def start_session():
 
     active_sessions = LearningSession.query.filter_by(student_id=student.id, end_time=None).all()
     now_dt = datetime.utcnow()
+    ml_service = MLService()
     for s in active_sessions:
         s.end_time = now_dt
         open_ev = get_open_distraction_event(s.id)
@@ -313,6 +452,8 @@ def start_session():
         if s.id in SESSION_ENGINES:
             del SESSION_ENGINES[s.id]
         SESSION_NOISE_MONITORS.pop(s.id, None)
+        # Release per-session MediaPipe landmarker when auto-closing prior session
+        ml_service.clear_session(s.id)
 
     new_session = LearningSession(
         student_id=student.id,
@@ -381,14 +522,29 @@ def send_heartbeat(session_id):
         ml_mode = ml_features.get("ml_mode") or ml_service.ml_mode
     elif data.features:
         verdict, confidence = ml_service.predict_window_features(data.features)
+        ml_features = {"face_detected": data.features.get("face_detected")}
+        ml_mode = ml_service.ml_mode
     elif current_app.config.get("TESTING") and data.verdict:
         # Unit tests exercise the intervention engine without ML frames
         verdict = data.verdict
-        confidence = data.confidence if data.confidence is not None else 1.0
+        confidence = data.confidence if data.confidence is not None else (
+            None if data.verdict == API_UNKNOWN else 1.0
+        )
+        ml_features = {"reason": "test_injected"}
     else:
         return jsonify({
             "error": "Webcam frame (image) or features required for heartbeat telemetry"
         }), 400
+
+    record_monitoring_observation(
+        session.id,
+        state=verdict,
+        now_dt=now_dt,
+        confidence=confidence,
+        face_detected=ml_features.get("face_detected") if ml_features else None,
+        ml_mode=ml_mode,
+        reason=(ml_features or {}).get("reason"),
+    )
 
     episode, just_closed = upsert_distraction_episode(
         session.id, verdict, confidence if confidence is not None else 0.0, now_dt
@@ -407,7 +563,8 @@ def send_heartbeat(session_id):
 
         engine = SESSION_ENGINES[session.id]
         noise_monitor = SESSION_NOISE_MONITORS[session.id]
-        is_distracted = verdict == "DISTRACTED"
+        # Pass observation_state explicitly so UNKNOWN does not invoke focus-reset.
+        is_distracted = verdict == API_DISTRACTED
         open_episode = episode if is_distracted and not just_closed else None
 
         triggered = engine.decide_intervention(
@@ -415,6 +572,7 @@ def send_heartbeat(session_id):
             is_distracted=is_distracted,
             is_quiz_context=bool(data.is_quiz_context),
             wall_now=now_dt,
+            observation_state=verdict,
         )
         triggered_event_id = open_episode.id if open_episode else None
 
@@ -446,20 +604,32 @@ def send_heartbeat(session_id):
                 # so sustained noise later in the session never re-fires.
                 noise_monitor.mark_notice_shown()
 
+    face_out = ml_features.get("face_detected") if ml_features else None
+    reason_out = (ml_features or {}).get("reason")
+    if verdict == API_UNKNOWN:
+        # no_face keeps face_detected=false; other UNKNOWN reasons stay null.
+        if face_out is not False:
+            face_out = None
+        gaze_label = None
+        engagement_score = None
+        confidence = None
+
     return jsonify({
         "status": "recorded",
         "session_id": session.id,
         "verdict": verdict,
         "confidence": confidence,
         "ml_mode": ml_mode,
+        "reason": reason_out,
         "gaze_label": gaze_label,
         "engagement_score": engagement_score,
-        "face_detected": ml_features.get("face_detected") if ml_features else None,
+        "face_detected": face_out,
         "noise_dbfs": data.noise_dbfs,
         "noise_baseline_dbfs": noise_monitor.baseline_dbfs if noise_monitor else None,
         "noise_triggered": noise_triggered,
         "intervention_triggered": intervention_data is not None,
         "intervention": intervention_data,
+        "focus_metric_version": FOCUS_METRIC_VERSION,
     }), 200
 
 
@@ -630,32 +800,19 @@ def stop_session(session_id):
         DistractionEvent.ended_at.isnot(None),
     ).count()
     total_interventions = InterventionLog.query.filter_by(session_id=session.id).count()
-    focus_percentage = compute_session_focus_percentage(session, now_dt=session.end_time)
 
-    gamification = {}
-    # Concurrent-safe: only the request that claims xp_awarded awards XP.
-    should_award = claim_session_xp_award(session.id)
-    if should_award:
-        try:
-            from app.services.gamification_service import award_session_xp
-            gamification = award_session_xp(
-                student.id,
-                duration_seconds=duration_seconds,
-                focus_percentage=focus_percentage,
-            )
-        except Exception:
-            gamification = {}
-    else:
-        try:
-            from app.services.gamification_service import get_progress_payload
-            gamification = {
-                "xp_gained": 0,
-                "focus_minutes": 0,
-                "progress": get_progress_payload(student.id),
-                "new_badges": [],
-            }
-        except Exception:
-            gamification = {"xp_gained": 0, "focus_minutes": 0}
+    coverage = compute_session_coverage(session, now_dt=session.end_time)
+    apply_coverage_to_session(session, coverage)
+    db.session.commit()
+    db.session.refresh(session)
+
+    # Concurrent-safe claim + reward in one transaction (Phase 2A).
+    # Historical ended sessions sealed with xp_awarded=True at migration time.
+    gamification = award_claimed_session_xp(
+        session_id=session.id,
+        student_id=student.id,
+        observed_focused_seconds=coverage.observed_focused_seconds,
+    )
 
     return jsonify({
         "message": "Learning session completed",
@@ -666,7 +823,12 @@ def stop_session(session_id):
         "total_events": total_events,
         "focused_events": focused_events,
         "distraction_events": distraction_events,
-        "focus_percentage": focus_percentage,
+        "focus_percentage": coverage.focus_percentage,
+        "focus_metric_version": FOCUS_METRIC_VERSION,
+        "observed_focused_seconds": round(coverage.observed_focused_seconds, 3),
+        "observed_distracted_seconds": round(coverage.observed_distracted_seconds, 3),
+        "unknown_seconds": round(coverage.unknown_seconds, 3),
+        "monitoring_coverage_pct": round(coverage.monitoring_coverage_pct, 1),
         "total_interventions": total_interventions,
         "xp_gained": gamification.get("xp_gained", 0),
         "focus_minutes": gamification.get("focus_minutes", 0),

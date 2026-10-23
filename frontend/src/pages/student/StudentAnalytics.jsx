@@ -91,10 +91,25 @@ export default function StudentAnalytics() {
         <span className="text-sm text-text-muted">{totalMinutes} focused minutes overall</span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <Stat label="Study time (minutes)" value={data.total_study_minutes ?? 0} />
         <Stat label="Learning sessions" value={data.total_sessions ?? 0} />
-        <Stat label="Average focus" value={`${Math.round(data.avg_focus_percentage || 0)}%`} />
+        <Stat
+          label="Average focus"
+          value={
+            data.avg_focus_percentage == null
+              ? '—'
+              : `${Math.round(data.avg_focus_percentage)}%`
+          }
+        />
+        <Stat
+          label="Monitoring coverage"
+          value={
+            data.avg_monitoring_coverage_pct == null
+              ? '—'
+              : `${Math.round(data.avg_monitoring_coverage_pct)}%`
+          }
+        />
         <Stat
           label="Quizzes finished"
           value={data.completed_quizzes ?? 0}
@@ -140,7 +155,12 @@ export default function StudentAnalytics() {
                   <span className="font-semibold text-text">{s.title}</span>
                   <span className="text-text-muted">
                     {s.sessions_count} session{s.sessions_count === 1 ? '' : 's'} ·{' '}
-                    {Math.round(s.avg_focus_percentage || 0)}% average focus
+                    {s.avg_focus_percentage == null
+                      ? 'focus unavailable'
+                      : `${Math.round(s.avg_focus_percentage)}% average focus`}
+                    {s.avg_monitoring_coverage_pct != null
+                      ? ` · ${Math.round(s.avg_monitoring_coverage_pct)}% coverage`
+                      : ''}
                   </span>
                 </li>
               ))}

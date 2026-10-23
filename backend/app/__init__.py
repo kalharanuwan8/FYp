@@ -135,13 +135,100 @@ def create_app(env=None):
                 session_cols = {c["name"] for c in insp.get_columns("sessions")}
                 if "xp_awarded" not in session_cols:
                     bool_false = "FALSE" if dialect == "postgresql" else "0"
+                    bool_true = "TRUE" if dialect == "postgresql" else "1"
                     db.session.execute(
                         text(
                             "ALTER TABLE sessions ADD COLUMN xp_awarded "
                             f"BOOLEAN DEFAULT {bool_false} NOT NULL"
                         )
                     )
+                    # Seal already-ended sessions so they are not eligible for a
+                    # second XP award. Prior per-session award evidence was not
+                    # stored; we cannot prove which ended sessions already paid
+                    # XP — conservative assumption: ended ⇒ claimed.
+                    db.session.execute(
+                        text(
+                            "UPDATE sessions SET xp_awarded = "
+                            f"{bool_true} WHERE ended_at IS NOT NULL"
+                        )
+                    )
                     db.session.commit()
+
+                # Phase 2A coverage columns (observed_v1). Do not backfill
+                # invented coverage for historical rows.
+                session_cols = {c["name"] for c in insp.get_columns("sessions")}
+                coverage_cols = {
+                    "focus_metric_version": "VARCHAR(32)",
+                    "observed_focused_seconds": "FLOAT",
+                    "observed_distracted_seconds": "FLOAT",
+                    "unknown_seconds": "FLOAT",
+                    "monitoring_coverage_pct": "FLOAT",
+                    "focus_percentage": "FLOAT",
+                }
+                for col_name, col_type in coverage_cols.items():
+                    if col_name not in session_cols:
+                        db.session.execute(
+                            text(
+                                f"ALTER TABLE sessions ADD COLUMN {col_name} {col_type}"
+                            )
+                        )
+                db.session.commit()
+
+                # Phase 2A seal for DBs that already had xp_awarded from Phase 1
+                # without sealing ended sessions. Only touch rows that never
+                # received an observed_v1 snapshot (legacy).
+                session_cols = {c["name"] for c in insp.get_columns("sessions")}
+                if "xp_awarded" in session_cols and "focus_metric_version" in session_cols:
+                    bool_true = "TRUE" if dialect == "postgresql" else "1"
+                    unclaimed = (
+                        "xp_awarded IS FALSE"
+                        if dialect == "postgresql"
+                        else "xp_awarded = 0"
+                    )
+                    # Seal only legacy (no observed_v1) ended sessions.
+                    db.session.execute(
+                        text(
+                            "UPDATE sessions SET xp_awarded = "
+                            f"{bool_true} WHERE ended_at IS NOT NULL "
+                            f"AND {unclaimed} AND focus_metric_version IS NULL"
+                        )
+                    )
+                    db.session.commit()
+
+            if "monitoring_observations" not in tables:
+                db.session.execute(
+                    text(
+                        """
+                        CREATE TABLE monitoring_observations (
+                            id INTEGER PRIMARY KEY,
+                            session_id INTEGER NOT NULL,
+                            observed_at DATETIME NOT NULL,
+                            state VARCHAR(16) NOT NULL,
+                            confidence FLOAT,
+                            face_detected BOOLEAN,
+                            ml_mode VARCHAR(32),
+                            reason VARCHAR(64),
+                            created_at DATETIME NOT NULL,
+                            FOREIGN KEY(session_id) REFERENCES sessions (id)
+                        )
+                        """
+                        if dialect != "postgresql"
+                        else """
+                        CREATE TABLE IF NOT EXISTS monitoring_observations (
+                            id SERIAL PRIMARY KEY,
+                            session_id INTEGER NOT NULL REFERENCES sessions(id),
+                            observed_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                            state VARCHAR(16) NOT NULL,
+                            confidence DOUBLE PRECISION,
+                            face_detected BOOLEAN,
+                            ml_mode VARCHAR(32),
+                            reason VARCHAR(64),
+                            created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                        )
+                        """
+                    )
+                )
+                db.session.commit()
 
             # sessions.module_content_id historically FKd to module_contents, but the
             # app stores Module.id there. Retarget the Postgres FK to modules(id).

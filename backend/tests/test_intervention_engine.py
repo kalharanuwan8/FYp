@@ -165,10 +165,38 @@ def test_get_enabled_tiers_preserves_empty_config(app):
 def test_focus_resets_escalation():
     engine = InterventionEngine(cooldown_seconds=0.0)
     engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=100.0
+        distraction_event=_episode(8),
+        is_distracted=True,
+        observation_state="DISTRACTED",
+        now=100.0,
     )
     engine.record_outcome("ignored")
     assert engine.decide_intervention(
-        distraction_event=None, is_distracted=False, now=101.0
+        distraction_event=None,
+        is_distracted=False,
+        observation_state="FOCUSED",
+        now=101.0,
     ) is None
     assert engine.last_tier is None
+
+
+def test_unknown_holds_without_focus_reset():
+    engine = InterventionEngine(cooldown_seconds=0.0)
+    engine.decide_intervention(
+        distraction_event=_episode(8),
+        is_distracted=True,
+        observation_state="DISTRACTED",
+        now=100.0,
+    )
+    assert engine._pending_intervention is True
+    assert (
+        engine.decide_intervention(
+            distraction_event=None,
+            is_distracted=False,
+            observation_state="UNKNOWN",
+            now=101.0,
+        )
+        is None
+    )
+    assert engine._pending_intervention is True
+    assert engine.last_tier is not None

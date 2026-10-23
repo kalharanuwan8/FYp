@@ -1,10 +1,20 @@
-
 /**
- * Calm focus indicator — green when on track, soft amber when wandering.
- * No "distracted", confidence, or model labels.
+ * Calm focus indicator.
+ * - FOCUSED → on track (teal)
+ * - DISTRACTED → quiet wander (amber)
+ * - UNKNOWN / missing → neutral (not "on track", not alarming distracted)
+ * No continuous animation or fabricated confidence.
  */
-export default function FocusBuddy({ onTrack = true, className = '' }) {
-  const label = onTrack ? 'Focus buddy: on track' : "Focus buddy: let's get back on track";
+export default function FocusBuddy({ onTrack = true, unknown = false, className = '' }) {
+  let label = "Focus buddy: let's get back on track";
+  let ringClass = 'buddy-ring-wander';
+  if (unknown) {
+    label = 'Focus buddy: signal unclear';
+    ringClass = 'buddy-ring-unknown';
+  } else if (onTrack) {
+    label = 'Focus buddy: on track';
+    ringClass = 'buddy-ring-good';
+  }
 
   return (
     <div
@@ -15,12 +25,8 @@ export default function FocusBuddy({ onTrack = true, className = '' }) {
       title={label}
     >
       <span
-        className={`w-3.5 h-3.5 rounded-full ${
-          onTrack ? 'buddy-ring-good' : 'buddy-ring-wander'
-        }`}
-        style={{
-          animation: 'buddy-breathe 2.8s ease-in-out infinite',
-        }}
+        className={`w-3 h-3 rounded-full border border-border ${ringClass}`}
+        aria-hidden="true"
       />
       <span className="text-xs font-semibold text-text-muted hidden sm:inline">
         Focus buddy

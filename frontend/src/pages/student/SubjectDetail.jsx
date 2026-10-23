@@ -249,7 +249,9 @@ export default function SubjectDetail() {
   };
 
   const accent = accentForId(id);
-  const onTrack = !lastVerdict || String(lastVerdict).toUpperCase() === 'FOCUSED';
+  const verdictU = String(lastVerdict || '').toUpperCase();
+  const onTrack = !lastVerdict || verdictU === 'FOCUSED';
+  const buddyUnknown = verdictU === 'UNKNOWN';
   const formatTimer = (s) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
@@ -299,15 +301,15 @@ export default function SubjectDetail() {
   if (activeSession && sessionModule) {
     return (
       <div
-        className="min-h-screen flex flex-col"
+        className="min-h-screen flex flex-col learning-shell bg-bg"
         style={{
-          boxShadow: `inset 0 0 0 4px ${accent.color}`,
+          boxShadow: `inset 4px 0 0 0 ${accent.color}`,
         }}
       >
         <div
           className={
             showCam
-              ? 'fixed bottom-4 right-4 z-40 shadow-lift rounded-2xl overflow-hidden border border-border'
+              ? 'fixed bottom-4 right-4 z-40 shadow-soft rounded-2xl overflow-hidden border border-border bg-learning'
               : 'fixed w-40 h-28 opacity-0 pointer-events-none -z-10 left-0 top-0 overflow-hidden'
           }
           aria-hidden={!showCam}
@@ -318,6 +320,11 @@ export default function SubjectDetail() {
             cameraActive={cameraActive}
             compact
           />
+          {showCam && (
+            <p className="px-2 pb-2 text-[10px] text-text-muted max-w-[11rem]">
+              Hiding preview does not stop monitoring.
+            </p>
+          )}
         </div>
 
         <FocusInterventionOverlay
@@ -332,22 +339,22 @@ export default function SubjectDetail() {
           onTriggerTier={(t) => triggerManualIntervention(t, false)}
         />
 
-        <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-4 border-b border-border bg-surface/90">
+        <header className="focus-session-chrome flex items-center justify-between gap-3 px-4 md:px-8 py-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-text-muted">Focus session</p>
             <h1 className="font-display font-bold text-text truncate">
               {sessionStep?.title || sessionModule.title}
             </h1>
           </div>
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <FocusBuddy onTrack={onTrack} />
-            <span className="font-display font-bold text-text tabular-nums min-h-11 flex items-center">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
+            <FocusBuddy onTrack={onTrack} unknown={buddyUnknown} />
+            <span className="font-display font-bold text-text tabular-nums min-h-11 flex items-center text-sm">
               {formatTimer(elapsedSec)}
             </span>
             <button
               type="button"
               onClick={handleNeedBreak}
-              className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-2xl bg-peach/20 text-text text-sm font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-2xl border border-border bg-learning text-text text-sm font-semibold cursor-pointer"
             >
               <Coffee className="w-4 h-4" aria-hidden="true" />
               I need a break
@@ -358,10 +365,10 @@ export default function SubjectDetail() {
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center p-6 md:p-10 max-w-2xl mx-auto w-full space-y-6">
-          <Card className="w-full p-6 md:p-8 space-y-4 text-center">
+        <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-10 max-w-2xl mx-auto w-full space-y-6">
+          <div className="learning-panel w-full p-6 md:p-8 space-y-4 text-center">
             <p className="text-sm text-text-muted">
-              Stay with this step. Your focus buddy is quietly cheering you on.
+              Stay with this step. Your focus buddy is quietly nearby.
             </p>
             <h2 className="font-display text-2xl font-bold text-text">
               {sessionModule.title}
@@ -379,19 +386,21 @@ export default function SubjectDetail() {
                       className="w-full flex items-center gap-3 min-h-12 px-4 rounded-2xl border border-border bg-bg hover:border-primary text-left cursor-pointer"
                     >
                       <span
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-on-primary"
                         style={{ background: accent.color }}
+                        aria-hidden="true"
                       >
                         {contentIcon(item.content_type)}
                       </span>
                       <span className="font-medium text-text flex-1">{item.title}</span>
+                      <span className="text-xs text-text-muted">{contentTypeLabel(item.content_type)}</span>
                       <Play className="w-4 h-4 text-text-muted" aria-hidden="true" />
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-          </Card>
+          </div>
 
           <div className="flex items-center gap-3 text-sm text-text-muted">
             <button

@@ -11,6 +11,7 @@ import {
   VolumeX,
   Eye,
   EyeOff,
+  Coffee,
 } from 'lucide-react';
 import sessionService from '../../services/sessionService';
 import FocusInterventionOverlay from './FocusInterventionOverlay';
@@ -194,19 +195,33 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     }
   };
 
+  const handleNeedBreak = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+    setActiveIntervention({
+      intervention_id: null,
+      tier: 4,
+      intervention_type: 'suggest_break',
+      message: 'Take a moment — stretch or breathe.',
+      payload: { break_seconds: 60 },
+    });
+  };
+
   const displayError = bootError || monitorError;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-bg/85 backdrop-blur-md transition-all font-sans">
-      <div className="bg-surface border border-border rounded-3xl shadow-lift max-w-5xl w-full overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-bg font-sans">
+      <div className="learning-panel max-w-5xl w-full overflow-hidden flex flex-col max-h-[92vh] bg-learning">
 
-        <div className="p-4 md:px-6 bg-surface border-b border-border flex items-center justify-between gap-4">
+        <div className="focus-session-chrome p-4 md:px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 bg-primary/15 text-primary rounded-xl flex items-center justify-center border border-primary/30 shrink-0">
+            <div className="w-10 h-10 bg-primary-soft text-primary rounded-xl flex items-center justify-center border border-border shrink-0">
               <Video className="w-5 h-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] font-bold text-primary uppercase tracking-widest block truncate">
+              <span className="text-xs font-semibold text-text-muted block truncate">
                 {moduleTitle || 'Video learning session'}
               </span>
               <h2 className="text-sm md:text-base font-display font-bold text-text truncate">
@@ -215,11 +230,12 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             {activeSession && (
               <FocusBuddy
                 onTrack={!lastVerdict || String(lastVerdict).toUpperCase() === 'FOCUSED'}
-                className="bg-bg px-3 rounded-full"
+                unknown={String(lastVerdict || '').toUpperCase() === 'UNKNOWN'}
+                className="px-2"
               />
             )}
             <button
@@ -228,7 +244,7 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
                 if (activeSession) await handleStopSession();
                 onClose();
               }}
-              className="min-h-11 min-w-11 inline-flex items-center justify-center text-text-muted hover:text-text bg-bg hover:bg-surface rounded-xl transition-all cursor-pointer"
+              className="min-h-11 min-w-11 inline-flex items-center justify-center text-text-muted hover:text-text bg-bg hover:bg-surface-raised rounded-xl border border-border cursor-pointer"
               aria-label="Close player and end session"
             >
               <X className="w-5 h-5" />
@@ -258,7 +274,7 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
             <div
               className={
                 showCameraPreview
-                  ? 'absolute top-3 right-3 md:top-4 md:right-4 z-20 bg-surface/95 border border-border rounded-2xl p-2 shadow-lift flex items-center gap-3 backdrop-blur-md max-w-[calc(100%-1.5rem)]'
+                  ? 'absolute top-3 right-3 md:top-4 md:right-4 z-20 bg-surface border border-border rounded-2xl p-2 shadow-lift flex items-center gap-3 max-w-[calc(100%-1.5rem)]'
                   : 'absolute w-40 h-28 opacity-0 pointer-events-none -z-10 left-0 top-0 overflow-hidden'
               }
               aria-hidden={!showCameraPreview}
@@ -341,56 +357,78 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
         </div>
 
         {!sessionSummary && activeSession && (
-          <div className="p-4 md:px-6 bg-surface border-t border-border space-y-3 text-text text-xs">
+          <div className="p-4 md:px-6 focus-session-chrome space-y-3 text-text text-xs">
             {triggerError && (
               <p className="text-[11px] text-warning font-medium" role="alert">{triggerError}</p>
             )}
             <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleTogglePlay}
-                aria-label={isPlaying ? 'Pause lesson' : 'Play lesson'}
-                className="px-3 min-h-11 bg-primary hover:bg-primary-hover text-on-primary rounded-xl font-bold transition-all flex items-center gap-2 cursor-pointer shadow-soft"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4 fill-current" aria-hidden="true" />}
-                <span>{isPlaying ? 'Pause' : 'Play'}</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleTogglePlay}
+                  aria-label={isPlaying ? 'Pause lesson' : 'Play lesson'}
+                  className="px-3 min-h-11 bg-primary text-on-primary rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-soft"
+                >
+                  {isPlaying ? (
+                    <Pause className="w-4 h-4" aria-hidden="true" />
+                  ) : (
+                    <Play className="w-4 h-4 fill-current" aria-hidden="true" />
+                  )}
+                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                aria-pressed={isMuted}
-                aria-label={isMuted ? 'Unmute lesson' : 'Mute lesson'}
-                className="min-h-11 min-w-11 inline-flex items-center justify-center bg-bg hover:bg-surface text-text rounded-xl transition-all cursor-pointer border border-border"
-              >
-                {isMuted ? <VolumeX className="w-4 h-4" aria-hidden="true" /> : <Volume2 className="w-4 h-4" aria-hidden="true" />}
-              </button>
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  aria-pressed={isMuted}
+                  aria-label={isMuted ? 'Unmute lesson' : 'Mute lesson'}
+                  className="min-h-11 min-w-11 inline-flex items-center justify-center bg-bg text-text rounded-xl cursor-pointer border border-border"
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-4 h-4" aria-hidden="true" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" aria-hidden="true" />
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => updatePreferences({ showCameraPreview: !showCameraPreview })}
-                aria-pressed={showCameraPreview}
-                className="min-h-11 inline-flex items-center gap-1.5 px-2 font-semibold text-text-muted hover:text-text cursor-pointer"
-              >
-                {showCameraPreview ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
-                <span className="hidden sm:inline">{showCameraPreview ? 'Hide camera preview' : 'Show camera preview'}</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => updatePreferences({ showCameraPreview: !showCameraPreview })}
+                  aria-pressed={showCameraPreview}
+                  className="min-h-11 inline-flex items-center gap-1.5 px-2 font-semibold text-text-muted hover:text-text cursor-pointer"
+                >
+                  {showCameraPreview ? (
+                    <EyeOff className="w-4 h-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {showCameraPreview ? 'Hide camera preview' : 'Show camera preview'}
+                  </span>
+                </button>
+              </div>
 
-            <div className="flex items-center gap-3">
-              <span className="hidden md:inline text-text-muted">
-                Hiding the preview does not stop monitoring.
-              </span>
-              <button
-                type="button"
-                onClick={handleStopSession}
-                className="px-4 min-h-11 bg-danger/10 hover:bg-danger/15 text-danger border border-danger/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
-                <span>Complete session</span>
-              </button>
-            </div>
+              <div className="flex items-center gap-3 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handleNeedBreak}
+                  className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl border border-border bg-bg text-text text-xs font-semibold cursor-pointer"
+                >
+                  <Coffee className="w-3.5 h-3.5" aria-hidden="true" />
+                  I need a break
+                </button>
+                <span className="hidden md:inline text-text-muted max-w-xs">
+                  Hiding the preview does not stop monitoring.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleStopSession}
+                  className="px-4 min-h-11 bg-danger/10 text-danger border border-danger/40 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+                  <span>Complete session</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

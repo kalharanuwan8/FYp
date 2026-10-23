@@ -142,16 +142,27 @@ def _check_milestones(progress: StudentProgress, student_id: int) -> List[Studen
 def award_session_xp(
     student_id: int,
     *,
-    duration_seconds: int,
-    focus_percentage: float = 0.0,
+    duration_seconds: int = 0,
+    focus_percentage: Optional[float] = None,
+    observed_focused_seconds: Optional[float] = None,
+    commit: bool = True,
 ) -> dict:
-    """Award XP after a learning session stops. Focus minutes = duration * focus%."""
+    """
+    Award XP after a learning session stops.
+
+    Phase 2A: focused-time XP uses observed_focused_seconds only. Unknown /
+    unobserved time does not earn focus XP. A null focus_percentage with zero
+    observed focus yields 0 focus minutes (no wall-clock consolation credit).
+    """
     progress = get_or_create_progress(student_id)
-    focus_frac = max(0.0, min(100.0, float(focus_percentage or 0))) / 100.0
-    focus_minutes = max(0, int(round((duration_seconds / 60.0) * focus_frac)))
-    # Always give at least 1 focus minute credit if they stayed > 30s
-    if duration_seconds >= 30 and focus_minutes == 0:
-        focus_minutes = 1
+    if observed_focused_seconds is not None:
+        focus_minutes = max(0, int(round(float(observed_focused_seconds) / 60.0)))
+    elif focus_percentage is not None:
+        # Legacy callers: duration * focus fraction (focus_percentage may be 0)
+        focus_frac = max(0.0, min(100.0, float(focus_percentage))) / 100.0
+        focus_minutes = max(0, int(round((duration_seconds / 60.0) * focus_frac)))
+    else:
+        focus_minutes = 0
 
     xp_gained = focus_minutes * XP_PER_FOCUS_MINUTE
     progress.xp = (progress.xp or 0) + xp_gained
@@ -160,7 +171,8 @@ def award_session_xp(
     progress.total_focus_minutes = (progress.total_focus_minutes or 0) + focus_minutes
     _update_streak(progress)
     new_badges = _check_milestones(progress, student_id)
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
     return {
         "xp_gained": xp_gained,

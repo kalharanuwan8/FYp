@@ -233,7 +233,13 @@ export function useMonitoringSession({
           if (!sessionIdRef.current) return;
           if (response.verdict) setLastVerdict(response.verdict);
           if (response.ml_mode) setMlMode(response.ml_mode);
-          if (typeof response.confidence === 'number') setConfidence(response.confidence);
+          if (response.verdict === 'UNKNOWN') {
+            setConfidence(null);
+          } else if (typeof response.confidence === 'number') {
+            setConfidence(response.confidence);
+          } else {
+            setConfidence(null);
+          }
           if (
             response.intervention_triggered &&
             response.intervention &&
