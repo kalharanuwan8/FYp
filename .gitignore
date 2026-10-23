@@ -13,6 +13,10 @@ venv/
 venvpy312/
 .venv/
 
+# ── Node / local clutter (not part of evaluation source) ─
+node_modules/
+thesis_handover/
+
 # ── Data (raw + processed — too large for git) ─────────
 data/
 

@@ -1,0 +1,233 @@
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Nunito:wght@600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Lexend", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Nunito", "Lexend", ui-sans-serif, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-success: var(--success);
+  --color-attention: var(--attention);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-lavender: var(--accent-lavender);
+  --color-mint: var(--accent-mint);
+  --color-peach: var(--accent-peach);
+  --color-sun: var(--accent-sun);
+  --color-sky: var(--accent-sky);
+
+  --radius-card: 1.25rem;
+  --radius-lg: 1.5rem;
+  --shadow-soft: var(--shadow-soft-value);
+  --shadow-lift: var(--shadow-lift-value);
+  --animate-fade-in: fade-in 0.35s ease-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+}
+
+:root,
+[data-theme="light"] {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --text: #1f2a44;
+  --text-muted: #5b6478;
+  --primary: #3d7a9c;
+  --primary-soft: #e8f2f7;
+  --on-primary: #ffffff;
+  --success: #1f8a6a;
+  --attention: #f2836b;
+  --danger: #c93a2e;
+  --warning: #b97e14;
+  --info: #2f7fb8;
+  --border: #e4e8f0;
+  --shadow-soft-value: 0 4px 24px rgba(31, 42, 68, 0.06);
+  --shadow-lift-value: 0 8px 32px rgba(31, 42, 68, 0.12);
+  --accent-lavender: #8b7cf6;
+  --accent-mint: #3cbf9a;
+  --accent-peach: #ff9f7a;
+  --accent-sun: #f4c152;
+  --accent-sky: #5ab0ee;
+  --ring-glow: rgba(61, 122, 156, 0.25);
+  --buddy-good: #3cbf9a;
+  --buddy-wander: #f4c152;
+}
+
+[data-theme="calm-dark"] {
+  --bg: #141a2a;
+  --surface: #1d2438;
+  --surface-raised: #242e47;
+  --text: #e7eaf3;
+  --text-muted: #a9b0c3;
+  --primary: #6fb3d6;
+  --primary-soft: #243044;
+  --on-primary: #10222f;
+  --success: #5dd4b0;
+  --attention: #f2836b;
+  --danger: #ff9a8a;
+  --warning: #f6d07a;
+  --info: #7dc0f2;
+  --border: #2a3348;
+  --shadow-soft-value: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lift-value: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --accent-lavender: #a99ef8;
+  --accent-mint: #5dd4b0;
+  --accent-peach: #ffb396;
+  --accent-sun: #f6d07a;
+  --accent-sky: #7dc0f2;
+  --ring-glow: rgba(111, 179, 214, 0.3);
+  --buddy-good: #5dd4b0;
+  --buddy-wander: #f6d07a;
+}
+
+html {
+  font-size: 100%;
+}
+
+html.text-size-s {
+  font-size: 93.75%;
+}
+
+html.text-size-m {
+  font-size: 100%;
+}
+
+html.text-size-l {
+  font-size: 112.5%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 20px 4px var(--ring-glow);
+  }
+}
+
+@keyframes buddy-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes breathe-ring {
+  0%,
+  100% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.motion-safe\:animate-soft-glow {
+  animation: soft-glow 2.5s ease-in-out infinite;
+}
+
+.buddy-ring-good {
+  background: var(--buddy-good);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--buddy-good) 45%, transparent);
+}
+
+.buddy-ring-wander {
+  background: var(--buddy-wander);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--buddy-wander) 45%, transparent);
+}
+
+.prose-narrow {
+  max-width: 65ch;
+}
