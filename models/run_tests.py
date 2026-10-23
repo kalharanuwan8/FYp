@@ -349,22 +349,26 @@ def test_model5_fusion():
     print(classification_report(y_te, y_pred_05,
                                 target_names=["focused","distracted"], digits=4))
 
+    # Always define f1 at the stored threshold (may equal 0.5 when untuned).
+    acc_thr, f1_thr, prec_thr, rec_thr, _, _ = metrics(y_te, y_pred_thr, prob)
     if abs(threshold - 0.5) > 0.01:
         print(f"\n  ── At tuned threshold = {threshold:.3f} ──")
-        acc2, f12, prec2, rec2, _, _ = metrics(y_te, y_pred_thr, prob)
-        print(f"  Accuracy={acc2:.4f}  F1={f12:.4f}  Prec={prec2:.4f}  Rec={rec2:.4f}")
+        print(f"  Accuracy={acc_thr:.4f}  F1={f1_thr:.4f}  Prec={prec_thr:.4f}  Rec={rec_thr:.4f}")
         print(classification_report(y_te, y_pred_thr,
                                     target_names=["focused","distracted"], digits=4))
 
     cm = confusion_matrix(y_te, y_pred_thr)
-    print(f"  Confusion Matrix (tuned threshold):")
+    print(f"  Confusion Matrix (threshold={threshold:.3f}):")
     print(f"              focused  distracted")
     print(f"  focused     {cm[0,0]:>7}  {cm[0,1]:>10}")
     print(f"  distracted  {cm[1,0]:>7}  {cm[1,1]:>10}")
 
     status = PASS if auc > 0.5 else FAIL
-    print(f"\n  {status} Model 5 | ROC-AUC={auc:.4f} | F1@0.5={f1:.4f} | F1@{threshold:.2f}={f12:.4f}")
-    return {"roc_auc": auc, "f1_default": f1, "f1_tuned": f12}
+    print(
+        f"\n  {status} Model 5 | ROC-AUC={auc:.4f} | F1@0.5={f1:.4f} "
+        f"| F1@{threshold:.2f}={f1_thr:.4f}"
+    )
+    return {"roc_auc": auc, "f1_default": f1, "f1_tuned": f1_thr}
 
 
 # ─── Entry point ─────────────────────────────────────────────────────────────

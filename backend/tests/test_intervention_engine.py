@@ -127,6 +127,41 @@ def test_disabled_tier_falls_back():
     assert res.intervention_type == TYPE_PACING
 
 
+def test_all_tiers_disabled_fires_nothing():
+    """Regression: explicit empty enabled_tiers must not coerce to [1,2,3,4]."""
+    engine = InterventionEngine(cooldown_seconds=0.0, enabled_tiers=[])
+    assert engine.enabled_tiers == set()
+    res = engine.decide_intervention(
+        distraction_event=_episode(50), is_distracted=True, now=100.0
+    )
+    assert res is None
+
+
+def test_get_enabled_tiers_preserves_empty_config(app):
+    """Route helper must return [] when every subject tier flag is off."""
+    from app.db_models import GradeLevel, Subject, InterventionConfig
+    from app.extensions import db
+    from app.routes.session import _get_enabled_tiers
+
+    with app.app_context():
+        gl = GradeLevel(name="G-tiers-off")
+        db.session.add(gl)
+        db.session.flush()
+        subject = Subject(title="No Tiers Subject", grade_level_id=gl.id)
+        db.session.add(subject)
+        db.session.flush()
+        cfg = InterventionConfig(
+            subject_id=subject.id,
+            tier1_enabled=False,
+            tier2_enabled=False,
+            tier3_enabled=False,
+            tier4_enabled=False,
+        )
+        db.session.add(cfg)
+        db.session.commit()
+        assert _get_enabled_tiers(subject.id) == []
+
+
 def test_focus_resets_escalation():
     engine = InterventionEngine(cooldown_seconds=0.0)
     engine.decide_intervention(

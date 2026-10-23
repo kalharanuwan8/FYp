@@ -1,4 +1,3 @@
-from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from pydantic import BaseModel, Field, EmailStr, ValidationError
@@ -16,6 +15,8 @@ class StudentProfileUpdateSchema(BaseModel):
     grade_level: Optional[str] = Field(None, min_length=1)
     guardian_name: Optional[str] = Field(None, min_length=1)
     guardian_email: Optional[EmailStr] = None
+    # Accepted for backwards-compatible clients but ignored: only admins may
+    # change GuardianConsent.consent_given (see auth.update_student_consent).
     consent_given: Optional[bool] = None
     student_assent: Optional[bool] = None
     onboarding_completed: Optional[bool] = None
@@ -118,10 +119,10 @@ def update_student_profile():
         progress = get_or_create_progress(student.id)
         progress.daily_goal_minutes = data.daily_goal_minutes
 
-    # Guardian fields: students may view/confirm info, but consent_given is
-    # primarily set by teacher/admin. Keep PATCH for backwards compatibility.
+    # Guardian contact fields may be updated by the student for display, but
+    # consent_given is admin-only and is never written here.
     consent = student.guardian_consent
-    if data.guardian_name is not None or data.guardian_email is not None or data.consent_given is not None:
+    if data.guardian_name is not None or data.guardian_email is not None:
         if not consent:
             consent = GuardianConsent(
                 student_id=student.id,
@@ -140,10 +141,6 @@ def update_student_profile():
             consent.guardian_name = data.guardian_name.strip()
         if data.guardian_email is not None:
             consent.guardian_email = str(data.guardian_email)
-        if data.consent_given is not None:
-            consent.consent_given = data.consent_given
-            if data.consent_given:
-                consent.consented_at = datetime.utcnow()
 
     # Auto-complete onboarding when grade + assent present
     if student.grade_level and student.student_assent:

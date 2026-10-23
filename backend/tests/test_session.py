@@ -343,3 +343,121 @@ def test_trigger_milestone_quiz_intervention(client, app):
     assert data["intervention"]["intervention_type"] == "milestone_quiz"
     assert "milestone_question_id" in data["intervention"]["payload"]
 
+
+def test_repeated_stop_awards_xp_only_once(client, app):
+    """Regression: second POST .../stop must not award XP again."""
+    from app.db_models import LearningSession, StudentProgress
+
+    seeded = _seed_student_session(app, email="xp_once@test.com")
+    headers = {"Authorization": f"Bearer {seeded['token']}"}
+
+    res_start = client.post(
+        "/api/session/start",
+        json={"module_id": seeded["mod_id"], "is_monitored": True},
+        headers=headers,
+    )
+    assert res_start.status_code == 201
+    session_id = res_start.json["session_id"]
+
+    # Give the session a non-trivial duration so XP > 0
+    with app.app_context():
+        sess = db.session.get(LearningSession, session_id)
+        sess.start_time = datetime.utcnow() - timedelta(minutes=10)
+        db.session.commit()
+
+    res1 = client.post(f"/api/session/{session_id}/stop", headers=headers)
+    assert res1.status_code == 200
+    xp_first = res1.json.get("xp_gained", 0)
+    assert xp_first > 0
+
+    with app.app_context():
+        progress = StudentProgress.query.filter_by(
+            student_id=db.session.get(LearningSession, session_id).student_id
+        ).first()
+        xp_after_first = progress.xp if progress else 0
+
+    res2 = client.post(f"/api/session/{session_id}/stop", headers=headers)
+    assert res2.status_code == 200
+    assert res2.json.get("xp_gained", 0) == 0
+
+    with app.app_context():
+        progress = StudentProgress.query.filter_by(
+            student_id=db.session.get(LearningSession, session_id).student_id
+        ).first()
+        assert progress.xp == xp_after_first
+
+
+def test_claim_session_xp_award_is_atomic(tmp_path, monkeypatch):
+    """
+    Concurrent-safe claim: only one caller gets True for the same session.
+
+    Uses a file-backed SQLite DB so worker threads share state (:memory: is
+    per-connection and cannot exercise concurrent UPDATE correctly).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from app import create_app
+    from app.config import TestingConfig
+    from app.db_models import LearningSession, Student, User, GradeLevel, Subject, Module
+    from app.routes.session import claim_session_xp_award
+    from app.services.ml_service import MLService
+
+    db_file = tmp_path / "xp_claim.db"
+    uri = f"sqlite:///{db_file.resolve().as_posix()}?check_same_thread=False"
+    monkeypatch.setattr(TestingConfig, "SQLALCHEMY_DATABASE_URI", uri)
+
+    MLService._instance = None
+    file_app = create_app("testing")
+
+    with file_app.app_context():
+        gl = GradeLevel(name="G-xp-claim")
+        db.session.add(gl)
+        db.session.flush()
+        subject = Subject(title="XP Claim Subject", grade_level_id=gl.id)
+        db.session.add(subject)
+        db.session.flush()
+        module = Module(title="M", subject_id=subject.id, sequence_order=1)
+        db.session.add(module)
+        db.session.flush()
+        u = User(
+            email="xp_claim@test.com",
+            password="hash",
+            role="student",
+            first_name="X",
+            last_name="P",
+        )
+        db.session.add(u)
+        db.session.flush()
+        student = Student(user_id=u.id, grade_level="G-xp-claim")
+        db.session.add(student)
+        db.session.flush()
+        sess = LearningSession(
+            student_id=student.id,
+            module_id=module.id,
+            is_monitored=True,
+            xp_awarded=False,
+        )
+        db.session.add(sess)
+        db.session.commit()
+        session_id = sess.id
+
+    results = []
+
+    def _claim():
+        with file_app.app_context():
+            return claim_session_xp_award(session_id)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(_claim) for _ in range(8)]
+        for fut in as_completed(futures):
+            results.append(fut.result())
+
+    assert results.count(True) == 1, results
+    assert results.count(False) == 7, results
+
+    with file_app.app_context():
+        sess = db.session.get(LearningSession, session_id)
+        assert sess.xp_awarded is True
+
+    MLService._instance = None
+

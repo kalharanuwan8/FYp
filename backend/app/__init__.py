@@ -131,6 +131,18 @@ def create_app(env=None):
                     )
                 db.session.commit()
 
+            if "sessions" in tables:
+                session_cols = {c["name"] for c in insp.get_columns("sessions")}
+                if "xp_awarded" not in session_cols:
+                    bool_false = "FALSE" if dialect == "postgresql" else "0"
+                    db.session.execute(
+                        text(
+                            "ALTER TABLE sessions ADD COLUMN xp_awarded "
+                            f"BOOLEAN DEFAULT {bool_false} NOT NULL"
+                        )
+                    )
+                    db.session.commit()
+
             # sessions.module_content_id historically FKd to module_contents, but the
             # app stores Module.id there. Retarget the Postgres FK to modules(id).
             if dialect == "postgresql" and "sessions" in tables:

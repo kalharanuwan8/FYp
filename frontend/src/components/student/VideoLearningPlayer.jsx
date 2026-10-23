@@ -20,6 +20,7 @@ import DemoPanel from './DemoPanel';
 import SessionSummary from './SessionSummary';
 import { useMonitoringSession } from '../../hooks/useMonitoringSession';
 import { usePreferences } from '../../context/PreferencesContext';
+import { interventionShouldPauseVideo } from '../../utils/interventionPause';
 
 export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
   const videoRef = useRef(null);
@@ -34,13 +35,15 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
 
   const handleInterventionFromMl = useCallback((intervention) => {
     setActiveIntervention(intervention);
-    if (videoRef.current) {
+    if (!videoRef.current) return;
+    const factor = intervention?.payload?.pacing_factor;
+    if (typeof factor === 'number' && factor > 0) {
+      videoRef.current.playbackRate = factor;
+    }
+    // Ambient cues must not interrupt playback; other types pause the lesson.
+    if (interventionShouldPauseVideo(intervention)) {
       videoRef.current.pause();
       setIsPlaying(false);
-      const factor = intervention?.payload?.pacing_factor;
-      if (typeof factor === 'number' && factor > 0) {
-        videoRef.current.playbackRate = factor;
-      }
     }
   }, []);
 
@@ -116,7 +119,11 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (activeIntervention && videoRef.current) {
+    if (
+      activeIntervention &&
+      videoRef.current &&
+      interventionShouldPauseVideo(activeIntervention)
+    ) {
       videoRef.current.pause();
       setIsPlaying(false);
     }

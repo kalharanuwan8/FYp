@@ -69,7 +69,11 @@ class InterventionEngine:
         now_fn=None,
     ):
         self.cooldown_seconds = float(cooldown_seconds)
-        self.enabled_tiers = set(enabled_tiers or [1, 2, 3, 4])
+        # None → default all tiers. Explicit [] → no interventions (do not coerce).
+        if enabled_tiers is None:
+            self.enabled_tiers = {1, 2, 3, 4}
+        else:
+            self.enabled_tiers = set(enabled_tiers)
         self._now = now_fn or time.time
 
         self.last_tier: Optional[int] = None

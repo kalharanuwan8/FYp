@@ -343,12 +343,9 @@ def main():
 
                 feat_vec = build_fusion_features(gaze_buf, pose_buf, eng_prob, fusion_feat_names)
                 dist_prob = float(fusion_model.predict_proba(feat_vec)[0, 1])
-                # Direct video-based override as requested
-                vid_name = Path(args.input).stem.lower()
-                if "focused" in vid_name or "forced" in vid_name or "natural" in vid_name:
-                    dist_prob = min(dist_prob, 0.15)
-                elif "distracted" in vid_name:
-                    dist_prob = max(dist_prob, 0.88)
+                # Use model probability only. Do not override from the filename —
+                # filename-derived weak labels in training are a separate concern
+                # and are not independent ground truth.
                 verdict_prob = dist_prob
                 verdict = "DISTRACTED" if dist_prob >= fusion_threshold else "FOCUSED"
 

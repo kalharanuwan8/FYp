@@ -17,6 +17,8 @@ class LearningSession(db.Model):
     start_time = db.Column("started_at", db.DateTime, default=datetime.utcnow, nullable=False)
     end_time = db.Column("ended_at", db.DateTime, nullable=True)
     is_monitored = db.Column("was_monitored", db.Boolean, default=True, nullable=False)
+    # Atomic claim flag: only the first stop that flips this to True awards XP.
+    xp_awarded = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column("created_at", db.DateTime, default=datetime.utcnow, nullable=False)
 
     student = db.relationship("Student", back_populates="sessions")

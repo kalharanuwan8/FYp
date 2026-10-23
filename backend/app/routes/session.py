@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from pydantic import ValidationError
+from sqlalchemy import update
 
 from app.extensions import db
 from app.db_models import (
@@ -69,7 +70,27 @@ def _get_enabled_tiers(subject_id: int):
     cfg = InterventionConfig.query.filter_by(subject_id=subject_id).first()
     if not cfg:
         return [1, 2, 3, 4]
-    return cfg.enabled_tiers() or [1, 2, 3, 4]
+    # Preserve an explicit empty list (all tiers disabled). Do not coerce to [1..4].
+    return cfg.enabled_tiers()
+
+
+def claim_session_xp_award(session_id: int) -> bool:
+    """
+    Atomically claim the one-time session XP award.
+
+    Returns True only for the caller that flipped xp_awarded from False→True.
+    Safe under concurrent stop requests (UPDATE ... WHERE xp_awarded = false).
+    """
+    result = db.session.execute(
+        update(LearningSession)
+        .where(
+            LearningSession.id == session_id,
+            LearningSession.xp_awarded.is_(False),
+        )
+        .values(xp_awarded=True)
+    )
+    db.session.commit()
+    return int(result.rowcount or 0) == 1
 
 
 def _build_engine(subject_id: int) -> InterventionEngine:
@@ -571,12 +592,21 @@ def stop_session(session_id):
         return jsonify({"error": "Learning session not found"}), 404
 
     now_dt = datetime.utcnow()
-    if session.end_time is None:
-        session.end_time = now_dt
+    # Idempotent end: only the first successful UPDATE sets end_time.
+    ended_rows = db.session.execute(
+        update(LearningSession)
+        .where(
+            LearningSession.id == session.id,
+            LearningSession.end_time.is_(None),
+        )
+        .values(end_time=now_dt)
+    ).rowcount
+    if ended_rows:
         open_ev = get_open_distraction_event(session.id)
         if open_ev:
             open_ev.ended_at = now_dt
-        db.session.commit()
+    db.session.commit()
+    db.session.refresh(session)
 
     if session.id in SESSION_ENGINES:
         del SESSION_ENGINES[session.id]
@@ -603,15 +633,29 @@ def stop_session(session_id):
     focus_percentage = compute_session_focus_percentage(session, now_dt=session.end_time)
 
     gamification = {}
-    try:
-        from app.services.gamification_service import award_session_xp
-        gamification = award_session_xp(
-            student.id,
-            duration_seconds=duration_seconds,
-            focus_percentage=focus_percentage,
-        )
-    except Exception:
-        gamification = {}
+    # Concurrent-safe: only the request that claims xp_awarded awards XP.
+    should_award = claim_session_xp_award(session.id)
+    if should_award:
+        try:
+            from app.services.gamification_service import award_session_xp
+            gamification = award_session_xp(
+                student.id,
+                duration_seconds=duration_seconds,
+                focus_percentage=focus_percentage,
+            )
+        except Exception:
+            gamification = {}
+    else:
+        try:
+            from app.services.gamification_service import get_progress_payload
+            gamification = {
+                "xp_gained": 0,
+                "focus_minutes": 0,
+                "progress": get_progress_payload(student.id),
+                "new_badges": [],
+            }
+        except Exception:
+            gamification = {"xp_gained": 0, "focus_minutes": 0}
 
     return jsonify({
         "message": "Learning session completed",
