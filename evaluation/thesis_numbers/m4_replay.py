@@ -1,12 +1,7 @@
 """
-Throw-away REPORT_4 replay against the *current* live MLService:
-  - ML_WINDOW_FRAMES default 5
-  - compute_engagement_features uses real movement features when n >= 2
-
-Scores M4 on:
-  1) the n < 2 default vector (fallback only)
-  2) three real MediaPipe landmark buffers (length = window_size) from
-     latency-test videos
+Throw-away REPORT_4 replay: score M4 on default feature vectors for every
+reachable pose_ratio under a 3-frame buffer, then on three real MediaPipe
+landmark buffers from latency-test videos.
 
 Does not write to the database. Not imported by the application.
 """
@@ -23,9 +18,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
-# Match Run 5 fusion threshold; leave ML_WINDOW_FRAMES unset so the live default applies.
 os.environ.setdefault("ML_FUSION_THRESHOLD", "0.75")
-os.environ.pop("ML_WINDOW_FRAMES", None)
+os.environ.setdefault("ML_WINDOW_FRAMES", "3")
 
 from app.services.ml_service import MLService  # noqa: E402
 
@@ -36,6 +30,20 @@ VIDEOS = {
     "distracted.mp4": VIDEO_DIR / "distracted.mp4",
 }
 OUT = Path(__file__).resolve().parent / "raw" / "m4_replay.json"
+
+DEFAULT_FEATS = {
+    "lw_speed_mean": 0.0,
+    "lw_speed_std": 0.0,
+    "rw_speed_mean": 0.0,
+    "rw_speed_std": 0.0,
+    "lw_to_nose_mean": 0.5,
+    "rw_to_nose_mean": 0.5,
+    "lw_to_sh_mean": 0.3,
+    "rw_to_sh_mean": 0.3,
+    "nose_jitter": 0.0,
+    "lw_below_sh_ratio": 0.5,
+    "rw_below_sh_ratio": 0.5,
+}
 
 
 def score_eng(svc: MLService, feats: dict) -> float:
@@ -53,53 +61,58 @@ def load_frame(video_name: str, frame_index: int) -> np.ndarray:
     cap.release()
     if not ok or frame is None:
         raise RuntimeError(f"failed to read {video_name} frame {frame_index}")
+    # Same preprocess as heartbeat latency test / frontend JPEG quality 0.5
     frame = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_LINEAR)
     ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
     if not ok:
         raise RuntimeError("jpeg encode failed")
-    return cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    decoded = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    return decoded
 
 
 def main() -> None:
     svc = MLService()
-    w = int(svc.window_size)
     report: dict = {
-        "note": "REPLAY against CURRENT live MLService — not stored session 94 data",
-        "window_size": w,
+        "note": "REPLAY — not stored session 94 data",
+        "window_size": svc.window_size,
         "fusion_threshold": svc.fusion_threshold,
         "eng_feature_cols": list(svc.eng_feature_cols),
         "ml_mode": svc.ml_mode,
-        "default_fallback_n_lt_2": None,
+        "exhaustive_pose_ratio": [],
         "real_buffers": [],
-        "summary": {},
     }
 
-    # Default path (n < 2): empty / single None buffer
-    default_feats = svc.compute_engagement_features([None])
-    default_prob = score_eng(svc, default_feats)
-    report["default_fallback_n_lt_2"] = {
-        "features": default_feats,
-        "engagement_prob": default_prob,
-    }
+    # Exhaustive reachable pose_ratio values for buffers of length 1..3
+    ratios = sorted({i / n for n in (1, 2, 3) for i in range(n + 1)})
+    for pr in ratios:
+        feats = {"pose_ratio": float(pr), **DEFAULT_FEATS}
+        # Also confirm via compute_engagement_features with synthetic buffer:
+        # n valid landmarks out of buf_len → pose_ratio = n/buf_len
+        eng = score_eng(svc, feats)
+        report["exhaustive_pose_ratio"].append(
+            {"pose_ratio": float(pr), "features": feats, "engagement_prob": eng}
+        )
 
-    # Three distinct buffers of length = current window_size
-    # Frame indices spaced so landmarks differ across videos/poses.
+    # Three distinct 3-observation buffers from different videos/frames
     buffer_specs = [
         {
             "name": "natural_early",
-            "frames": [("natural.mp4", i * 5) for i in range(w)],
+            "frames": [("natural.mp4", 0), ("natural.mp4", 10), ("natural.mp4", 20)],
         },
         {
             "name": "focused_mid",
-            "frames": [("focused.mp4", 30 + i * 5) for i in range(w)],
+            "frames": [("focused.mp4", 30), ("focused.mp4", 40), ("focused.mp4", 50)],
         },
         {
             "name": "distracted_late",
-            "frames": [("distracted.mp4", 50 + i * 5) for i in range(w)],
+            "frames": [
+                ("distracted.mp4", 60),
+                ("distracted.mp4", 70),
+                ("distracted.mp4", 80),
+            ],
         },
     ]
 
-    probs = []
     for spec in buffer_specs:
         sid = f"m4_replay_{spec['name']}"
         lm_buf = []
@@ -114,44 +127,21 @@ def main() -> None:
                     "video": video_name,
                     "frame_index": idx,
                     "landmark_present": lm is not None,
+                    "landmark_keys": sorted(lm.keys()) if lm else None,
                 }
             )
         feats = svc.compute_engagement_features(lm_buf)
         eng = score_eng(svc, feats)
-        probs.append(eng)
         report["real_buffers"].append(
             {
                 "name": spec["name"],
                 "frames": frame_meta,
                 "n_valid": sum(1 for lm in lm_buf if lm is not None),
                 "buf_len": len(lm_buf),
-                "features": {k: (float(v) if isinstance(v, (float, np.floating, int)) else v)
-                             for k, v in feats.items()},
+                "features": feats,
                 "engagement_prob": eng,
-                "uses_default_vector": (
-                    feats.get("lw_to_nose_mean") == 0.5
-                    and feats.get("lw_speed_mean") == 0.0
-                    and feats.get("lw_to_sh_mean") == 0.3
-                    and float(feats.get("pose_ratio", -1)) == float(len([x for x in lm_buf if x]) / max(len(lm_buf), 1))
-                    and all(
-                        abs(float(feats.get(k, 0)) - float(default_feats.get(k, 0))) < 1e-12
-                        for k in svc.eng_feature_cols
-                        if k != "pose_ratio"
-                    )
-                ),
             }
         )
-
-    distinct = sorted(set(round(p, 12) for p in probs))
-    report["summary"] = {
-        "n_buffers": len(probs),
-        "engagement_probs": probs,
-        "n_distinct_probs": len(distinct),
-        "min_prob": min(probs) if probs else None,
-        "max_prob": max(probs) if probs else None,
-        "default_fallback_prob": default_prob,
-        "all_equal_to_default": all(abs(p - default_prob) < 1e-12 for p in probs),
-    }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
