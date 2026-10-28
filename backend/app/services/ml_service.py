@@ -101,9 +101,8 @@ class MLService:
             os.environ.get("ML_FACE_EQUALIZE", "false").lower() == "true"
         )
 
-        # Live heartbeats are ~0.5 Hz; keep enough frames for M4 movement features
-        # (needs ≥2 valid landmarks). Default 5 ≈ 10 s window window.
-        self.window_size = int(os.environ.get("ML_WINDOW_FRAMES", "5"))
+        # ~3s window at ~0.5 Hz heartbeat ≈ 2 frames; keep enough for short bursts
+        self.window_size = int(os.environ.get("ML_WINDOW_FRAMES", "3"))
         # Session pose baseline: median yaw/pitch of first K face-present frames
         # (laptop geometry vs BIWI); subtracted before fusion. No retrain.
         self.pose_baseline_frames = int(os.environ.get("ML_POSE_BASELINE_FRAMES", "8"))
@@ -492,10 +491,7 @@ class MLService:
         def col(name, axis):
             return np.array([lm[f"{name}_{axis}"] for lm in valid], dtype=float)
 
-        # Need ≥2 valid landmark frames so wrist-speed (np.diff) is defined.
-        # Older live default of ML_WINDOW_FRAMES=3 never reached the previous
-        # n < 4 gate, so M4 always saw the constant default vector below.
-        if n < 2:
+        if n < 4:
             return {
                 "pose_ratio": pose_ratio,
                 "lw_speed_mean": 0.0, "lw_speed_std": 0.0,
