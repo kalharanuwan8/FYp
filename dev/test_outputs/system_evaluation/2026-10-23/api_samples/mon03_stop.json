@@ -1,0 +1,31 @@
+{
+  "distraction_events": 0,
+  "duration_seconds": 20,
+  "end_time": "2026-10-23T04:10:11.417450",
+  "focus_metric_version": "observed_v1",
+  "focus_minutes": 0,
+  "focus_percentage": null,
+  "focused_events": 0,
+  "message": "Learning session completed",
+  "monitoring_coverage_pct": 0.0,
+  "new_badges": [],
+  "observed_distracted_seconds": 0.0,
+  "observed_focused_seconds": 0.0,
+  "progress": {
+    "current_streak": 1,
+    "daily_goal_minutes": 20,
+    "last_active_date": "2026-10-23",
+    "level": 1,
+    "longest_streak": 1,
+    "today_focus_minutes": 0,
+    "total_focus_minutes": 0,
+    "xp": 35,
+    "xp_to_next_level": 65
+  },
+  "session_id": 1,
+  "start_time": "2026-10-23T04:09:50.633105",
+  "total_events": 0,
+  "total_interventions": 0,
+  "unknown_seconds": 20.784,
+  "xp_gained": 0
+}

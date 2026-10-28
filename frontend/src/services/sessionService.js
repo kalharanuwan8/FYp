@@ -36,6 +36,17 @@ export const sessionService = {
     const response = await api.post(`/session/${sessionId}/stop`);
     return response.data;
   },
+
+  // Open sessions for the current student (e.g. monitoring left on after a closed tab)
+  getActiveSessions: async () => {
+    const response = await api.get('/session/active');
+    return response.data;
+  },
+
+  stopActiveSessions: async () => {
+    const response = await api.post('/session/stop-active');
+    return response.data;
+  },
 };
 
 export default sessionService;

@@ -4,8 +4,18 @@ import studentService from '../services/studentService';
 
 const STORAGE_KEY = 'luma_ui_preferences';
 
+/** Plain themes available in Settings. 'light' is migrated to 'sage'. */
+export const THEME_OPTIONS = [
+  { value: 'sage', label: 'Sage', hint: 'Soft green page (default)' },
+  { value: 'warm', label: 'Warm neutral', hint: 'Parchment page' },
+  { value: 'pale-blue', label: 'Pale blue', hint: 'Cool mist page' },
+  { value: 'calm-dark', label: 'Calm dark', hint: 'Low-light surfaces' },
+];
+
+export const VALID_THEMES = new Set(THEME_OPTIONS.map((t) => t.value));
+
 const DEFAULTS = {
-  theme: 'light',
+  theme: 'sage',
   textSize: 'm',
   reduceMotion: false,
   sounds: true,
@@ -15,11 +25,20 @@ const DEFAULTS = {
 
 const PreferencesContext = createContext(null);
 
+/** Normalize legacy theme ids and unknown values. */
+export function normalizeTheme(theme) {
+  if (theme === 'light') return 'sage';
+  if (VALID_THEMES.has(theme)) return theme;
+  return DEFAULTS.theme;
+}
+
 function readLocal() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const parsed = { ...DEFAULTS, ...JSON.parse(raw) };
+    parsed.theme = normalizeTheme(parsed.theme);
+    return parsed;
   } catch {
     return { ...DEFAULTS };
   }
@@ -27,7 +46,8 @@ function readLocal() {
 
 function applyDomPrefs(prefs) {
   const root = document.documentElement;
-  root.setAttribute('data-theme', prefs.theme === 'calm-dark' ? 'calm-dark' : 'light');
+  const theme = normalizeTheme(prefs.theme);
+  root.setAttribute('data-theme', theme);
   root.classList.remove('text-size-s', 'text-size-m', 'text-size-l');
   root.classList.add(`text-size-${prefs.textSize || 'm'}`);
   root.classList.toggle('reduce-motion', Boolean(prefs.reduceMotion));
@@ -59,7 +79,11 @@ export function PreferencesProvider({ children }) {
         const profile = await studentService.getProfile();
         if (cancelled) return;
         if (profile?.ui_preferences && typeof profile.ui_preferences === 'object') {
-          setPrefs((prev) => ({ ...prev, ...profile.ui_preferences }));
+          setPrefs((prev) => {
+            const merged = { ...prev, ...profile.ui_preferences };
+            merged.theme = normalizeTheme(merged.theme);
+            return merged;
+          });
         }
       } catch {
         /* local prefs still apply */
@@ -75,6 +99,9 @@ export function PreferencesProvider({ children }) {
 
   const updatePreferences = async (partial, { persist = true } = {}) => {
     const next = { ...prefsRef.current, ...partial };
+    if (partial.theme !== undefined) {
+      next.theme = normalizeTheme(partial.theme);
+    }
     prefsRef.current = next;
     setPrefs(next);
     if (

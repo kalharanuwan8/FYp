@@ -1,0 +1,87 @@
+THESIS_SERVER_CUDA available=True device_count=1 name=NVIDIA GeForce RTX 4050 Laptop GPU
+THESIS_SERVER_LISTEN 127.0.0.1:8765
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8765
+Press CTRL+C to quit
+Traceback (most recent call last):
+  File "D:\uni\6th sem\IRP\distraction model\distraction_project\venvpy312\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\uni\6th sem\IRP\distraction model\distraction_project\venvpy312\Lib\site-packages\flask\app.py", line 891, in dispatch_request
+    self.raise_routing_exception(req)
+  File "D:\uni\6th sem\IRP\distraction model\distraction_project\venvpy312\Lib\site-packages\flask\app.py", line 500, in raise_routing_exception
+    raise request.routing_exception  # type: ignore[misc]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\uni\6th sem\IRP\distraction model\distraction_project\venvpy312\Lib\site-packages\flask\ctx.py", line 362, in match_request
+    result = self.url_adapter.match(return_rule=True)  # type: ignore
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\uni\6th sem\IRP\distraction model\distraction_project\venvpy312\Lib\site-packages\werkzeug\routing\map.py", line 624, in match
+    raise MethodNotAllowed(valid_methods=list(e.have_match_for)) from None
+werkzeug.exceptions.MethodNotAllowed: 405 Method Not Allowed: The method is not allowed for the requested URL.
+127.0.0.1 - - [27/Oct/2026 18:32:28] "GET /api/auth/login HTTP/1.1" 500 -
+127.0.0.1 - - [27/Oct/2026 18:32:29] "POST /api/auth/login HTTP/1.1" 200 -
+[MLService] Loaded gaze model from best.pt
+[MLService] Loaded pose model from best.pt
+[MLService] Loaded engagement model from model.pkl
+[MLService] Loaded fusion model from model.pkl
+[MLService] MediaPipe PoseLandmarker ready (per-session VIDEO instances; no shared tracker)
+[MLService] Ready (ml_mode=full, models_dir=D:\uni\6th sem\IRP\distraction model\distraction_project\models)
+127.0.0.1 - - [27/Oct/2026 18:32:35] "POST /api/session/start HTTP/1.1" 201 -
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+W0000 00:00:1793106162.423703   24164 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1793106162.462906   24164 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1793106162.505539   31940 landmark_projection_calculator.cc:81] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX.
+127.0.0.1 - - [27/Oct/2026 18:32:42] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:42] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:42] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:42] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:42] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:43] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:44] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:45] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:46] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:47] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:47] "POST /api/session/1/heartbeat HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 18:32:47] "POST /api/session/1/stop HTTP/1.1" 200 -

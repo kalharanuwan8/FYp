@@ -1,0 +1,108 @@
+{
+  "created_at": "2026-10-26T04:31:24.844812",
+  "sessions": [
+    {
+      "id": 66,
+      "student_id": 6,
+      "module_content_id": 9,
+      "started_at": "2026-10-22T06:39:46.763869",
+      "ended_at": "2026-10-22T06:57:46.763869",
+      "was_monitored": true,
+      "created_at": "2026-10-23T08:39:46.766653",
+      "xp_awarded": true,
+      "focus_metric_version": "observed_v1",
+      "observed_focused_seconds": 777.6,
+      "observed_distracted_seconds": 302.4,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 72.0
+    },
+    {
+      "id": 67,
+      "student_id": 6,
+      "module_content_id": 9,
+      "started_at": "2026-10-21T06:39:46.763869",
+      "ended_at": "2026-10-21T07:01:46.763869",
+      "was_monitored": true,
+      "created_at": "2026-10-23T08:39:46.766658",
+      "xp_awarded": true,
+      "focus_metric_version": "observed_v1",
+      "observed_focused_seconds": 897.6,
+      "observed_distracted_seconds": 422.4,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 68.0
+    },
+    {
+      "id": 68,
+      "student_id": 6,
+      "module_content_id": 10,
+      "started_at": "2026-10-20T06:39:46.763869",
+      "ended_at": "2026-10-20T06:54:46.763869",
+      "was_monitored": true,
+      "created_at": "2026-10-23T08:39:46.766660",
+      "xp_awarded": true,
+      "focus_metric_version": "observed_v1",
+      "observed_focused_seconds": 729.0,
+      "observed_distracted_seconds": 171.0,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 81.0
+    },
+    {
+      "id": 69,
+      "student_id": 6,
+      "module_content_id": 10,
+      "started_at": "2026-10-19T06:39:46.763869",
+      "ended_at": "2026-10-19T06:59:46.763869",
+      "was_monitored": true,
+      "created_at": "2026-10-23T08:39:46.766662",
+      "xp_awarded": true,
+      "focus_metric_version": "observed_v1",
+      "observed_focused_seconds": 900.0,
+      "observed_distracted_seconds": 300.0,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 75.0
+    },
+    {
+      "id": 70,
+      "student_id": 6,
+      "module_content_id": 11,
+      "started_at": "2026-10-18T06:39:46.763869",
+      "ended_at": "2026-10-18T06:51:46.763869",
+      "was_monitored": true,
+      "created_at": "2026-10-23T08:39:46.766663",
+      "xp_awarded": true,
+      "focus_metric_version": "observed_v1",
+      "observed_focused_seconds": 460.8,
+      "observed_distracted_seconds": 259.2,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 64.0
+    }
+  ],
+  "progress": {
+    "student_id": 6,
+    "before": {
+      "xp": 247,
+      "level": 2,
+      "current_streak": 1,
+      "longest_streak": 7,
+      "total_focus_minutes": 181
+    }
+  },
+  "badges": [
+    {
+      "id": 3,
+      "student_id": 6,
+      "badge_id": 68,
+      "code": "focus_60",
+      "earned_at": "2026-10-26T04:18:03.314491"
+    }
+  ],
+  "subject_ids": [
+    11,
+    12
+  ]
+}

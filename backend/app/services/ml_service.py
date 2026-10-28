@@ -92,15 +92,42 @@ class MLService:
             self.face_cascade = None
             self.eye_cascade = None
 
-        # ~3s window at ~0.5 Hz heartbeat ≈ 2 frames; keep enough for short bursts
-        self.window_size = int(os.environ.get("ML_WINDOW_FRAMES", "3"))
+        # Face gate (engineering params). Defaults from evaluation/thesis_numbers
+        # raw/face_gate_check.json chosen settings (ms28_n5); override via env.
+        self.face_upscale = float(os.environ.get("ML_FACE_UPSCALE", "1.0"))
+        self.face_min_neighbors = int(os.environ.get("ML_FACE_MIN_NEIGHBORS", "5"))
+        self.face_min_size = int(os.environ.get("ML_FACE_MIN_SIZE", "28"))
+        self.face_equalize = (
+            os.environ.get("ML_FACE_EQUALIZE", "false").lower() == "true"
+        )
+
+        # Live heartbeats are ~0.5 Hz; keep enough frames for M4 movement features
+        # (needs ≥2 valid landmarks). Default 5 ≈ 10 s window window.
+        self.window_size = int(os.environ.get("ML_WINDOW_FRAMES", "5"))
+        # Session pose baseline: median yaw/pitch of first K face-present frames
+        # (laptop geometry vs BIWI); subtracted before fusion. No retrain.
+        self.pose_baseline_frames = int(os.environ.get("ML_POSE_BASELINE_FRAMES", "8"))
         self._session_bufs: Dict[Any, Dict[str, Deque]] = defaultdict(self._new_session_buf)
+        self._session_pose_samples: Dict[Any, List[List[float]]] = defaultdict(list)
+        self._session_pose_baseline: Dict[Any, Optional[Tuple[float, float]]] = {}
 
         self._load_torch_models()
         self._load_sklearn_models()
+        # Env override after checkpoint default (tests stay stable when unset).
+        env_thr = os.environ.get("ML_FUSION_THRESHOLD", "").strip()
+        if env_thr:
+            try:
+                self.fusion_threshold = float(env_thr)
+                print(f"[MLService] ML_FUSION_THRESHOLD override={self.fusion_threshold}")
+            except ValueError:
+                print(f"[MLService] Warning: invalid ML_FUSION_THRESHOLD={env_thr!r}")
         self._init_mediapipe()
         self._update_ml_mode()
-        print(f"[MLService] Ready (ml_mode={self.ml_mode}, models_dir={self.models_dir})")
+        print(
+            f"[MLService] Ready (ml_mode={self.ml_mode}, "
+            f"fusion_threshold={self.fusion_threshold}, "
+            f"models_dir={self.models_dir})"
+        )
 
     @staticmethod
     def _new_session_buf() -> Dict[str, Deque]:
@@ -296,18 +323,101 @@ class MLService:
     def clear_session(self, session_id: Any):
         """Drop frame buffers and destroy this session's MediaPipe landmarker."""
         self._session_bufs.pop(session_id, None)
+        self._session_pose_samples.pop(session_id, None)
+        self._session_pose_baseline.pop(session_id, None)
         self._close_session_landmarker(session_id)
 
+    @staticmethod
+    def _landmarks_indicate_person(lm: Optional[dict]) -> bool:
+        """True when MediaPipe returns a usable torso (nose + a shoulder)."""
+        if not lm:
+            return False
+        nose_vis = float(lm.get("nose_vis") or 0.0)
+        ls_vis = float(lm.get("l_shoulder_vis") or 0.0)
+        rs_vis = float(lm.get("r_shoulder_vis") or 0.0)
+        if nose_vis != nose_vis or ls_vis != ls_vis or rs_vis != rs_vis:
+            return False  # NaN
+        return nose_vis > 0.5 and (ls_vis > 0.5 or rs_vis > 0.5)
+
+    def _update_pose_baseline(self, session_id: Any, pose_xyz: List[float]) -> None:
+        """Collect first K face-present poses; lock median yaw/pitch as baseline."""
+        if session_id in self._session_pose_baseline and self._session_pose_baseline[session_id] is not None:
+            return
+        samples = self._session_pose_samples[session_id]
+        if len(samples) < self.pose_baseline_frames:
+            samples.append([float(pose_xyz[0]), float(pose_xyz[1]), float(pose_xyz[2])])
+        if len(samples) >= self.pose_baseline_frames:
+            yaw_med = float(np.median([s[0] for s in samples]))
+            pitch_med = float(np.median([s[1] for s in samples]))
+            self._session_pose_baseline[session_id] = (yaw_med, pitch_med)
+
+    def _centered_pose_buf(
+        self, session_id: Any, pose_buf: List
+    ) -> Tuple[List, Optional[float], Optional[float]]:
+        """Subtract session yaw/pitch baseline from pose samples for fusion."""
+        baseline = self._session_pose_baseline.get(session_id)
+        if baseline is None:
+            return list(pose_buf), None, None
+        yaw0, pitch0 = baseline
+        centered = [
+            [float(p[0]) - yaw0, float(p[1]) - pitch0, float(p[2])]
+            for p in pose_buf
+        ]
+        return centered, yaw0, pitch0
+
     # ── Detection helpers (from models/webcam_test.py) ────────────────────────
+
+    def _detect_face(
+        self, frame_bgr: np.ndarray
+    ) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Largest frontal face box in original frame coordinates, or None.
+
+        Optionally equalises / upscales for Haar detectMultiScale, then maps
+        the box back so crops stay on the original 224×224 frame (model input
+        scale unchanged). Defaults come from face_gate_check.json (ms28_n5).
+        """
+        if self.face_cascade is None or frame_bgr is None or getattr(frame_bgr, "size", 0) == 0:
+            return None
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        if self.face_equalize:
+            gray = cv2.equalizeHist(gray)
+        scale = float(self.face_upscale) if self.face_upscale and self.face_upscale > 0 else 1.0
+        if abs(scale - 1.0) > 1e-6:
+            gray_det = cv2.resize(
+                gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR
+            )
+        else:
+            gray_det = gray
+        faces = self.face_cascade.detectMultiScale(
+            gray_det,
+            scaleFactor=1.1,
+            minNeighbors=int(self.face_min_neighbors),
+            minSize=(int(self.face_min_size), int(self.face_min_size)),
+        )
+        if len(faces) == 0:
+            return None
+        fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
+        if abs(scale - 1.0) > 1e-6:
+            fx = int(round(fx / scale))
+            fy = int(round(fy / scale))
+            fw = int(round(fw / scale))
+            fh = int(round(fh / scale))
+        h, w = frame_bgr.shape[:2]
+        fx = max(0, min(fx, w - 1))
+        fy = max(0, min(fy, h - 1))
+        fw = max(1, min(fw, w - fx))
+        fh = max(1, min(fh, h - fy))
+        return (int(fx), int(fy), int(fw), int(fh))
 
     def detect_eye_crop(self, frame_bgr: np.ndarray):
         if self.face_cascade is None or self.eye_cascade is None:
             return None, None
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(50, 50))
-        if len(faces) == 0:
+        box = self._detect_face(frame_bgr)
+        if box is None:
             return None, None
-        fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
+        fx, fy, fw, fh = box
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         face_gray = gray[fy:fy + fh, fx:fx + fw]
         eyes = self.eye_cascade.detectMultiScale(face_gray, 1.1, 5, minSize=(12, 12))
         if len(eyes) == 0:
@@ -321,12 +431,9 @@ class MLService:
         x1 = (w - cw) // 2
         y1 = (h - ch) // 2
         center = frame_bgr[y1:y1 + ch, x1:x1 + cw]
-        if self.face_cascade is None:
-            return center, False
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(50, 50))
-        if len(faces) > 0:
-            fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
+        box = self._detect_face(frame_bgr)
+        if box is not None:
+            fx, fy, fw, fh = box
             pad = int(fw * 0.15)
             x1 = max(0, fx - pad)
             y1 = max(0, fy - pad)
@@ -385,7 +492,10 @@ class MLService:
         def col(name, axis):
             return np.array([lm[f"{name}_{axis}"] for lm in valid], dtype=float)
 
-        if n < 4:
+        # Need ≥2 valid landmark frames so wrist-speed (np.diff) is defined.
+        # Older live default of ML_WINDOW_FRAMES=3 never reached the previous
+        # n < 4 gate, so M4 always saw the constant default vector below.
+        if n < 2:
             return {
                 "pose_ratio": pose_ratio,
                 "lw_speed_mean": 0.0, "lw_speed_std": 0.0,
@@ -473,13 +583,52 @@ class MLService:
         except Exception:
             return None
 
-    def _infer_frame_signals(self, frame_bgr: np.ndarray, session_id: Any):
+    def _infer_frame_signals(
+        self,
+        frame_bgr: np.ndarray,
+        session_id: Any,
+        face_box: Optional[Tuple[int, int, int, int]] = None,
+    ):
         """Run per-frame M1/M2/landmarks. Returns (gaze_probs, pose_xyz, lm, meta)."""
         torch = self._torch
         Image = self._Image
 
-        eye_crop, _ = self.detect_eye_crop(frame_bgr)
-        face_crop, face_detected = self.detect_face_crop(frame_bgr)
+        # Caller may pass a box from the outer face gate to avoid a second Haar.
+        if face_box is None:
+            face_box = self._detect_face(frame_bgr)
+        face_detected = face_box is not None
+
+        eye_crop = None
+        eye_box = None
+        if face_box is not None and self.eye_cascade is not None:
+            fx, fy, fw, fh = face_box
+            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+            face_gray = gray[fy:fy + fh, fx:fx + fw]
+            eyes = self.eye_cascade.detectMultiScale(
+                face_gray, 1.1, 5, minSize=(12, 12)
+            )
+            if len(eyes) == 0:
+                eye_crop = face_gray[: max(fh // 2, 1), :]
+                eye_box = (fx, fy, fw, fh // 2)
+            else:
+                ex, ey, ew, eh = max(eyes, key=lambda r: r[2] * r[3])
+                eye_crop = face_gray[ey:ey + eh, ex:ex + ew]
+                eye_box = (fx + ex, fy + ey, ew, eh)
+
+        if face_box is not None:
+            fx, fy, fw, fh = face_box
+            pad = int(fw * 0.15)
+            x1 = max(0, fx - pad)
+            y1 = max(0, fy - pad)
+            x2 = min(frame_bgr.shape[1], fx + fw + pad)
+            y2 = min(frame_bgr.shape[0], fy + fh + pad)
+            face_crop = frame_bgr[y1:y2, x1:x2]
+        else:
+            h, w = frame_bgr.shape[:2]
+            cw, ch = int(w * 0.6), int(h * 0.6)
+            x1 = (w - cw) // 2
+            y1 = (h - ch) // 2
+            face_crop = frame_bgr[y1:y1 + ch, x1:x1 + cw]
 
         gaze_probs = np.array([0.7, 0.1, 0.1, 0.1], dtype=np.float32)
         gaze_label = "center"
@@ -487,7 +636,6 @@ class MLService:
 
         if self.gaze_model is not None and torch is not None and Image is not None:
             if eye_crop is not None:
-                face_detected = True
                 img_gray = Image.fromarray(eye_crop).convert("L")
             else:
                 img_gray = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)).convert("L")
@@ -499,24 +647,23 @@ class MLService:
             gaze_idx = int(gaze_probs.argmax())
             gaze_label = GAZE_LABELS.get(gaze_idx, "center")
             gaze_conf = float(gaze_probs[gaze_idx])
-        elif eye_crop is not None and self.face_cascade is not None and self.eye_cascade is not None:
-            face_detected = True
+        elif face_box is not None and self.eye_cascade is not None:
+            fx, fy, fw, fh = face_box
             gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(50, 50))
-            if len(faces):
-                fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
-                face_gray = gray[fy:fy + fh, fx:fx + fw]
-                eyes = self.eye_cascade.detectMultiScale(face_gray, 1.1, 3, minSize=(12, 12))
-                h, w = frame_bgr.shape[:2]
-                yaw_off = abs((fx + fw / 2) - (w / 2)) / (w / 2) * 45.0
-                if len(eyes) == 0 or yaw_off > 20:
-                    gaze_probs = np.array([0.2, 0.4, 0.3, 0.1], dtype=np.float32)
-                    gaze_label = "away"
-                    gaze_conf = 0.35
-                else:
-                    gaze_probs = np.array([0.85, 0.05, 0.05, 0.05], dtype=np.float32)
-                    gaze_label = "center"
-                    gaze_conf = 0.92
+            face_gray = gray[fy:fy + fh, fx:fx + fw]
+            eyes = self.eye_cascade.detectMultiScale(
+                face_gray, 1.1, 3, minSize=(12, 12)
+            )
+            h, w = frame_bgr.shape[:2]
+            yaw_off = abs((fx + fw / 2) - (w / 2)) / (w / 2) * 45.0
+            if len(eyes) == 0 or yaw_off > 20:
+                gaze_probs = np.array([0.2, 0.4, 0.3, 0.1], dtype=np.float32)
+                gaze_label = "away"
+                gaze_conf = 0.35
+            else:
+                gaze_probs = np.array([0.85, 0.05, 0.05, 0.05], dtype=np.float32)
+                gaze_label = "center"
+                gaze_conf = 0.92
 
         yaw = pitch = roll = 0.0
         if self.pose_model is not None and torch is not None and Image is not None:
@@ -526,19 +673,20 @@ class MLService:
                 x = self.pose_tf(pil_rgb).unsqueeze(0).to(self.device)
                 raw = self.pose_model(x).squeeze(0).cpu().numpy()
             yaw, pitch, roll = float(raw[0]), float(raw[1]), float(raw[2])
-        elif face_detected and self.face_cascade is not None:
+        elif face_box is not None:
             h, w = frame_bgr.shape[:2]
-            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(50, 50))
-            if len(faces):
-                fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
-                yaw = abs((fx + fw / 2) - (w / 2)) / (w / 2) * 45.0
+            fx, fy, fw, fh = face_box
+            yaw = abs((fx + fw / 2) - (w / 2)) / (w / 2) * 45.0
 
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         lm = self.extract_landmarks(frame_rgb, session_id)
 
         meta = {
-            "face_detected": bool(face_detected or eye_crop is not None),
+            "face_detected": bool(face_detected),
+            # Plain Python ints — numpy.int32 is not JSON-serializable.
+            "face_box_px": (
+                [int(v) for v in face_box] if face_box is not None else None
+            ),
             "gaze_label": gaze_label,
             "gaze_confidence": gaze_conf,
             "head_pose_yaw": round(yaw, 2),
@@ -553,6 +701,7 @@ class MLService:
         pose_buf: List,
         lm_buf: List,
         last_meta: dict,
+        session_id: Any = None,
     ) -> Tuple[str, float, dict]:
         eng_prob = 0.5
         if self.eng_model is not None and self.eng_feature_cols:
@@ -572,9 +721,19 @@ class MLService:
             "ml_mode": self.ml_mode,
         }
 
-        if self.fusion_model is not None and len(gaze_buf) > 0 and len(pose_buf) > 0:
+        sid = session_id if session_id is not None else "_default"
+        pose_for_score, yaw0, pitch0 = self._centered_pose_buf(sid, pose_buf)
+        features["pose_baseline_yaw"] = None if yaw0 is None else round(float(yaw0), 4)
+        features["pose_baseline_pitch"] = (
+            None if pitch0 is None else round(float(pitch0), 4)
+        )
+        features["fusion_threshold"] = float(self.fusion_threshold)
+
+        if self.fusion_model is not None and len(gaze_buf) > 0 and len(pose_for_score) > 0:
             try:
-                feat_vec = self.build_fusion_features(list(gaze_buf), list(pose_buf), eng_prob)
+                feat_vec = self.build_fusion_features(
+                    list(gaze_buf), list(pose_for_score), eng_prob
+                )
                 if hasattr(self.fusion_model, "predict_proba"):
                     proba = self.fusion_model.predict_proba(feat_vec)[0]
                     # Assume class 1 = distracted when binary
@@ -599,7 +758,7 @@ class MLService:
         # Valid heuristic results remain FOCUSED/DISTRACTED (not UNKNOWN).
         features["inference_path"] = "heuristic"
         gaze_arr = np.array(gaze_buf, dtype=np.float32)
-        pose_arr = np.array(pose_buf, dtype=np.float32)
+        pose_arr = np.array(pose_for_score, dtype=np.float32)
         p_c = float(np.mean(gaze_arr[:, 0]))
         p_l = float(np.mean(gaze_arr[:, 1]))
         p_r = float(np.mean(gaze_arr[:, 2]))
@@ -657,7 +816,48 @@ class MLService:
 
         sid = session_id if session_id is not None else "_default"
         try:
-            gaze_probs, pose_xyz, lm, meta = self._infer_frame_signals(frame, sid)
+            # Face gate before buffer append: no-face frames must not pollute
+            # the fusion window with whole-frame gaze / centre-crop pose.
+            face_box = self._detect_face(frame)
+            if face_box is None:
+                # S3: person without Haar face → DISTRACTED (body_no_face).
+                # Still do not append to the fusion buffer.
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                lm_body = self.extract_landmarks(frame_rgb, sid)
+                if self._landmarks_indicate_person(lm_body):
+                    return (
+                        "DISTRACTED",
+                        0.85,
+                        {
+                            "reason": "body_no_face",
+                            "face_detected": False,
+                            "face_box_px": None,
+                            "ml_mode": self.ml_mode,
+                            "inference_path": "body_no_face",
+                            "confidence": 0.85,
+                        },
+                    )
+                return self._unknown_result(
+                    "no_face",
+                    self.ml_mode,
+                    face_detected=False,
+                    face_box_px=None,
+                )
+
+            gaze_probs, pose_xyz, lm, meta = self._infer_frame_signals(
+                frame, sid, face_box=face_box
+            )
+            # Re-check: keep defensive UNKNOWN if meta disagrees.
+            if not meta.get("face_detected", False):
+                return self._unknown_result(
+                    "no_face",
+                    self.ml_mode,
+                    face_detected=False,
+                    face_box_px=None,
+                )
+
+            self._update_pose_baseline(sid, pose_xyz)
+
             buf = self._session_bufs[sid]
             buf["gaze"].append(gaze_probs)
             buf["pose"].append(pose_xyz)
@@ -672,15 +872,9 @@ class MLService:
                 pose_list = pose_list[-self.window_size :]
                 lm_list = lm_list[-self.window_size :]
 
-            # Decoded image, no detected face → UNKNOWN (not focused/distracted).
-            if not meta.get("face_detected", False):
-                return self._unknown_result(
-                    "no_face",
-                    self.ml_mode,
-                    face_detected=False,
-                )
-
-            return self._score_window(gaze_list, pose_list, lm_list, meta)
+            return self._score_window(
+                gaze_list, pose_list, lm_list, meta, session_id=sid
+            )
         except Exception as e:
             print(f"[MLService] Frame processing error: {e}")
             return self._unknown_result(

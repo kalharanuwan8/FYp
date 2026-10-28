@@ -1,0 +1,49 @@
+{
+  "cascade": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\venvpy312\\Lib\\site-packages\\cv2\\data\\haarcascade_frontalface_default.xml",
+  "call": "detectMultiScale(gray, 1.1, 5, minSize=(50, 50)) matching ml_service.detect_face_crop / detect_eye_crop",
+  "frames": "models/data/processed/model2_pose/test.csv (BIWI subjects in that file)",
+  "subjects": [
+    "18",
+    "19",
+    "20"
+  ],
+  "n_csv_rows": 1672,
+  "n_unreadable": 0,
+  "bins": [
+    {
+      "abs_yaw_bin": "0-15",
+      "bin_rule": "lower inclusive, upper exclusive; >60 is abs(yaw) >= 60",
+      "n_readable": 1314,
+      "n_face_found": 16,
+      "ratio_face_found": 0.0121765601217656
+    },
+    {
+      "abs_yaw_bin": "15-30",
+      "bin_rule": "lower inclusive, upper exclusive; >60 is abs(yaw) >= 60",
+      "n_readable": 253,
+      "n_face_found": 0,
+      "ratio_face_found": 0.0
+    },
+    {
+      "abs_yaw_bin": "30-45",
+      "bin_rule": "lower inclusive, upper exclusive; >60 is abs(yaw) >= 60",
+      "n_readable": 94,
+      "n_face_found": 0,
+      "ratio_face_found": 0.0
+    },
+    {
+      "abs_yaw_bin": "45-60",
+      "bin_rule": "lower inclusive, upper exclusive; >60 is abs(yaw) >= 60",
+      "n_readable": 9,
+      "n_face_found": 0,
+      "ratio_face_found": 0.0
+    },
+    {
+      "abs_yaw_bin": ">60",
+      "bin_rule": "lower inclusive, upper exclusive; >60 is abs(yaw) >= 60",
+      "n_readable": 2,
+      "n_face_found": 0,
+      "ratio_face_found": 0.0
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "AN-01": {
+    "expected": {
+      "focused": 8.0,
+      "distracted": 2.0,
+      "unknown": 10.0,
+      "focus_pct": 80.0,
+      "coverage": 50.0
+    },
+    "actual": {
+      "observed_focused_seconds": 8.0,
+      "observed_distracted_seconds": 2.0,
+      "unknown_seconds": 10.0,
+      "monitoring_coverage_pct": 50.0,
+      "focus_percentage": 80.0,
+      "focus_metric_version": "observed_v1",
+      "session_duration_seconds": 20.0
+    }
+  },
+  "AN-02": {
+    "expected": {
+      "focused": 0.0,
+      "distracted": 6.0,
+      "unknown": 4.0,
+      "focus_pct": 0.0,
+      "coverage": 60.0
+    },
+    "actual": {
+      "observed_focused_seconds": 0.0,
+      "observed_distracted_seconds": 6.0,
+      "unknown_seconds": 4.0,
+      "monitoring_coverage_pct": 60.0,
+      "focus_percentage": 0.0,
+      "focus_metric_version": "observed_v1",
+      "session_duration_seconds": 10.0
+    }
+  },
+  "AN-03": {
+    "actual": {
+      "observed_focused_seconds": 0.0,
+      "observed_distracted_seconds": 0.0,
+      "unknown_seconds": 30.0,
+      "monitoring_coverage_pct": 0.0,
+      "focus_percentage": null,
+      "focus_metric_version": "observed_v1",
+      "session_duration_seconds": 30.0
+    }
+  },
+  "AN-04": {
+    "actual": {
+      "observed_focused_seconds": 2.0,
+      "observed_distracted_seconds": 0.0,
+      "unknown_seconds": 0.0,
+      "monitoring_coverage_pct": 100.0,
+      "focus_percentage": 100.0,
+      "focus_metric_version": "observed_v1",
+      "session_duration_seconds": 2.0
+    }
+  },
+  "AN-05": {
+    "actual": {
+      "observed_focused_seconds": 0.0,
+      "observed_distracted_seconds": 0.0,
+      "unknown_seconds": 60.0,
+      "monitoring_coverage_pct": 0.0,
+      "focus_percentage": null,
+      "focus_metric_version": "observed_v1",
+      "session_duration_seconds": 60.0
+    }
+  },
+  "T_SUPPORT": 3.0,
+  "FOCUS_METRIC_VERSION": "observed_v1"
+}

@@ -1,12 +1,12 @@
 
 const variants = {
   primary:
-    'bg-primary text-white hover:brightness-105 shadow-soft border border-transparent',
+    'bg-primary text-on-primary hover:brightness-105 shadow-soft border border-transparent',
   secondary:
     'bg-surface text-text border border-border hover:bg-primary-soft',
   ghost: 'bg-transparent text-text-muted hover:bg-primary-soft hover:text-text',
-  attention: 'bg-attention text-white hover:brightness-105',
-  success: 'bg-success text-white hover:brightness-105',
+  attention: 'bg-attention text-on-primary hover:brightness-105',
+  success: 'bg-success text-on-primary hover:brightness-105',
 };
 
 const sizes = {

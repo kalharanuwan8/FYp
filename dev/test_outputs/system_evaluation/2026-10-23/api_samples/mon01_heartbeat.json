@@ -1,0 +1,17 @@
+{
+  "confidence": null,
+  "engagement_score": null,
+  "face_detected": false,
+  "focus_metric_version": "observed_v1",
+  "gaze_label": null,
+  "intervention": null,
+  "intervention_triggered": false,
+  "ml_mode": "full",
+  "noise_baseline_dbfs": null,
+  "noise_dbfs": null,
+  "noise_triggered": false,
+  "reason": "no_face",
+  "session_id": 1,
+  "status": "recorded",
+  "verdict": "UNKNOWN"
+}

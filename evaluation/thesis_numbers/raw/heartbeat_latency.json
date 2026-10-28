@@ -1,0 +1,1062 @@
+{
+  "cuda": {
+    "tag": "cuda",
+    "disable_cuda_env": false,
+    "cuda_line": "THESIS_SERVER_CUDA available=True device_count=1 name=NVIDIA GeForce RTX 4050 Laptop GPU",
+    "port": 8765,
+    "session_start_ms": 5982.502599945292,
+    "warmup_heartbeat_ms": 7409.850399941206,
+    "warmup_status": 200,
+    "warmup_verdict": "FOCUSED",
+    "warmup_reason": null,
+    "warmup_ml_mode": "full",
+    "warmup_face_detected": true,
+    "n": 50,
+    "min_ms": 64.12989995442331,
+    "median_ms": 91.80050005670637,
+    "p95_linear_ms": 118.21864998200907,
+    "max_ms": 126.24519993551075,
+    "n_status_200": 50,
+    "n_face_detected_true": 50,
+    "n_reason_no_face": 0,
+    "ml_modes": [
+      "full"
+    ],
+    "verdicts": {
+      "DISTRACTED": 2,
+      "FOCUSED": 48
+    },
+    "timed_rows": [
+      {
+        "ms": 100.68039991892874,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 5
+      },
+      {
+        "ms": 108.1998001318425,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 10
+      },
+      {
+        "ms": 96.14709997549653,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 15
+      },
+      {
+        "ms": 88.07480009272695,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 20
+      },
+      {
+        "ms": 80.35829989239573,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 25
+      },
+      {
+        "ms": 108.34089992567897,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 30
+      },
+      {
+        "ms": 126.24519993551075,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 35
+      },
+      {
+        "ms": 105.93269998207688,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 40
+      },
+      {
+        "ms": 101.52609995566308,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 45
+      },
+      {
+        "ms": 92.26810000836849,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 50
+      },
+      {
+        "ms": 104.805399896577,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 55
+      },
+      {
+        "ms": 88.73749990016222,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 60
+      },
+      {
+        "ms": 71.81630004197359,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 65
+      },
+      {
+        "ms": 77.31960015371442,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 70
+      },
+      {
+        "ms": 120.64550002105534,
+        "status": 200,
+        "verdict": "DISTRACTED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 75
+      },
+      {
+        "ms": 90.93059995211661,
+        "status": 200,
+        "verdict": "DISTRACTED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 80
+      },
+      {
+        "ms": 74.7420999687165,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 85
+      },
+      {
+        "ms": 69.92169981822371,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 90
+      },
+      {
+        "ms": 71.51899999007583,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 95
+      },
+      {
+        "ms": 105.13860010541975,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 100
+      },
+      {
+        "ms": 97.50449983403087,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 105
+      },
+      {
+        "ms": 101.97039996273816,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 110
+      },
+      {
+        "ms": 73.4894999768585,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 115
+      },
+      {
+        "ms": 90.276800096035,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 120
+      },
+      {
+        "ms": 114.29010005667806,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 125
+      },
+      {
+        "ms": 85.05869982764125,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 130
+      },
+      {
+        "ms": 99.008500110358,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 225
+      },
+      {
+        "ms": 77.29289983399212,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 230
+      },
+      {
+        "ms": 82.90589996613562,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 235
+      },
+      {
+        "ms": 111.81219993159175,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 270
+      },
+      {
+        "ms": 94.64120003394783,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 325
+      },
+      {
+        "ms": 97.0499999821186,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 375
+      },
+      {
+        "ms": 71.963099995628,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 410
+      },
+      {
+        "ms": 103.657899890095,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 415
+      },
+      {
+        "ms": 82.15970010496676,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 420
+      },
+      {
+        "ms": 106.17200005799532,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 425
+      },
+      {
+        "ms": 74.39030008390546,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 430
+      },
+      {
+        "ms": 89.2537001054734,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 435
+      },
+      {
+        "ms": 96.42209997400641,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 440
+      },
+      {
+        "ms": 92.38160005770624,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 580
+      },
+      {
+        "ms": 74.21470014378428,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 590
+      },
+      {
+        "ms": 68.89310013502836,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 620
+      },
+      {
+        "ms": 91.33290010504425,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 665
+      },
+      {
+        "ms": 64.12989995442331,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 670
+      },
+      {
+        "ms": 69.13079996593297,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 675
+      },
+      {
+        "ms": 70.41439996100962,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 705
+      },
+      {
+        "ms": 122.50129994936287,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 710
+      },
+      {
+        "ms": 115.25249993428588,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 725
+      },
+      {
+        "ms": 82.36890006810427,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 730
+      },
+      {
+        "ms": 100.46390001662076,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 735
+      }
+    ]
+  },
+  "cpu": {
+    "tag": "cpu",
+    "disable_cuda_env": true,
+    "cuda_line": "THESIS_SERVER_CUDA available=False device_count=0 name=none",
+    "port": 8766,
+    "session_start_ms": 5475.584300002083,
+    "warmup_heartbeat_ms": 546.2958000134677,
+    "warmup_status": 200,
+    "warmup_verdict": "FOCUSED",
+    "warmup_reason": null,
+    "warmup_ml_mode": "full",
+    "warmup_face_detected": true,
+    "n": 50,
+    "min_ms": 70.01210004091263,
+    "median_ms": 97.23230008967221,
+    "p95_linear_ms": 147.6657049031928,
+    "max_ms": 207.08590000867844,
+    "n_status_200": 50,
+    "n_face_detected_true": 50,
+    "n_reason_no_face": 0,
+    "ml_modes": [
+      "full"
+    ],
+    "verdicts": {
+      "DISTRACTED": 2,
+      "FOCUSED": 48
+    },
+    "timed_rows": [
+      {
+        "ms": 157.14659984223545,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 5
+      },
+      {
+        "ms": 93.1434000376612,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 10
+      },
+      {
+        "ms": 125.957400072366,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 15
+      },
+      {
+        "ms": 70.01210004091263,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 20
+      },
+      {
+        "ms": 97.4199001211673,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 25
+      },
+      {
+        "ms": 80.79529996030033,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 30
+      },
+      {
+        "ms": 78.99770000949502,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 35
+      },
+      {
+        "ms": 103.82620012387633,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 40
+      },
+      {
+        "ms": 77.92750000953674,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 45
+      },
+      {
+        "ms": 93.74829987064004,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 50
+      },
+      {
+        "ms": 96.34230006486177,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 55
+      },
+      {
+        "ms": 77.26730010472238,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 60
+      },
+      {
+        "ms": 79.06859996728599,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 65
+      },
+      {
+        "ms": 81.14710007794201,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 70
+      },
+      {
+        "ms": 104.2357999831438,
+        "status": 200,
+        "verdict": "DISTRACTED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 75
+      },
+      {
+        "ms": 113.20480005815625,
+        "status": 200,
+        "verdict": "DISTRACTED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 80
+      },
+      {
+        "ms": 89.49329983443022,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 85
+      },
+      {
+        "ms": 79.39930004067719,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 90
+      },
+      {
+        "ms": 105.51150003448129,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 95
+      },
+      {
+        "ms": 86.82200009934604,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 100
+      },
+      {
+        "ms": 91.75199992023408,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 105
+      },
+      {
+        "ms": 133.22399999015033,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 110
+      },
+      {
+        "ms": 114.73580007441342,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 115
+      },
+      {
+        "ms": 78.02519993856549,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 120
+      },
+      {
+        "ms": 105.98829993978143,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 125
+      },
+      {
+        "ms": 92.12510008364916,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 130
+      },
+      {
+        "ms": 86.12159988842905,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 225
+      },
+      {
+        "ms": 102.92610013857484,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 230
+      },
+      {
+        "ms": 124.31770004332066,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 235
+      },
+      {
+        "ms": 96.86130005866289,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 270
+      },
+      {
+        "ms": 207.08590000867844,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 325
+      },
+      {
+        "ms": 99.01620005257428,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 375
+      },
+      {
+        "ms": 94.58830021321774,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 410
+      },
+      {
+        "ms": 128.32550005987287,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 415
+      },
+      {
+        "ms": 131.7741998936981,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 420
+      },
+      {
+        "ms": 119.1584998741746,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 425
+      },
+      {
+        "ms": 140.45459986664355,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 430
+      },
+      {
+        "ms": 85.47779987566173,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 435
+      },
+      {
+        "ms": 97.04470005817711,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 440
+      },
+      {
+        "ms": 105.34530016593635,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 580
+      },
+      {
+        "ms": 90.64080007374287,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 590
+      },
+      {
+        "ms": 106.62580002099276,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 620
+      },
+      {
+        "ms": 90.59099992737174,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 665
+      },
+      {
+        "ms": 94.57539999857545,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 670
+      },
+      {
+        "ms": 153.56569993309677,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 675
+      },
+      {
+        "ms": 105.52229988388717,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 705
+      },
+      {
+        "ms": 125.0867999624461,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 710
+      },
+      {
+        "ms": 133.64569982513785,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 725
+      },
+      {
+        "ms": 95.70529987104237,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 730
+      },
+      {
+        "ms": 101.73229989595711,
+        "status": 200,
+        "verdict": "FOCUSED",
+        "reason": null,
+        "ml_mode": "full",
+        "face_detected": true,
+        "video": "natural.mp4",
+        "frame_index": 735
+      }
+    ]
+  }
+}

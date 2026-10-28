@@ -45,7 +45,7 @@ Access is role-based. Every protected API endpoint requires a JWT, and a server-
 | **Administrator** | Platform operator | Manage users (single create + CSV bulk import), activate/deactivate accounts, record guardian consent, configure system settings (e.g. intervention cooldowns), view platform analytics and dashboard stats | `/api/admin`, `/api/auth` |
 | **Guardian** | Parent/guardian of a student (implicit, no login) | Their consent is recorded by an administrator and is a hard gate for monitored sessions; the student additionally confirms their own understanding ("assent") at onboarding | Consent endpoints under `/api/auth`, assent under `/api/student` |
 
-Seed accounts for local development are created by `backend/seed.py` (admin, teacher, and student demo users; see that file for credentials).
+Seed accounts for local development (admin, teacher, and student) are created automatically on backend startup when `SEED_DEFAULT_ACCOUNTS` is true (default). Passwords are bcrypt-hashed into PostgreSQL/SQLite via `app.services.default_accounts`. `backend/seed.py` remains an optional idempotent CLI wrapper around the same helpers (see that module for credentials).
 
 ---
 
@@ -112,7 +112,7 @@ This is the loop everything else exists to support. It is implemented primarily 
 2. **Session start.** In the browser's start flow, camera (and, if permitted, microphone) capture opens first — nothing leaves the device at this point — and the session is then created via the API; if camera access fails, no session is started. The backend ends any other active sessions for that student (closing open distraction episodes), creates a `LearningSession`, and registers a fresh per-session `InterventionEngine` and `NoiseMonitor` in in-memory registries keyed by session id (`SESSION_ENGINES`, `SESSION_NOISE_MONITORS` in `backend/app/routes/session.py`). Camera access is mandatory for a monitored session; microphone access is not (see step 4).
 3. **Heartbeat (every ~2 seconds).** The student's browser draws the current webcam frame to a 224×224 canvas and sends it as a base64 JPEG to `POST /api/session/<id>/heartbeat`, together with `is_quiz_context` and the environmental fields `noise_dbfs` and `lesson_audio_active` (§6). Only one heartbeat request is in flight at a time.
 4. **On-device loudness measurement.** Alongside the camera, the browser opens the microphone with echo cancellation, noise suppression, and automatic gain control disabled (those would remove the noise being measured), computes the RMS of the audio buffer via an `AnalyserNode`, converts it to dBFS, and sends only that number. No audio is recorded, uploaded, or stored. If the microphone is denied or unavailable, capture falls back to camera-only and `noise_dbfs` is simply absent/null.
-5. **Server-side ML inference.** `MLService.predict_frame_image` (singleton, `backend/app/services/ml_service.py`) processes the frame: face/eye regions are located (OpenCV Haar cascades), Model 1 estimates gaze direction probabilities, Model 2 regresses head-pose angles, **per-session** MediaPipe Pose Landmarker instances extract upper-body landmarks (Phase 2A: no shared VIDEO tracker across sessions), Model 4 turns windowed pose features into an engagement probability, and Model 5 (fusion) combines the windowed features into one verdict. Per-session frame buffers (deque, max 32 frames; scoring window `ML_WINDOW_FRAMES`, default 3) smooth single-frame noise. A decoded image with **no detected face** yields **`UNKNOWN`** (`reason: no_face`, `confidence: null`, `face_detected: false`) — not focused or distracted time. Missing/undecodable images and inference exceptions also yield **`UNKNOWN`** with no fabricated confidence or `face_detected: true`.
+5. **Server-side ML inference.** `MLService.predict_frame_image` (singleton, `backend/app/services/ml_service.py`) processes the frame: face/eye regions are located (OpenCV Haar cascades), Model 1 estimates gaze direction probabilities, Model 2 regresses head-pose angles, **per-session** MediaPipe Pose Landmarker instances extract upper-body landmarks (Phase 2A: no shared VIDEO tracker across sessions), Model 4 turns windowed pose features into an engagement probability, and Model 5 (fusion) combines the windowed features into one verdict. Per-session frame buffers (deque, max 32 frames; scoring window `ML_WINDOW_FRAMES`, default 5) smooth single-frame noise. Engagement features compute from ≥2 valid landmark frames (defaults only when fewer). A decoded image with **no detected face** yields **`UNKNOWN`** (`reason: no_face`, `confidence: null`, `face_detected: false`) — not focused or distracted time. Missing/undecodable images and inference exceptions also yield **`UNKNOWN`** with no fabricated confidence or `face_detected: true`.
 6. **Verdict.** The response carries `verdict` (`FOCUSED`, `DISTRACTED`, or `UNKNOWN`), `confidence` (null for UNKNOWN), `ml_mode`, optional `reason` / `gaze_label` / `engagement_score` / `face_detected`, and each heartbeat is also stored as a `MonitoringObservation` for coverage accounting (`observed_at` = server receive/process time, not camera capture time). `ml_mode` reports which checkpoint set is loaded:
    - `full` — all four checkpoints (M1, M2, M4, M5) loaded;
    - `partial` — some checkpoints loaded, heuristic gates fill the gaps;
@@ -389,7 +389,7 @@ distraction_project/
 ├── README.md                  # title only; no substantive content
 ├── backend/                   # Flask application (the live server)
 │   ├── wsgi.py                # entry point: create_app() + socketio.run
-│   ├── seed.py                # idempotent demo data + demo accounts
+│   ├── seed.py                # optional CLI wrapper for default accounts
 │   ├── requirements.txt
 │   ├── uploads/               # runtime uploaded materials (served at /uploads/...)
 │   ├── app/
@@ -454,11 +454,11 @@ Runtime data that is **not** in git: model checkpoints (`models/outputs/checkpoi
 ```bash
 cd backend
 pip install -r requirements.txt
-python seed.py        # optional: demo users + grade levels (idempotent)
-python wsgi.py        # serves on http://localhost:5000 (PORT env overrides)
+python wsgi.py        # serves on http://localhost:5000; auto-creates demo users if missing
+python seed.py        # optional: re-run the same idempotent default-account seed
 ```
 
-Key environment variables (see `backend/app/config.py`, `.env.example`): `FLASK_ENV`, `SECRET_KEY`, `JWT_SECRET_KEY`, `DATABASE_URL` (unset ⇒ SQLite `adhd_lms.db`), `CORS_ORIGINS`, `MAX_UPLOAD_MB` (default 500 MB cap), `LLM_BASE_URL` / `LLM_MODEL` (Ollama), and the checkpoint overrides `GAZE_CKPT`, `POSE_CKPT`, `ENG_CKPT`, `FUSION_CKPT`, plus `ML_WINDOW_FRAMES` (default 3).
+Key environment variables (see `backend/app/config.py`, `.env.example`): `FLASK_ENV`, `SECRET_KEY`, `JWT_SECRET_KEY`, `DATABASE_URL` (unset ⇒ SQLite `adhd_lms.db`), `CORS_ORIGINS`, `MAX_UPLOAD_MB` (default 500 MB cap), `LLM_BASE_URL` / `LLM_MODEL` (Ollama), and the checkpoint overrides `GAZE_CKPT`, `POSE_CKPT`, `ENG_CKPT`, `FUSION_CKPT`, plus `ML_WINDOW_FRAMES` (default 5).
 
 ### Frontend
 

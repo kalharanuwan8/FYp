@@ -1,0 +1,12 @@
+{
+  "status": 400,
+  "body": {
+    "details": [
+      {
+        "field": "description",
+        "message": "Field required"
+      }
+    ],
+    "error": "Validation failed"
+  }
+}

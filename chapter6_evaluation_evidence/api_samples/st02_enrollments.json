@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "body": {
+    "enrollments": [
+      {
+        "created_at": "2026-10-23T04:09:49.707435",
+        "description": "Isolated Chapter 6 evaluation course",
+        "grade_level_id": 1,
+        "grade_level_name": "Grade 1",
+        "id": 1,
+        "is_archived": false,
+        "title": "Eval System Course",
+        "updated_at": "2026-10-23T04:09:49.707435"
+      }
+    ]
+  }
+}

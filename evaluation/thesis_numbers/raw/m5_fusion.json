@@ -1,0 +1,455 @@
+{
+  "checkpoint_sha256": "b465e0c48af9067b9417a696a7c510ddf34ac98779d6aea6adba94e7d42020e6",
+  "deployed_features": [
+    "p_center_mean",
+    "p_left_mean",
+    "p_right_mean",
+    "p_down_mean",
+    "gaze_away_ratio",
+    "yaw_mean",
+    "pitch_mean",
+    "roll_mean",
+    "engagement_prob_mean"
+  ],
+  "deployed_threshold": 0.5,
+  "deployed_threshold_tuning": {
+    "enabled": false,
+    "metric": "f1",
+    "val_best": null
+  },
+  "deployed_class_weight": null,
+  "deployed_C": 1.0,
+  "deployed_max_iter": 2000,
+  "existing_test_split": {
+    "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model5_fusion\\test.csv",
+    "n_file_rows": 120,
+    "video_counts": {
+      "forced": 52,
+      "distracted": 45,
+      "natural": 23
+    },
+    "metrics": {
+      "n": 120,
+      "positive_label": 1,
+      "class_counts_true": {
+        "0": 75,
+        "1": 45
+      },
+      "accuracy": 1.0,
+      "precision_positive": 1.0,
+      "recall_positive": 1.0,
+      "f1_positive": 1.0,
+      "precision_macro": 1.0,
+      "recall_macro": 1.0,
+      "f1_macro": 1.0,
+      "per_class": {
+        "0": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 75
+        },
+        "1": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 45
+        }
+      },
+      "confusion_matrix_labels": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          75,
+          0
+        ],
+        [
+          0,
+          45
+        ]
+      ],
+      "roc_auc": 1.0,
+      "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+      "threshold": 0.5,
+      "decision": "DISTRACTED if predict_proba class 1 >= threshold else FOCUSED (y=1 is distracted)"
+    }
+  },
+  "blocked_split": {
+    "source": "concat of existing train.csv+val.csv+test.csv (ambiguous windows already removed by prep.py), grouped by video_id, sorted by window_start_sec",
+    "seed": 42,
+    "pipeline": "StandardScaler + LogisticRegression(C=1.0, solver=lbfgs, max_iter=2000, random_state=42). Deployed train.py does not pass random_state; lbfgs is deterministic for a fixed matrix. Copy saved under evaluation/thesis_numbers/artifacts/. Deployed model.pkl was not overwritten.",
+    "per_video": [
+      {
+        "video_id": "distracted",
+        "n": 302,
+        "c1": 211,
+        "c2": 256,
+        "n_train": 210,
+        "n_val": 43,
+        "n_test": 45,
+        "dropped_window_start_sec": [
+          210.0,
+          211.0,
+          255.0,
+          256.0
+        ],
+        "rule": "Sort by window_start_sec. c1=floor(0.70*n), c2=floor(0.85*n). train=[0, c1-1), val=[c1+1, c2-1), test=[c2+1, n). Dropped indices are c1-1, c1, c2-1, c2 when in range (2 windows at the train|val boundary and 2 at the val|test boundary)."
+      },
+      {
+        "video_id": "forced",
+        "n": 317,
+        "c1": 221,
+        "c2": 269,
+        "n_train": 220,
+        "n_val": 46,
+        "n_test": 47,
+        "dropped_window_start_sec": [
+          220.0,
+          221.0,
+          268.0,
+          269.0
+        ],
+        "rule": "Sort by window_start_sec. c1=floor(0.70*n), c2=floor(0.85*n). train=[0, c1-1), val=[c1+1, c2-1), test=[c2+1, n). Dropped indices are c1-1, c1, c2-1, c2 when in range (2 windows at the train|val boundary and 2 at the val|test boundary)."
+      },
+      {
+        "video_id": "natural",
+        "n": 181,
+        "c1": 126,
+        "c2": 153,
+        "n_train": 125,
+        "n_val": 25,
+        "n_test": 27,
+        "dropped_window_start_sec": [
+          125.0,
+          126.0,
+          152.0,
+          153.0
+        ],
+        "rule": "Sort by window_start_sec. c1=floor(0.70*n), c2=floor(0.85*n). train=[0, c1-1), val=[c1+1, c2-1), test=[c2+1, n). Dropped indices are c1-1, c1, c2-1, c2 when in range (2 windows at the train|val boundary and 2 at the val|test boundary)."
+      }
+    ],
+    "n_train": 555,
+    "n_val": 114,
+    "n_test": 119,
+    "metrics_test": {
+      "n": 119,
+      "positive_label": 1,
+      "class_counts_true": {
+        "0": 74,
+        "1": 45
+      },
+      "accuracy": 1.0,
+      "precision_positive": 1.0,
+      "recall_positive": 1.0,
+      "f1_positive": 1.0,
+      "precision_macro": 1.0,
+      "recall_macro": 1.0,
+      "f1_macro": 1.0,
+      "per_class": {
+        "0": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 74
+        },
+        "1": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 45
+        }
+      },
+      "confusion_matrix_labels": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          74,
+          0
+        ],
+        [
+          0,
+          45
+        ]
+      ],
+      "roc_auc": 1.0,
+      "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+      "threshold": 0.5,
+      "decision": "DISTRACTED if predict_proba class 1 >= threshold else FOCUSED (y=1 is distracted)"
+    }
+  },
+  "rule_baseline_existing_test": {
+    "n": 120,
+    "positive_label": 1,
+    "class_counts_true": {
+      "0": 75,
+      "1": 45
+    },
+    "accuracy": 0.375,
+    "precision_positive": 0.375,
+    "recall_positive": 1.0,
+    "f1_positive": 0.5454545454545454,
+    "precision_macro": 0.1875,
+    "recall_macro": 0.5,
+    "f1_macro": 0.2727272727272727,
+    "per_class": {
+      "0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 75
+      },
+      "1": {
+        "precision": 0.375,
+        "recall": 1.0,
+        "f1": 0.5454545454545454,
+        "support": 45
+      }
+    },
+    "confusion_matrix_labels": [
+      0,
+      1
+    ],
+    "confusion_matrix": [
+      [
+        0,
+        75
+      ],
+      [
+        0,
+        45
+      ]
+    ],
+    "roc_auc": 0.5,
+    "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+    "score_note": "Hard rule. ROC-AUC uses the 0/1 rule output as the score, not a probability.",
+    "rule": "distracted if gaze_away_ratio > 0.20 or abs(yaw_mean) > 10 or abs(pitch_mean) > 10"
+  },
+  "rule_baseline_blocked_test": {
+    "n": 119,
+    "positive_label": 1,
+    "class_counts_true": {
+      "0": 74,
+      "1": 45
+    },
+    "accuracy": 0.37815126050420167,
+    "precision_positive": 0.37815126050420167,
+    "recall_positive": 1.0,
+    "f1_positive": 0.5487804878048781,
+    "precision_macro": 0.18907563025210083,
+    "recall_macro": 0.5,
+    "f1_macro": 0.27439024390243905,
+    "per_class": {
+      "0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 74
+      },
+      "1": {
+        "precision": 0.37815126050420167,
+        "recall": 1.0,
+        "f1": 0.5487804878048781,
+        "support": 45
+      }
+    },
+    "confusion_matrix_labels": [
+      0,
+      1
+    ],
+    "confusion_matrix": [
+      [
+        0,
+        74
+      ],
+      [
+        0,
+        45
+      ]
+    ],
+    "roc_auc": 0.5,
+    "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+    "score_note": "Hard rule. ROC-AUC uses the 0/1 rule output as the score, not a probability.",
+    "rule": "distracted if gaze_away_ratio > 0.20 or abs(yaw_mean) > 10 or abs(pitch_mean) > 10"
+  },
+  "ablation_blocked_test": {
+    "gaze_1_to_5": {
+      "features": [
+        "p_center_mean",
+        "p_left_mean",
+        "p_right_mean",
+        "p_down_mean",
+        "gaze_away_ratio"
+      ],
+      "metrics": {
+        "n": 119,
+        "positive_label": 1,
+        "class_counts_true": {
+          "0": 74,
+          "1": 45
+        },
+        "accuracy": 1.0,
+        "precision_positive": 1.0,
+        "recall_positive": 1.0,
+        "f1_positive": 1.0,
+        "precision_macro": 1.0,
+        "recall_macro": 1.0,
+        "f1_macro": 1.0,
+        "per_class": {
+          "0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 74
+          },
+          "1": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 45
+          }
+        },
+        "confusion_matrix_labels": [
+          0,
+          1
+        ],
+        "confusion_matrix": [
+          [
+            74,
+            0
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "roc_auc": 1.0,
+        "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+        "threshold": 0.5,
+        "decision": "DISTRACTED if predict_proba class 1 >= threshold else FOCUSED (y=1 is distracted)"
+      }
+    },
+    "gaze_head_1_to_8": {
+      "features": [
+        "p_center_mean",
+        "p_left_mean",
+        "p_right_mean",
+        "p_down_mean",
+        "gaze_away_ratio",
+        "yaw_mean",
+        "pitch_mean",
+        "roll_mean"
+      ],
+      "metrics": {
+        "n": 119,
+        "positive_label": 1,
+        "class_counts_true": {
+          "0": 74,
+          "1": 45
+        },
+        "accuracy": 1.0,
+        "precision_positive": 1.0,
+        "recall_positive": 1.0,
+        "f1_positive": 1.0,
+        "precision_macro": 1.0,
+        "recall_macro": 1.0,
+        "f1_macro": 1.0,
+        "per_class": {
+          "0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 74
+          },
+          "1": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 45
+          }
+        },
+        "confusion_matrix_labels": [
+          0,
+          1
+        ],
+        "confusion_matrix": [
+          [
+            74,
+            0
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "roc_auc": 1.0,
+        "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+        "threshold": 0.5,
+        "decision": "DISTRACTED if predict_proba class 1 >= threshold else FOCUSED (y=1 is distracted)"
+      }
+    },
+    "all_9": {
+      "features": [
+        "p_center_mean",
+        "p_left_mean",
+        "p_right_mean",
+        "p_down_mean",
+        "gaze_away_ratio",
+        "yaw_mean",
+        "pitch_mean",
+        "roll_mean",
+        "engagement_prob_mean"
+      ],
+      "metrics": {
+        "n": 119,
+        "positive_label": 1,
+        "class_counts_true": {
+          "0": 74,
+          "1": 45
+        },
+        "accuracy": 1.0,
+        "precision_positive": 1.0,
+        "recall_positive": 1.0,
+        "f1_positive": 1.0,
+        "precision_macro": 1.0,
+        "recall_macro": 1.0,
+        "f1_macro": 1.0,
+        "per_class": {
+          "0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 74
+          },
+          "1": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 45
+          }
+        },
+        "confusion_matrix_labels": [
+          0,
+          1
+        ],
+        "confusion_matrix": [
+          [
+            74,
+            0
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "roc_auc": 1.0,
+        "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1",
+        "threshold": 0.5,
+        "decision": "DISTRACTED if predict_proba class 1 >= threshold else FOCUSED (y=1 is distracted)"
+      }
+    }
+  }
+}

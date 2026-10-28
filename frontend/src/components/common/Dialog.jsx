@@ -156,7 +156,7 @@ export function ConfirmDialog({
           data-dialog-autofocus
           onClick={onConfirm}
           disabled={busy}
-          className="flex-1 min-h-11 px-5 rounded-2xl bg-attention text-white hover:brightness-105 font-semibold cursor-pointer disabled:opacity-50"
+          className="flex-1 min-h-11 px-5 rounded-2xl bg-attention text-on-primary hover:brightness-105 font-semibold cursor-pointer disabled:opacity-50"
         >
           {busy ? 'Working…' : confirmLabel}
         </button>

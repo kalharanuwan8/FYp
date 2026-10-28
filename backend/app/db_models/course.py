@@ -31,7 +31,7 @@ class Subject(db.Model):
     teacher_subjects = db.relationship("TeacherSubject", back_populates="subject", cascade="all, delete-orphan")
     modules = db.relationship("Module", back_populates="subject", cascade="all, delete-orphan", order_by="Module.sequence_order")
 
-    def to_dict(self, include_modules=False):
+    def to_dict(self, include_modules=False, reveal_milestone_answers=True):
         data = {
             "id": self.id,
             "title": self.title,
@@ -43,7 +43,14 @@ class Subject(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
         if include_modules:
-            data["modules"] = [m.to_dict(include_contents=True) for m in self.modules if not m.is_archived]
+            data["modules"] = [
+                m.to_dict(
+                    include_contents=True,
+                    reveal_milestone_answers=reveal_milestone_answers,
+                )
+                for m in self.modules
+                if not m.is_archived
+            ]
         return data
 
 
@@ -85,7 +92,7 @@ class Module(db.Model):
     contents = db.relationship("ModuleContent", back_populates="module", cascade="all, delete-orphan")
     quizzes = db.relationship("Quiz", back_populates="module", cascade="all, delete-orphan")
 
-    def to_dict(self, include_contents=False):
+    def to_dict(self, include_contents=False, reveal_milestone_answers=True):
         data = {
             "id": self.id,
             "subject_id": self.subject_id,
@@ -97,7 +104,13 @@ class Module(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
         if include_contents:
-            data["contents"] = [c.to_dict(include_milestones=True) for c in self.contents]
+            data["contents"] = [
+                c.to_dict(
+                    include_milestones=True,
+                    reveal_milestone_answers=reveal_milestone_answers,
+                )
+                for c in self.contents
+            ]
         return data
 
 
@@ -124,7 +137,7 @@ class ModuleContent(db.Model):
         order_by="ModuleMilestoneItem.sequence_order",
     )
 
-    def to_dict(self, include_milestones=False):
+    def to_dict(self, include_milestones=False, reveal_milestone_answers=True):
         data = {
             "id": self.id,
             "module_id": self.module_id,
@@ -138,7 +151,9 @@ class ModuleContent(db.Model):
         }
         if include_milestones:
             data["milestones"] = [
-                m.to_dict() for m in self.milestone_items if m.is_active
+                m.to_dict(reveal_answer=reveal_milestone_answers)
+                for m in self.milestone_items
+                if m.is_active
             ]
         return data
 
@@ -161,18 +176,20 @@ class ModuleMilestoneItem(db.Model):
 
     module_content = db.relationship("ModuleContent", back_populates="milestone_items")
 
-    def to_dict(self):
-        return {
+    def to_dict(self, reveal_answer: bool = True):
+        data = {
             "id": self.id,
             "module_content_id": self.module_content_id,
             "question": self.question,
             "options": self.options_json or [],
-            "correct_option": self.correct_option,
             "hint_text": self.hint_text,
             "sequence_order": self.sequence_order,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        if reveal_answer:
+            data["correct_option"] = self.correct_option
+        return data
 
 
 class Enrollment(db.Model):

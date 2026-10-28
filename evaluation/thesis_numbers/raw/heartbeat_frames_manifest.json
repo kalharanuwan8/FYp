@@ -1,0 +1,264 @@
+{
+  "resize": "cv2.resize to 224x224 INTER_LINEAR",
+  "jpeg_quality": 50,
+  "jpeg_quality_note": "OpenCV IMWRITE_JPEG_QUALITY 50 matches the frontend canvas.toDataURL('image/jpeg', 0.5) quality argument. The encoder is OpenCV, not the browser encoder.",
+  "face_prefilter": "After 224x224 resize and JPEG quality 50 decode, Haar detectMultiScale(gray, 1.1, 5, minSize=(50,50)), the same call ml_service uses. Frames that fail this are not posted.",
+  "n_frames": 51,
+  "frames": [
+    {
+      "video": "natural.mp4",
+      "frame_index": 0,
+      "jpeg_bytes": 3585
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 5,
+      "jpeg_bytes": 3561
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 10,
+      "jpeg_bytes": 3559
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 15,
+      "jpeg_bytes": 3573
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 20,
+      "jpeg_bytes": 3554
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 25,
+      "jpeg_bytes": 3561
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 30,
+      "jpeg_bytes": 3521
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 35,
+      "jpeg_bytes": 3566
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 40,
+      "jpeg_bytes": 3518
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 45,
+      "jpeg_bytes": 3519
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 50,
+      "jpeg_bytes": 3504
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 55,
+      "jpeg_bytes": 3511
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 60,
+      "jpeg_bytes": 3501
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 65,
+      "jpeg_bytes": 3527
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 70,
+      "jpeg_bytes": 3515
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 75,
+      "jpeg_bytes": 3529
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 80,
+      "jpeg_bytes": 3517
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 85,
+      "jpeg_bytes": 3536
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 90,
+      "jpeg_bytes": 3514
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 95,
+      "jpeg_bytes": 3505
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 100,
+      "jpeg_bytes": 3530
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 105,
+      "jpeg_bytes": 3513
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 110,
+      "jpeg_bytes": 3477
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 115,
+      "jpeg_bytes": 3488
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 120,
+      "jpeg_bytes": 3546
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 125,
+      "jpeg_bytes": 3527
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 130,
+      "jpeg_bytes": 3513
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 225,
+      "jpeg_bytes": 3396
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 230,
+      "jpeg_bytes": 3414
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 235,
+      "jpeg_bytes": 3495
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 270,
+      "jpeg_bytes": 3455
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 325,
+      "jpeg_bytes": 3537
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 375,
+      "jpeg_bytes": 3578
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 410,
+      "jpeg_bytes": 3543
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 415,
+      "jpeg_bytes": 3504
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 420,
+      "jpeg_bytes": 3516
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 425,
+      "jpeg_bytes": 3490
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 430,
+      "jpeg_bytes": 3552
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 435,
+      "jpeg_bytes": 3533
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 440,
+      "jpeg_bytes": 3564
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 580,
+      "jpeg_bytes": 3572
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 590,
+      "jpeg_bytes": 3532
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 620,
+      "jpeg_bytes": 3542
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 665,
+      "jpeg_bytes": 3554
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 670,
+      "jpeg_bytes": 3559
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 675,
+      "jpeg_bytes": 3547
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 705,
+      "jpeg_bytes": 3584
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 710,
+      "jpeg_bytes": 3550
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 725,
+      "jpeg_bytes": 3524
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 730,
+      "jpeg_bytes": 3558
+    },
+    {
+      "video": "natural.mp4",
+      "frame_index": 735,
+      "jpeg_bytes": 3556
+    }
+  ]
+}

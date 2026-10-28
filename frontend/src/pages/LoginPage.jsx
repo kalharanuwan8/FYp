@@ -71,10 +71,10 @@ export const LoginPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           
           {/* Left Hero Card */}
-          <div className="order-2 md:order-1 bg-surface/70 backdrop-blur-sm border border-border/60 rounded-3xl p-10 md:p-14 flex flex-col justify-between items-center text-center min-h-[440px] shadow-soft relative overflow-hidden transition-all duration-300">
+          <div className="order-2 md:order-1 bg-learning border border-border rounded-3xl p-10 md:p-14 flex flex-col justify-between items-center text-center min-h-[440px] shadow-soft">
             <div className="flex-1 flex flex-col items-center justify-center my-auto max-w-sm">
-              <div className={`w-20 h-20 rounded-full ${HERO_SLIDES[activeSlide].color} flex items-center justify-center mb-6 shadow-inner transition-all duration-500`}>
-                <CurrentIcon className="w-10 h-10" />
+              <div className={`w-20 h-20 rounded-full ${HERO_SLIDES[activeSlide].color} flex items-center justify-center mb-6 border border-border`}>
+                <CurrentIcon className="w-10 h-10" aria-hidden="true" />
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-text mb-3 tracking-tight">
                 {HERO_SLIDES[activeSlide].title}

@@ -1,0 +1,24 @@
+{
+  "confidence": 0.9,
+  "engagement_score": null,
+  "face_detected": null,
+  "focus_metric_version": "observed_v1",
+  "gaze_label": null,
+  "intervention": {
+    "intervention_id": 5,
+    "intervention_type": "ambient_cue",
+    "message": "Let's refocus together!",
+    "payload": {},
+    "tier": 1,
+    "triggered_at": "2026-10-23T04:10:11.554444"
+  },
+  "intervention_triggered": true,
+  "ml_mode": null,
+  "noise_baseline_dbfs": null,
+  "noise_dbfs": null,
+  "noise_triggered": false,
+  "reason": "test_injected",
+  "session_id": 4,
+  "status": "recorded",
+  "verdict": "DISTRACTED"
+}

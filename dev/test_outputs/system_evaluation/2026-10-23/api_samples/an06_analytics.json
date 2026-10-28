@@ -1,0 +1,19 @@
+{
+  "avg_focus_percentage": 0.0,
+  "avg_monitoring_coverage_pct": 18.3,
+  "avg_quiz_score": 100.0,
+  "completed_quizzes": 1,
+  "focus_metric_version": "observed_v1",
+  "subject_progress": [
+    {
+      "avg_focus_percentage": 0.0,
+      "avg_monitoring_coverage_pct": 18.3,
+      "grade_level_name": "Grade 1",
+      "sessions_count": 5,
+      "subject_id": 1,
+      "title": "Eval System Course"
+    }
+  ],
+  "total_sessions": 5,
+  "total_study_minutes": 5.3
+}

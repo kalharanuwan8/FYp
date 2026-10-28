@@ -1,0 +1,72 @@
+{
+  "checkpoint_sha256": "d39b5f16d3e78653c06fdead842518e2d6add967194474de6f632373beb237e9",
+  "feature_cols": [
+    "pose_ratio",
+    "lw_speed_mean",
+    "lw_speed_std",
+    "rw_speed_mean",
+    "rw_speed_std",
+    "lw_to_nose_mean",
+    "rw_to_nose_mean",
+    "lw_to_sh_mean",
+    "rw_to_sh_mean",
+    "nose_jitter",
+    "lw_below_sh_ratio",
+    "rw_below_sh_ratio"
+  ],
+  "n_labeled_rows": 302,
+  "split": "train_test_split test_size=0.25 random_state=42 stratify=y (same call as models/src/model4_engagement/train.py). Model weights were not refit.",
+  "n_test": 76,
+  "metrics": {
+    "n": 76,
+    "positive_label": 1,
+    "class_counts_true": {
+      "0": 34,
+      "1": 42
+    },
+    "accuracy": 0.9736842105263158,
+    "precision_positive": 0.9545454545454546,
+    "recall_positive": 1.0,
+    "f1_positive": 0.9767441860465116,
+    "precision_macro": 0.9772727272727273,
+    "recall_macro": 0.9705882352941176,
+    "f1_macro": 0.9732205778717407,
+    "per_class": {
+      "0": {
+        "precision": 1.0,
+        "recall": 0.9411764705882353,
+        "f1": 0.9696969696969697,
+        "support": 34
+      },
+      "1": {
+        "precision": 0.9545454545454546,
+        "recall": 1.0,
+        "f1": 0.9767441860465116,
+        "support": 42
+      }
+    },
+    "confusion_matrix_labels": [
+      0,
+      1
+    ],
+    "confusion_matrix": [
+      [
+        32,
+        2
+      ],
+      [
+        0,
+        42
+      ]
+    ],
+    "roc_auc": 0.9978991596638656,
+    "roc_auc_note": "sklearn.roc_auc_score on the provided score for class 1"
+  },
+  "positive_class_meaning": "active_work=1 as stored in labeled.csv. Labels were produced by models/src/model4_engagement/labelweak.py heuristic rules, so these scores are agreement with those rules.",
+  "pickle_keys": [
+    "feature_cols",
+    "metrics",
+    "model",
+    "val_best"
+  ]
+}

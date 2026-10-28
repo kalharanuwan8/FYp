@@ -123,7 +123,7 @@ export default function InterventionSettings({ subjectId }) {
         </p>
       )}
       {savedMsg && (
-        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+        <p className="text-xs text-success bg-primary-soft border border-success/25 rounded-xl px-3 py-2">
           {savedMsg}
         </p>
       )}

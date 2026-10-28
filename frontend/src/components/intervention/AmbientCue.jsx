@@ -6,12 +6,12 @@ export default function AmbientCue({ message, onRespond, interventionId }) {
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <div className="pointer-events-auto absolute top-5 left-1/2 -translate-x-1/2 max-w-md w-[92%] animate-slide-up">
         <div
-          className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-lift"
+          className="flex items-center gap-3 rounded-2xl border border-primary/35 bg-learning px-4 py-3 shadow-soft"
           role="status"
           aria-live="polite"
         >
           <span
-            className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0"
+            className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0 border border-border"
             aria-hidden="true"
           >
             <Hand className="w-4 h-4" />

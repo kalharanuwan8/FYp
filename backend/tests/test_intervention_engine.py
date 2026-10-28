@@ -43,26 +43,29 @@ def test_tier1_ambient_after_mild_duration():
 
 
 def test_cooldown_suppresses_repeat():
+    # Retargeted to 12 s (Tier 2) after ambient_cue stopped taking the pending
+    # lock / cooldown — pending+cooldown still apply to tiers 2–4.
     engine = InterventionEngine(cooldown_seconds=60.0)
     res1 = engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=100.0
+        distraction_event=_episode(12), is_distracted=True, now=100.0
     )
     assert res1 is not None
+    assert res1.tier == 2
     # Pending without outcome — blocked
     assert engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=130.0
+        distraction_event=_episode(12), is_distracted=True, now=130.0
     ) is None
     engine.record_outcome("reengaged")
     # Still in cooldown window
     assert engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=130.0
+        distraction_event=_episode(12), is_distracted=True, now=130.0
     ) is None
     # After cooldown
     res2 = engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=165.0
+        distraction_event=_episode(12), is_distracted=True, now=165.0
     )
     assert res2 is not None
-    assert res2.tier == 1
+    assert res2.tier == 2
 
 
 def test_ignored_escalates_one_tier():
@@ -181,9 +184,11 @@ def test_focus_resets_escalation():
 
 
 def test_unknown_holds_without_focus_reset():
+    # Retargeted to 12 s (Tier 2) so the pending lock is still set; Tier 1
+    # ambient_cue no longer sets _pending_intervention.
     engine = InterventionEngine(cooldown_seconds=0.0)
     engine.decide_intervention(
-        distraction_event=_episode(8),
+        distraction_event=_episode(12),
         is_distracted=True,
         observation_state="DISTRACTED",
         now=100.0,

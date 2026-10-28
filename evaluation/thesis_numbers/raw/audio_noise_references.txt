@@ -1,0 +1,280 @@
+SYSTEM.md:18:The research problem: there is no large public dataset of *labelled distraction in learners at a webcam*, and any single behavioural cue (gaze alone, head pose alone) is too brittle to act on. The system's answer is a hi
+SYSTEM.md:22:- **Webcam only, no special hardware.** A standard laptop camera and microphone are the only sensors.
+SYSTEM.md:24:- **Consent and privacy by design.** A monitored session cannot start without recorded guardian consent; the student gives separate assent during onboarding. Webcam frames are processed in memory and discarded; only verd
+SYSTEM.md:61:webcam[Webcam and microphone]
+SYSTEM.md:71:noiseMon[NoiseMonitor per session]
+SYSTEM.md:75:routes --> noiseMon
+SYSTEM.md:89:monitorHook -->|"JPEG frame plus noise level every 2s"| routes
+SYSTEM.md:100:- **Presentation:** React 19 SPA (Vite, React Router 7, Tailwind CSS 4, Axios). Captures webcam frames (320×240) and microphone loudness in the browser, renders learning content, dashboards, and intervention overlays.
+SYSTEM.md:101:- **Application:** Flask 3 app-factory application with blueprints for auth, courses, quizzes, sessions, analytics, student profile, and admin; a service layer (ML inference singleton, intervention engine, noise monitor,
+SYSTEM.md:112:2. **Session start.** In the browser's start flow, camera (and, if permitted, microphone) capture opens first — nothing leaves the device at this point — and the session is then created via the API; if camera access fail
+SYSTEM.md:113:3. **Heartbeat (every ~2 seconds).** The student's browser draws the current webcam frame to a 224×224 canvas and sends it as a base64 JPEG to `POST /api/session/<id>/heartbeat`, together with `is_quiz_context` and the e
+SYSTEM.md:114:4. **On-device loudness measurement.** Alongside the camera, the browser opens the microphone with echo cancellation, noise suppression, and automatic gain control disabled (those would remove the noise being measured), 
+SYSTEM.md:115:5. **Server-side ML inference.** `MLService.predict_frame_image` (singleton, `backend/app/services/ml_service.py`) processes the frame: face/eye regions are located (OpenCV Haar cascades), Model 1 estimates gaze directio
+SYSTEM.md:122:8. **Intervention decision.** If the session is monitored, `InterventionEngine.decide_intervention` receives an explicit `observation_state`. `DISTRACTED` maps open-episode duration to a tier (§7). `FOCUSED` calls `reset
+SYSTEM.md:124:10. **Session stop.** `POST /api/session/<id>/stop` ends the session, closes any open episode, destroys the engine/noise-monitor and **per-session MediaPipe landmarker**, computes **observed_v1** coverage (`dev/OBSERVATI
+SYSTEM.md:171:### Model 3 — Audio (`models/src/model3_audio/`) — Stub (intentionally not a model)
+SYSTEM.md:173:Every file in this folder is a one-line placeholder. **There is no audio ML model, and none is needed:** background noise is handled by direct loudness measurement (browser RMS → dBFS) plus the rule-based `NoiseMonitor` 
+SYSTEM.md:210:## 6. Background-noise trigger (environmental, non-ML)
+SYSTEM.md:212:Implemented across `frontend/src/hooks/useMonitoringSession.js`, `backend/app/services/noise_monitor.py`, `backend/app/schemas/session_schema.py`, and `backend/app/routes/session.py`. Rationale: "is the room too loud?" i
+SYSTEM.md:214:- **Measurement (browser):** RMS of the raw microphone buffer → dBFS (`20·log10(RMS)`, clamped to −100…0), computed on-device once per heartbeat. Only the number leaves the device.
+SYSTEM.md:215:- **Baseline:** the first 5 usable samples of a session form a **median baseline** (≈ first 10 s), absorbing differences in microphone gain between laptops. A fixed absolute threshold would false-alarm on sensitive mics 
+SYSTEM.md:217:- **Already-loud room:** if the baseline itself is ≥ −20 dBFS, the notice fires immediately after calibration instead of waiting for a further rise.
+SYSTEM.md:218:- **One-time per session:** a detection stays pending (`NoiseMonitor.update()` keeps returning `True`) until the heartbeat route confirms the notice was persisted and calls `mark_notice_shown()` — so a detection blocked 
+SYSTEM.md:219:- **The notice (modal, lesson-pausing):** the trigger is a distinct intervention type, `environment_noise_notice` (tier 1 for cooldown/toggle purposes), rendered by `frontend/src/components/intervention/NoiseNotice.jsx` 
+SYSTEM.md:220:- **Lesson-audio guard:** while a lesson video is playing unmuted (`lesson_audio_active = isPlaying && !isMuted` from `VideoLearningPlayer.jsx`), the speakers feed the lesson back into the microphone, so those samples ar
+SYSTEM.md:221:- **Isolation from visual distraction (deliberate design):** noise never changes the ML verdict, never opens a distraction episode, and only ever fires the tier-1 `environment_noise_notice` — with `payload.trigger_source
+SYSTEM.md:222:- **Limitation:** loudness cannot identify the source (speech vs TV vs fan); the notice wording therefore comments on the room, never accuses the student of talking, and shows no decibel values.
+SYSTEM.md:224:Heartbeat fields: `noise_dbfs` (optional float, −100…0) and `lesson_audio_active` (bool) in the request; `noise_dbfs`, `noise_baseline_dbfs`, and `noise_triggered` are echoed in the response. Intervention responses for t
+SYSTEM.md:245:- **No stacking:** while an intervention is awaiting the student's response (`_pending_intervention`), no new intervention — visual or noise — can fire.
+SYSTEM.md:248:- **Per-subject tier toggles:** teachers can disable tiers per subject; the engine falls back to the nearest enabled *lower* tier. If tier 1 is disabled, the noise trigger (tier-1 only) fires nothing.
+SYSTEM.md:251:- **Logging:** every intervention records tier, type, linked episode (null for noise), student response, and time-to-re-engage (`reengaged_in_seconds`) — the raw material for intervention analytics. Noise notices additio
+SYSTEM.md:252:- **Noise exception:** the background-noise trigger (§6) does not use this duration ladder at all. It fires its own once-per-session modal type, `environment_noise_notice`, at tier 1 (for cooldown and per-subject toggle 
+SYSTEM.md:254:Frontend renderers for each type live in `frontend/src/components/intervention/` (`AmbientCue`, `PacingPrompt`, `MilestoneQuiz`, `HintInjection`, `GamifiedBreak`, `StructuralNotice`, `NoiseNotice`, dispatched by `Interve
+SYSTEM.md:285:| `intervention_engine.py` | Per-session escalation state machine (§7): duration→tier bands, cooldown, pending lock, ignored-escalation, per-subject enabled-tier fallback, `decide_intervention(observation_state=…)`, `hol
+SYSTEM.md:286:| `noise_monitor.py` | Pure loudness logic (§6): median baseline (5 samples), +12 dB, 4-beat sustain, already-loud (≥ −20 dBFS), once-per-session latch via `mark_notice_shown()`; ignores lesson-audio and missing samples.
+SYSTEM.md:308:- **In-memory state caveat:** intervention engines, noise monitors, ML frame buffers, and **per-session MediaPipe PoseLandmarker instances** live in process memory keyed by session id. Each concurrent monitored session h
+SYSTEM.md:309:- **Schemas** (`app/schemas/`, Pydantic v2): `auth_schema`, `course_schema`, `quiz_schema`, `session_schema` (heartbeat includes bounded `engagement_score`, `noise_dbfs` −100…0, `lesson_audio_active`), `settings_schema` 
+SYSTEM.md:343:- `components/intervention/` — one renderer per intervention type dispatched by `InterventionOverlay` (§7): `AmbientCue` (tier 1, small non-modal prompt, no flashing/glow), `PacingPrompt` (tier 2, emoji self-report), `Mi
+SYSTEM.md:348:- `src/hooks/useMonitoringSession.js` — **the client monitoring engine** (§4): owns camera+mic streams, the `AudioContext` loudness meter, frame capture, the 2 s heartbeat loop (single in-flight request), verdict/confide
+SYSTEM.md:377:- **Audio:** only a loudness number (dBFS) is transmitted; raw audio is never recorded, uploaded, or stored, and the microphone is optional — denial degrades to camera-only monitoring.
+SYSTEM.md:402:│   │   ├── services/          # ML, intervention engine, noise, gamification, LLM, ... (§8.2)
+SYSTEM.md:431:│       ├── model3_audio/      # stubs — superseded by loudness trigger (§5)
+SYSTEM.md:488:| `test_session.py` | Session lifecycle, consent gate, heartbeat telemetry, image→ML verdict, sustained-noise one-time notice + `noise_action` logging, manual milestone trigger |
+SYSTEM.md:490:| `test_noise_monitor.py` | Baseline median, spike rejection, 4-beat sustain, pending-detection and once-per-session latch, lesson-audio/missing-mic skipping, already-loud room, noise/engine isolation, `noise_action` val
+SYSTEM.md:513:- `models/src/model3_audio/` — all stubs (superseded by the loudness trigger).
+SYSTEM.md:542:| Noise thresholds (+12 dB, 4 beats, baseline size, already-loud level) | Constants at the top of `backend/app/services/noise_monitor.py` |
+SYSTEM.md:560:- Heartbeat must keep working with image-only payloads (older clients/tests send no noise fields); all noise fields are optional.
+SYSTEM.md:561:- New per-session runtime state belongs in the session-keyed registries in `routes/session.py` and must be cleaned up on session stop (mirroring `SESSION_ENGINES`/`SESSION_NOISE_MONITORS`), remembering the single-process
+backend/app/__init__.py:108:if "noise_action" not in cols:
+backend/app/__init__.py:112:"ADD COLUMN noise_action VARCHAR(50)"
+backend/app/db_models/analytics.py:63:# For environment_noise_notice logs: headphones | move_environment | continue_anyway
+backend/app/db_models/analytics.py:64:noise_action = db.Column(db.String(50), nullable=True)
+backend/app/routes/session.py:34:TYPE_NOISE_NOTICE,
+backend/app/routes/session.py:37:from app.services.noise_monitor import NoiseMonitor
+backend/app/routes/session.py:50:# Per-session background-noise monitors keyed by session_id
+backend/app/routes/session.py:51:SESSION_NOISE_MONITORS = {}
+backend/app/routes/session.py:454:SESSION_NOISE_MONITORS.pop(s.id, None)
+backend/app/routes/session.py:468:SESSION_NOISE_MONITORS[new_session.id] = NoiseMonitor()
+backend/app/routes/session.py:554:noise_monitor = None
+backend/app/routes/session.py:555:noise_triggered = False
+backend/app/routes/session.py:561:if session.id not in SESSION_NOISE_MONITORS:
+backend/app/routes/session.py:562:SESSION_NOISE_MONITORS[session.id] = NoiseMonitor()
+backend/app/routes/session.py:565:noise_monitor = SESSION_NOISE_MONITORS[session.id]
+backend/app/routes/session.py:579:# Background noise is a separate, gentler signal: it never opens a
+backend/app/routes/session.py:582:noise_should_fire = noise_monitor.update(
+backend/app/routes/session.py:583:data.noise_dbfs,
+backend/app/routes/session.py:586:if triggered is None and noise_should_fire:
+backend/app/routes/session.py:587:triggered = engine.consider_noise(
+backend/app/routes/session.py:588:noise_dbfs=data.noise_dbfs,
+backend/app/routes/session.py:589:baseline_dbfs=noise_monitor.baseline_dbfs,
+backend/app/routes/session.py:592:noise_triggered = True
+backend/app/routes/session.py:602:if noise_triggered:
+backend/app/routes/session.py:604:# so sustained noise later in the session never re-fires.
+backend/app/routes/session.py:605:noise_monitor.mark_notice_shown()
+backend/app/routes/session.py:627:"noise_dbfs": data.noise_dbfs,
+backend/app/routes/session.py:628:"noise_baseline_dbfs": noise_monitor.baseline_dbfs if noise_monitor else None,
+backend/app/routes/session.py:629:"noise_triggered": noise_triggered,
+backend/app/routes/session.py:716:if data.noise_action and log_entry.intervention_type == TYPE_NOISE_NOTICE:
+backend/app/routes/session.py:717:log_entry.noise_action = data.noise_action
+backend/app/routes/session.py:745:"noise_action": getattr(log_entry, "noise_action", None),
+backend/app/routes/session.py:847:SESSION_NOISE_MONITORS.pop(session.id, None)
+backend/app/schemas/session_schema.py:24:noise_dbfs: Optional[float] = Field(
+backend/app/schemas/session_schema.py:28:description="On-device microphone RMS loudness in dBFS; no audio is uploaded",
+backend/app/schemas/session_schema.py:48:noise_action: Optional[str] = Field(
+backend/app/schemas/session_schema.py:50:description="For environment_noise_notice: 'headphones', 'move_environment', or 'continue_anyway'",
+backend/app/schemas/session_schema.py:65:@field_validator("noise_action")
+backend/app/schemas/session_schema.py:67:def validate_noise_action(cls, v: Optional[str]) -> Optional[str]:
+backend/app/schemas/session_schema.py:73:raise ValueError(f"noise_action must be one of {sorted(allowed)}")
+backend/app/services/intervention_engine.py:23:TYPE_NOISE_NOTICE = "environment_noise_notice"
+backend/app/services/intervention_engine.py:35:NOISE_MESSAGE = "It's quite noisy where you are — that can make it hard to concentrate."
+backend/app/services/intervention_engine.py:190:def consider_noise(
+backend/app/services/intervention_engine.py:193:noise_dbfs: Optional[float] = None,
+backend/app/services/intervention_engine.py:194:baseline_dbfs: Optional[float] = None,
+backend/app/services/intervention_engine.py:197:Fire the tier-1 environment noise notice for sustained background noise.
+backend/app/services/intervention_engine.py:199:Noise is an environment problem, not student behaviour, so this
+backend/app/services/intervention_engine.py:201:``t4_used``: ignoring a noise cue must not escalate the next visual
+backend/app/services/intervention_engine.py:214:payload: Dict[str, Any] = {"trigger_source": "background_noise"}
+backend/app/services/intervention_engine.py:215:if noise_dbfs is not None:
+backend/app/services/intervention_engine.py:216:payload["noise_dbfs"] = noise_dbfs
+backend/app/services/intervention_engine.py:217:if baseline_dbfs is not None:
+backend/app/services/intervention_engine.py:218:payload["noise_baseline_dbfs"] = baseline_dbfs
+backend/app/services/intervention_engine.py:222:intervention_type=TYPE_NOISE_NOTICE,
+backend/app/services/intervention_engine.py:223:message=NOISE_MESSAGE,
+backend/app/services/noise_monitor.py:2:Background-noise monitor — loudness only, no audio model and no audio I/O.
+backend/app/services/noise_monitor.py:4:The browser measures RMS loudness (dBFS) on-device and sends just that number
+backend/app/services/noise_monitor.py:15:the speakers feed the lesson back into the microphone.
+backend/app/services/noise_monitor.py:31:ALREADY_LOUD_DBFS = -20.0
+backend/app/services/noise_monitor.py:34:class NoiseMonitor:
+backend/app/services/noise_monitor.py:35:"""Per-session background-noise state. Pure logic, unit-test friendly."""
+backend/app/services/noise_monitor.py:42:already_loud_dbfs: float = ALREADY_LOUD_DBFS,
+backend/app/services/noise_monitor.py:47:self.already_loud_dbfs = float(already_loud_dbfs)
+backend/app/services/noise_monitor.py:50:self.baseline_dbfs: Optional[float] = None
+backend/app/services/noise_monitor.py:57:return self.baseline_dbfs is not None
+backend/app/services/noise_monitor.py:71:noise_dbfs: Optional[float],
+backend/app/services/noise_monitor.py:75:Feed one heartbeat sample. Returns True when a noise cue should fire.
+backend/app/services/noise_monitor.py:80:if lesson_audio_active or noise_dbfs is None:
+backend/app/services/noise_monitor.py:92:level = max(-100.0, min(0.0, float(noise_dbfs)))
+backend/app/services/noise_monitor.py:94:if self.baseline_dbfs is None:
+backend/app/services/noise_monitor.py:98:self.baseline_dbfs = float(statistics.median(self._baseline_samples))
+backend/app/services/noise_monitor.py:100:if self.baseline_dbfs >= self.already_loud_dbfs:
+backend/app/services/noise_monitor.py:105:if level >= self.baseline_dbfs + self.loud_delta_db:
+backend/tests/test_noise_monitor.py:10:TYPE_NOISE_NOTICE,
+backend/tests/test_noise_monitor.py:12:from app.services.noise_monitor import NoiseMonitor
+backend/tests/test_noise_monitor.py:28:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:34:assert monitor.baseline_dbfs == -50.0
+backend/tests/test_noise_monitor.py:38:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:51:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:62:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:71:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:78:# Continued or renewed loud noise later in the session: nothing.
+backend/tests/test_noise_monitor.py:85:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:97:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:103:monitor = NoiseMonitor()
+backend/tests/test_noise_monitor.py:112:def test_consider_noise_fires_tier1_notice_without_touching_visual_state():
+backend/tests/test_noise_monitor.py:114:res = engine.consider_noise(now=1000.0, noise_dbfs=-25.0, baseline_dbfs=-50.0)
+backend/tests/test_noise_monitor.py:117:assert res.intervention_type == TYPE_NOISE_NOTICE
+backend/tests/test_noise_monitor.py:118:assert res.payload["trigger_source"] == "background_noise"
+backend/tests/test_noise_monitor.py:125:def test_consider_noise_blocked_by_pending_and_cooldown():
+backend/tests/test_noise_monitor.py:127:assert engine.consider_noise(now=1000.0) is not None
+backend/tests/test_noise_monitor.py:129:assert engine.consider_noise(now=1010.0) is None
+backend/tests/test_noise_monitor.py:132:assert engine.consider_noise(now=1010.0) is None
+backend/tests/test_noise_monitor.py:133:assert engine.consider_noise(now=1031.0) is not None
+backend/tests/test_noise_monitor.py:136:def test_ignored_noise_cue_does_not_escalate_next_visual_intervention():
+backend/tests/test_noise_monitor.py:138:assert engine.consider_noise(now=100.0) is not None
+backend/tests/test_noise_monitor.py:147:def test_consider_noise_respects_disabled_tier1():
+backend/tests/test_noise_monitor.py:149:assert engine.consider_noise(now=100.0) is None
+backend/tests/test_noise_monitor.py:152:def test_heartbeat_schema_accepts_and_bounds_noise_fields():
+backend/tests/test_noise_monitor.py:153:data = HeartbeatSchema(noise_dbfs=-42.5, lesson_audio_active=True)
+backend/tests/test_noise_monitor.py:154:assert data.noise_dbfs == -42.5
+backend/tests/test_noise_monitor.py:157:HeartbeatSchema(noise_dbfs=5.0)
+backend/tests/test_noise_monitor.py:160:def test_intervention_response_schema_validates_noise_action():
+backend/tests/test_noise_monitor.py:162:intervention_id=1, user_response="reengaged", noise_action="Headphones"
+backend/tests/test_noise_monitor.py:164:assert data.noise_action == "headphones"
+backend/tests/test_noise_monitor.py:168:).noise_action
+backend/tests/test_noise_monitor.py:173:intervention_id=1, user_response="reengaged", noise_action="ignore_it"
+backend/tests/test_session.py:232:def test_sustained_background_noise_triggers_one_time_notice(client, app):
+backend/tests/test_session.py:233:seeded = _seed_student_session(app, email="noise_trigger@test.com")
+backend/tests/test_session.py:244:def heartbeat(noise_dbfs, lesson_audio_active=False):
+backend/tests/test_session.py:250:"noise_dbfs": noise_dbfs,
+backend/tests/test_session.py:258:assert heartbeat(-10.0, lesson_audio_active=True).json["noise_baseline_dbfs"] is None
+backend/tests/test_session.py:262:assert res.json["noise_triggered"] is False
+backend/tests/test_session.py:263:assert res.json["noise_baseline_dbfs"] == -50.0
+backend/tests/test_session.py:268:assert res.json["noise_triggered"] is False
+backend/tests/test_session.py:272:assert res.json["noise_triggered"] is True
+backend/tests/test_session.py:273:assert res.json["verdict"] == "FOCUSED"  # noise never flips the ML verdict
+backend/tests/test_session.py:275:assert res.json["intervention"]["intervention_type"] == "environment_noise_notice"
+backend/tests/test_session.py:276:assert res.json["intervention"]["payload"]["trigger_source"] == "background_noise"
+backend/tests/test_session.py:279:# Noise must not open a distraction episode.
+backend/tests/test_session.py:287:assert session_id in session_routes.SESSION_NOISE_MONITORS
+backend/tests/test_session.py:288:assert session_routes.SESSION_NOISE_MONITORS[session_id].notice_shown is True
+backend/tests/test_session.py:296:"noise_action": "headphones",
+backend/tests/test_session.py:301:assert res_resp.json["noise_action"] == "headphones"
+backend/tests/test_session.py:304:assert log.noise_action == "headphones"
+backend/tests/test_session.py:305:assert log.intervention_type == "environment_noise_notice"
+backend/tests/test_session.py:310:assert res.json["noise_triggered"] is False
+backend/tests/test_session.py:316:intervention_type="environment_noise_notice",
+backend/tests/test_session.py:323:assert session_id not in session_routes.SESSION_NOISE_MONITORS
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:106:Common preconditions: Flask app in testing mode, isolated `*@luma.demo` accounts, course “Eval System Course”, `observed_v1`, and `intervention_min_cooldown_seconds=0` in the fixture. Execution date 2026-10-23. Build as 
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:366:Camera input for BR-01–BR-04 and the Phase 2A browser note was a **mocked** `getUserMedia` / canvas `captureStream`. Demo login and the local file `/uploads/phase2a_demo.mp4` were fixtures. Date 2026-10-23. Same build as
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:463:### Intervention engine and noise
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:478:| `test_sustained_background_noise_triggers_one_time_notice` | integration | Injected `verdict=FOCUSED`; noise dBFS samples. Lesson-audio sample must not set a baseline. Five quiet samples at −50. Four loud samples at −3
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:487:| `test_consider_noise_fires_tier1_notice_without_touching_visual_state` | unit | `consider_noise` at −25 against baseline −50 | Tier 1 noise notice; `last_tier` stays none | fixture |
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:488:| `test_consider_noise_blocked_by_pending_and_cooldown` | unit | Cooldown 30 s | Second call while pending is `None`; after outcome, t+10 is `None`; t+31 fires | fixture |
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:489:| `test_ignored_noise_cue_does_not_escalate_next_visual_intervention` | unit | Noise notice recorded as ignored, then an 8 s visual episode | Next visual tier is 1 | injected |
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:490:| `test_consider_noise_respects_disabled_tier1` | unit | Enabled tiers {2, 3, 4} | `consider_noise` returns `None` | fixture |
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:491:| `test_heartbeat_schema_accepts_and_bounds_noise_fields` | unit | `noise_dbfs=-42.5`; then `5.0` | Accepts −42.5; 5.0 raises `ValidationError` | fixture |
+chapter6_evaluation_evidence/CHAPTER6_TEST_CASES.md:492:| `test_intervention_response_schema_validates_noise_action` | unit | `noise_action="Headphones"`; omitted; `"ignore_it"` | Stored lowercase `headphones`; omitted is null; unknown value raises | fixture |
+chapter6_evaluation_evidence/CHAPTER6_TEST_GAPS.md:35:| BR-01–BR-04, P2A-BR-3, P2A-BR-4 | Cursor browser with a **mocked** `getUserMedia`. P2A-BR-4 releases that mock stream on stop | Denial, and a physical camera |
+chapter6_evaluation_evidence/CHAPTER6_TEST_GAPS.md:42:**G-CAM-DENY (manual, physical or browser permission UI).** Do not automate a fake `getUserMedia` rejection and then cite it as this check; the mock path is already how BR-02 was run.
+chapter6_evaluation_evidence/CHAPTER6_TEST_GAPS.md:89:| `test_consider_noise_respects_disabled_tier1` | Noise notice does not fire when tier 1 is off |
+chapter6_evaluation_evidence/CHAPTER6_TEST_GAPS.md:92:| `test_consider_noise_blocked_by_pending_and_cooldown` | Noise helper, cooldown 30 s: blocked while pending and at t+10 after an outcome; fires at t+31 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:99:| `test_baseline_is_median_of_first_five_samples` | `backend/tests/test_noise_monitor.py` | 27 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:100:| `test_single_spike_does_not_fire_and_quiet_sample_resets_streak` | `backend/tests/test_noise_monitor.py` | 37 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:101:| `test_four_sustained_loud_beats_fire` | `backend/tests/test_noise_monitor.py` | 50 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:102:| `test_unmarked_detection_stays_pending_so_it_is_not_lost` | `backend/tests/test_noise_monitor.py` | 59 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:103:| `test_notice_never_fires_again_after_being_shown` | `backend/tests/test_noise_monitor.py` | 70 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:104:| `test_lesson_audio_samples_are_ignored` | `backend/tests/test_noise_monitor.py` | 84 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:105:| `test_missing_mic_samples_are_ignored` | `backend/tests/test_noise_monitor.py` | 96 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:106:| `test_already_loud_room_fires_once_after_calibration` | `backend/tests/test_noise_monitor.py` | 102 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:107:| `test_consider_noise_fires_tier1_notice_without_touching_visual_state` | `backend/tests/test_noise_monitor.py` | 112 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:108:| `test_consider_noise_blocked_by_pending_and_cooldown` | `backend/tests/test_noise_monitor.py` | 125 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:109:| `test_ignored_noise_cue_does_not_escalate_next_visual_intervention` | `backend/tests/test_noise_monitor.py` | 136 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:110:| `test_consider_noise_respects_disabled_tier1` | `backend/tests/test_noise_monitor.py` | 147 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:111:| `test_heartbeat_schema_accepts_and_bounds_noise_fields` | `backend/tests/test_noise_monitor.py` | 152 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:112:| `test_intervention_response_schema_validates_noise_action` | `backend/tests/test_noise_monitor.py` | 160 |
+chapter6_evaluation_evidence/CHAPTER6_TEST_SOURCES.md:139:| `test_sustained_background_noise_triggers_one_time_notice` | `backend/tests/test_session.py` | 232 |
+chapter6_evaluation_evidence/run_system_evaluation.py:1338:"Browser deny getUserMedia",
+chapter6_evaluation_evidence/SYSTEM_EVALUATION_REPORT.md:39:| Browser + canvas `getUserMedia` mock | Playback / DemoPanel interventions; analytics UI |
+chapter6_evaluation_evidence/SYSTEM_EVALUATION_REPORT.md:85:| ST-06 | Camera denial UX | Deny getUserMedia | session does not start | Not run in automation | **not_executed** | logs/not_executed.txt | browser |
+dev/FINAL_SYSTEM_AUDIT.md:170:| Audio (M3) evaluation | Absent (intentionally stubbed). |
+dev/FINAL_SYSTEM_AUDIT.md:209:| All tiers disabled still fires | Treat explicit empty enabled-tier list as no interventions (incl. noise); do not coerce `[]` → `[1,2,3,4]` | None |
+dev/FINAL_SYSTEM_AUDIT.md:210:| Ambient cue pauses video | Pause only for types defined to pause (`pacing_pause`, milestone, break, noise), not `ambient_cue` | None |
+dev/METHODOLOGY.md:34:Distraction detection is framed as binary classification over time windows. The webcam stream is cut into overlapping windows of 2 seconds, with a new window starting every 1 second. Each window *w* gets a label y ∈ {0 =
+dev/METHODOLOGY.md:125:This cuts the label noise that comes from naïve session-level labelling. Even a deliberately distracted participant has attentive moments, and a focused participant occasionally looks away.
+dev/METHODOLOGY.md:171:2. **Capture.** The browser opens the front-facing webcam through the MediaDevices API (getUserMedia) at 320×240 and 15 fps. Every 2 seconds it draws the current frame onto a hidden canvas and encodes it as a compressed 
+dev/METHODOLOGY.md:298:| MediaDevices (getUserMedia) and Canvas APIs | Webcam access and JPEG frame capture in the browser |
+dev/OBSERVATION_COVERAGE_SPEC.md:155:- Environmental noise triggers (non-visual) remain separate and unchanged by this spec.
+dev/PLAN_1_model_accuracy_and_natural_distraction.md:18:| 10 | Audio model (M3), `src/common`, `src/fusion` are empty stubs | `models/src/...` | Remove from claims or mark as future work |
+dev/PLAN_2_adhd_friendly_ui.md:14:**Goal:** a student experience that is **attractive, colourful and motivating but calm** (low visual noise, no harsh contrast or neon, no flashing). It should be easy to demo to an ADHD student and to examiners. Teacher/
+dev/SYSTEM_EVALUATION_REPORT.md:39:| Browser + canvas `getUserMedia` mock | Playback / DemoPanel interventions; analytics UI |
+dev/SYSTEM_EVALUATION_REPORT.md:85:| ST-06 | Camera denial UX | Deny getUserMedia | session does not start | Not run in automation | **not_executed** | logs/not_executed.txt | browser |
+dev/test_outputs/system_evaluation/2026-10-23/run_system_evaluation.py:1338:"Browser deny getUserMedia",
+frontend/dist/assets/index-BloG-9sC.js:19:`+n)}}catch{}}throw e}}_request(e,t){typeof e==`string`?(t||={},t.url=e):t=e||{},t=Na(this.defaults,t);let{transitional:n,paramsSerializer:r,headers:i}=t;n!==void 0&&po.assertOptions(n,{silentJSONParsing:mo.transitional(
+frontend/src/components/intervention/GamifiedBreak.jsx:30:// Soft optional beep each 4s inhale cue — skip if AudioContext blocked
+frontend/src/components/intervention/GamifiedBreak.jsx:32:const ctx = new (window.AudioContext || window.webkitAudioContext)();
+frontend/src/components/intervention/InterventionOverlay.jsx:7:import NoiseNotice from './NoiseNotice';
+frontend/src/components/intervention/InterventionOverlay.jsx:66:if (resolved === 'environment_noise_notice') {
+frontend/src/components/intervention/InterventionOverlay.jsx:68:<NoiseNotice
+frontend/src/components/intervention/NoiseNotice.jsx:6:* Environment noise notice — one-time per session, modal and lesson-pausing.
+frontend/src/components/intervention/NoiseNotice.jsx:7:* Fired by the backend as intervention_type "environment_noise_notice" when
+frontend/src/components/intervention/NoiseNotice.jsx:9:* the choice is logged as noise_action on the intervention.
+frontend/src/components/intervention/NoiseNotice.jsx:11:export default function NoiseNotice({ message, interventionId, onRespond, onPauseContent }) {
+frontend/src/components/intervention/NoiseNotice.jsx:20:detail: 'Block out the noise around me',
+frontend/src/components/intervention/NoiseNotice.jsx:61:onClick={() => onRespond(interventionId, 'reengaged', { noise_action: action })}
+frontend/src/components/monitoring/ConsentGate.jsx:21:level is sent — the microphone is never recorded or uploaded.
+frontend/src/components/student/VideoLearningPlayer.jsx:272:{/* Keep webcam mounted during loading so getUserMedia can attach to a real <video> */}
+frontend/src/hooks/useMonitoringSession.js:21:const audioContextRef = useRef(null);
+frontend/src/hooks/useMonitoringSession.js:47:const [noiseDbfs, setNoiseDbfs] = useState(null);
+frontend/src/hooks/useMonitoringSession.js:70:const stopNoiseMeter = useCallback(() => {
+frontend/src/hooks/useMonitoringSession.js:72:const ctx = audioContextRef.current;
+frontend/src/hooks/useMonitoringSession.js:73:audioContextRef.current = null;
+frontend/src/hooks/useMonitoringSession.js:78:setNoiseDbfs(null);
+frontend/src/hooks/useMonitoringSession.js:81:const startNoiseMeter = useCallback((stream) => {
+frontend/src/hooks/useMonitoringSession.js:87:const AudioCtx = window.AudioContext || window.webkitAudioContext;
+frontend/src/hooks/useMonitoringSession.js:94:audioContextRef.current = ctx;
+frontend/src/hooks/useMonitoringSession.js:100:console.warn('Microphone level metering unavailable:', err);
+frontend/src/hooks/useMonitoringSession.js:105:/** RMS loudness in dBFS (-100..0), computed on-device; no audio is uploaded. */
+frontend/src/hooks/useMonitoringSession.js:106:const captureNoiseDbfs = useCallback(() => {
+frontend/src/hooks/useMonitoringSession.js:123:stopNoiseMeter();
+frontend/src/hooks/useMonitoringSession.js:132:}, [stopNoiseMeter]);
+frontend/src/hooks/useMonitoringSession.js:137:if (!navigator.mediaDevices?.getUserMedia) {
+frontend/src/hooks/useMonitoringSession.js:143:startNoiseMeter(streamRef.current);
+frontend/src/hooks/useMonitoringSession.js:157:stream = await navigator.mediaDevices.getUserMedia({
+frontend/src/hooks/useMonitoringSession.js:161:noiseSuppression: false,
+frontend/src/hooks/useMonitoringSession.js:167:console.warn('Microphone unavailable, continuing with camera only:', micErr);
+frontend/src/hooks/useMonitoringSession.js:168:stream = await navigator.mediaDevices.getUserMedia({
+frontend/src/hooks/useMonitoringSession.js:175:startNoiseMeter(stream);
+frontend/src/hooks/useMonitoringSession.js:186:}, [attachStreamToVideo, startNoiseMeter]);
+frontend/src/hooks/useMonitoringSession.js:224:// Lesson speakers feed back into the mic — those samples are not room noise.
+frontend/src/hooks/useMonitoringSession.js:225:const currentNoiseDbfs = lessonAudioActiveNow ? null : captureNoiseDbfs();
+frontend/src/hooks/useMonitoringSession.js:226:if (currentNoiseDbfs !== null) setNoiseDbfs(currentNoiseDbfs);
+frontend/src/hooks/useMonitoringSession.js:230:noise_dbfs: currentNoiseDbfs,
+frontend/src/hooks/useMonitoringSession.js:262:[attachStreamToVideo, captureFrame, captureNoiseDbfs, intervalMs, stopTelemetryLoop]
+frontend/src/hooks/useMonitoringSession.js:329:stopNoiseMeter();
+frontend/src/hooks/useMonitoringSession.js:348:}, [stopTelemetryLoop, stopNoiseMeter]);
+frontend/src/hooks/useMonitoringSession.js:373:noiseDbfs,
+frontend/src/utils/interventionPause.js:12:'environment_noise_notice',
+intervention_review/DOCTOR_REVIEW_BRIEF.md:15:The webcam can estimate that a child is not visibly looking at the lesson. It cannot tell why. Boredom, confusion, tiredness, writing notes, a noise in the room, or a model error all look the same to it. Luma currently m
+intervention_review/INTERVENTION_EVIDENCE_TABLE.md:26:| Not driven by the webcam | Background noise can trigger a separate one-off "noisy room" notice. It never escalates visual interventions and is outside the scope of this review. |
+models/src/model2_pose/prepare.py:66:# Guard for numerical noise
+models/src/model3_audio/dataset.py:1:# model3_audio Dataset class
+models/src/model3_audio/eval.py:1:# model3_audio Evaluation loop
+models/src/model3_audio/infer.py:1:# model3_audio Inference script
+models/src/model3_audio/model.py:1:# model3_audio Architecture
+models/src/model3_audio/prepare.py:1:# model3_audio Data preparation
+models/src/model3_audio/train.py:1:# model3_audio Training loop
+models/src/model3_audio/test/quick_test.py:1:# Quick test for model3_audio
+models/src/model3_audio/test/README.md:1:# model3_audio Test Folder
+thesis_handover/CHAPTER_5_IMPLEMENTATION_HANDOVER.md:78:src/model3_audio, src/fusion, src/common                          (1-line stubs)
+thesis_handover/CHAPTER_5_IMPLEMENTATION_HANDOVER.md:276:1. **Camera.** `getUserMedia({video:{width:320,height:240,frameRate:15}})` (`hooks/useMonitoringSession.js:83-86`).

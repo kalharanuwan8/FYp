@@ -1,0 +1,4 @@
+{
+  "status": 200,
+  "snippet": "{'created_at': '2026-10-23T04:09:49.707435', 'description': 'Isolated Chapter 6 evaluation course', 'grade_level_id': 1, 'grade_level_name': 'Grade 1', 'id': 1, 'is_archived': False, 'modules': [{'contents': [{'content_type': 'video', 'created_at': '2026-10-23T04:09:49.713433', 'file_url': '/uploads/phase2a_demo.mp4', 'id': 1, 'milestones': [{'correct_option': 0, 'created_at': '2026-10-23T04:09:49.715433', 'hint_text': 'Skim the summary.', 'id': 1, 'is_active': True, 'module_content_id': 1, 'options': ['The core concept from the lesson', 'An unrelated topic', 'A homework deadline', 'None of the above'], 'question': 'What is the main idea of this demo lesson?', 'sequence_order': 1}], 'module_id': 1, 'quiz_id': None, 'summary': 'Evaluation demo material.', 'title': 'Eval Demo Video', 'update"
+}

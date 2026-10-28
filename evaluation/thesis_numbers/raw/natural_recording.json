@@ -1,0 +1,48 @@
+{
+  "note": "Computed from the stored natural-recording window CSVs joined the same way as models/src/model5_fusion/prep.py. This is not a fresh forward pass of the epoch-15 gaze checkpoint. File mtimes are included so the gaze CSV can be compared with the checkpoint.",
+  "files": {
+    "gaze": {
+      "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model1_gaze\\window_preds_natural.csv",
+      "bytes": 21320,
+      "mtime_epoch": 1771302232.940768
+    },
+    "pose": {
+      "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model2_pose\\window_pose_natural.csv",
+      "bytes": 13035,
+      "mtime_epoch": 1771302232.9556336
+    },
+    "engagement": {
+      "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model4_engagement\\preds_natural.csv",
+      "bytes": 40730,
+      "mtime_epoch": 1771302232.9735622
+    },
+    "m1_checkpoint": {
+      "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model1_gaze\\best.pt",
+      "bytes": 27089538,
+      "mtime_epoch": 1792548257.6866052
+    },
+    "m5_checkpoint": {
+      "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model5_fusion\\model.pkl",
+      "bytes": 1853,
+      "mtime_epoch": 1785058722.2753983
+    }
+  },
+  "n_windows_joined": 181,
+  "video_ids": [
+    "natural"
+  ],
+  "m1_pred_name_counts": {
+    "right": 181
+  },
+  "m1_argmax_of_stored_probabilities_counts": {
+    "center": 0,
+    "left": 0,
+    "right": 181,
+    "down": 0
+  },
+  "pred_name_matches_argmax": true,
+  "mean_p_center": 0.258517665016717,
+  "m5_threshold": 0.5,
+  "n_m5_distracted": 0,
+  "ratio_m5_distracted": 0.0
+}

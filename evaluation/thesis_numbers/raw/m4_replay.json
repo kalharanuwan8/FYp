@@ -1,0 +1,196 @@
+{
+  "note": "REPLAY against CURRENT live MLService \u2014 not stored session 94 data",
+  "window_size": 5,
+  "fusion_threshold": 0.75,
+  "eng_feature_cols": [
+    "pose_ratio",
+    "lw_speed_mean",
+    "lw_speed_std",
+    "rw_speed_mean",
+    "rw_speed_std",
+    "lw_to_nose_mean",
+    "rw_to_nose_mean",
+    "lw_to_sh_mean",
+    "rw_to_sh_mean",
+    "nose_jitter",
+    "lw_below_sh_ratio",
+    "rw_below_sh_ratio"
+  ],
+  "ml_mode": "full",
+  "default_fallback_n_lt_2": {
+    "features": {
+      "pose_ratio": 0.0,
+      "lw_speed_mean": 0.0,
+      "lw_speed_std": 0.0,
+      "rw_speed_mean": 0.0,
+      "rw_speed_std": 0.0,
+      "lw_to_nose_mean": 0.5,
+      "rw_to_nose_mean": 0.5,
+      "lw_to_sh_mean": 0.3,
+      "rw_to_sh_mean": 0.3,
+      "nose_jitter": 0.0,
+      "lw_below_sh_ratio": 0.5,
+      "rw_below_sh_ratio": 0.5
+    },
+    "engagement_prob": 0.9978737516820408
+  },
+  "real_buffers": [
+    {
+      "name": "natural_early",
+      "frames": [
+        {
+          "video": "natural.mp4",
+          "frame_index": 0,
+          "landmark_present": true
+        },
+        {
+          "video": "natural.mp4",
+          "frame_index": 5,
+          "landmark_present": true
+        },
+        {
+          "video": "natural.mp4",
+          "frame_index": 10,
+          "landmark_present": true
+        },
+        {
+          "video": "natural.mp4",
+          "frame_index": 15,
+          "landmark_present": true
+        },
+        {
+          "video": "natural.mp4",
+          "frame_index": 20,
+          "landmark_present": true
+        }
+      ],
+      "n_valid": 5,
+      "buf_len": 5,
+      "features": {
+        "pose_ratio": 1.0,
+        "lw_speed_mean": 0.010640505557418392,
+        "lw_speed_std": 0.007954199064590826,
+        "rw_speed_mean": 0.019260624832670104,
+        "rw_speed_std": 0.015406431466392135,
+        "lw_to_nose_mean": 0.940002707553249,
+        "rw_to_nose_mean": 0.9409485304877997,
+        "lw_to_sh_mean": 0.654519041382156,
+        "rw_to_sh_mean": 0.6547424004611189,
+        "nose_jitter": 0.003185222682962254,
+        "lw_below_sh_ratio": 1.0,
+        "rw_below_sh_ratio": 1.0
+      },
+      "engagement_prob": 0.9903172646481302,
+      "uses_default_vector": false
+    },
+    {
+      "name": "focused_mid",
+      "frames": [
+        {
+          "video": "focused.mp4",
+          "frame_index": 30,
+          "landmark_present": true
+        },
+        {
+          "video": "focused.mp4",
+          "frame_index": 35,
+          "landmark_present": true
+        },
+        {
+          "video": "focused.mp4",
+          "frame_index": 40,
+          "landmark_present": true
+        },
+        {
+          "video": "focused.mp4",
+          "frame_index": 45,
+          "landmark_present": true
+        },
+        {
+          "video": "focused.mp4",
+          "frame_index": 50,
+          "landmark_present": true
+        }
+      ],
+      "n_valid": 5,
+      "buf_len": 5,
+      "features": {
+        "pose_ratio": 1.0,
+        "lw_speed_mean": 0.0152379221931274,
+        "lw_speed_std": 0.00620632155564633,
+        "rw_speed_mean": 0.01870205458938679,
+        "rw_speed_std": 0.009723855540190876,
+        "lw_to_nose_mean": 1.0056367880184762,
+        "rw_to_nose_mean": 1.0074148824864049,
+        "lw_to_sh_mean": 0.7039641398852035,
+        "rw_to_sh_mean": 0.6963678840326955,
+        "nose_jitter": 0.007505113920909724,
+        "lw_below_sh_ratio": 1.0,
+        "rw_below_sh_ratio": 1.0
+      },
+      "engagement_prob": 0.8865840299425033,
+      "uses_default_vector": false
+    },
+    {
+      "name": "distracted_late",
+      "frames": [
+        {
+          "video": "distracted.mp4",
+          "frame_index": 50,
+          "landmark_present": true
+        },
+        {
+          "video": "distracted.mp4",
+          "frame_index": 55,
+          "landmark_present": true
+        },
+        {
+          "video": "distracted.mp4",
+          "frame_index": 60,
+          "landmark_present": true
+        },
+        {
+          "video": "distracted.mp4",
+          "frame_index": 65,
+          "landmark_present": true
+        },
+        {
+          "video": "distracted.mp4",
+          "frame_index": 70,
+          "landmark_present": true
+        }
+      ],
+      "n_valid": 5,
+      "buf_len": 5,
+      "features": {
+        "pose_ratio": 1.0,
+        "lw_speed_mean": 0.010143153619003555,
+        "lw_speed_std": 0.004314932818457236,
+        "rw_speed_mean": 0.021321844146497206,
+        "rw_speed_std": 0.010564147528768105,
+        "lw_to_nose_mean": 0.9634976370996953,
+        "rw_to_nose_mean": 0.9961380745571675,
+        "lw_to_sh_mean": 0.6742200095996337,
+        "rw_to_sh_mean": 0.6621887111701612,
+        "nose_jitter": 0.007093605822189833,
+        "lw_below_sh_ratio": 1.0,
+        "rw_below_sh_ratio": 1.0
+      },
+      "engagement_prob": 0.9303545394427232,
+      "uses_default_vector": false
+    }
+  ],
+  "summary": {
+    "n_buffers": 3,
+    "engagement_probs": [
+      0.9903172646481302,
+      0.8865840299425033,
+      0.9303545394427232
+    ],
+    "n_distinct_probs": 3,
+    "min_prob": 0.8865840299425033,
+    "max_prob": 0.9903172646481302,
+    "default_fallback_prob": 0.9978737516820408,
+    "all_equal_to_default": false
+  }
+}

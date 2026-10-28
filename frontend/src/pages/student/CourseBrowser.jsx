@@ -100,7 +100,7 @@ export default function CourseBrowser() {
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className={`min-h-11 px-5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${
-              tab === t.id ? 'bg-primary text-white' : 'text-text-muted hover:text-text'
+              tab === t.id ? 'bg-primary text-on-primary' : 'text-text-muted hover:text-text'
             }`}
           >
             {t.label}

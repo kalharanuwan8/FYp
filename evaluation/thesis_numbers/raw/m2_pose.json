@@ -1,0 +1,52 @@
+{
+  "checkpoint": {
+    "loaded_path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model2_pose\\best.pt",
+    "sha256": "a91162707d5eff172e21f16cac93feeec9b57306dac1ca78531efd4e8050f629",
+    "epoch_field": 3,
+    "best_val_field": 6.01516703932612,
+    "keys": [
+      "best_val",
+      "epoch",
+      "model",
+      "optimizer",
+      "scaler"
+    ]
+  },
+  "pose_log_files_under_models_outputs": [],
+  "test": {
+    "split": "test",
+    "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model2_pose\\test.csv",
+    "n_rows": 1672,
+    "n_scored": 1672,
+    "n_missing_images": 0,
+    "missing_images_head": [],
+    "subjects": [
+      "18",
+      "19",
+      "20"
+    ],
+    "mae_yaw_deg": 6.8511649737292775,
+    "mae_pitch_deg": 5.21211219376829,
+    "mae_roll_deg": 5.720455477493994,
+    "mae_mean_deg": 5.927910881663853,
+    "mae_definition": "mean over scored frames of |pred-target| in degrees; mean is the unweighted mean of the three MAEs"
+  },
+  "val": {
+    "split": "val",
+    "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model2_pose\\val.csv",
+    "n_rows": 1963,
+    "n_scored": 1963,
+    "n_missing_images": 0,
+    "missing_images_head": [],
+    "subjects": [
+      "15",
+      "16",
+      "17"
+    ],
+    "mae_yaw_deg": 6.657398624665103,
+    "mae_pitch_deg": 7.210128475504096,
+    "mae_roll_deg": 5.596910650234186,
+    "mae_mean_deg": 6.488145916801128,
+    "mae_definition": "mean over scored frames of |pred-target| in degrees; mean is the unweighted mean of the three MAEs"
+  }
+}

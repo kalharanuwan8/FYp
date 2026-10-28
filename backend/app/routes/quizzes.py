@@ -139,7 +139,7 @@ def list_module_quizzes(module_id):
     role = str(claims.get("role", "")).lower()
     user_id = int(get_jwt_identity())
 
-    # Check student enrollment restriction
+    # Check student enrollment / teacher ownership
     if role == "student":
         student = Student.query.filter_by(user_id=user_id).first()
         if not student:
@@ -147,6 +147,11 @@ def list_module_quizzes(module_id):
         enrollment = Enrollment.query.filter_by(student_id=student.id, subject_id=module.subject_id).first()
         if not enrollment:
             return jsonify({"error": "Forbidden: You are not enrolled in this course"}), 403
+    elif role == "teacher":
+        if not is_teacher_owner_of_module(user_id, module_id):
+            return jsonify({"error": "Forbidden: You are not assigned to manage this course module"}), 403
+    elif role != "admin":
+        return jsonify({"error": "Forbidden"}), 403
 
     reveal_answers = (role == "admin") or (role == "teacher" and is_teacher_owner_of_module(user_id, module_id))
     quizzes = Quiz.query.filter_by(module_id=module_id).order_by(Quiz.id.asc()).all()
@@ -167,7 +172,7 @@ def get_quiz_detail(quiz_id):
 
     module = db.session.get(Module, quiz.module_id)
 
-    # Check student enrollment restriction
+    # Check student enrollment / teacher ownership
     if role == "student":
         student = Student.query.filter_by(user_id=user_id).first()
         if not student:
@@ -175,6 +180,11 @@ def get_quiz_detail(quiz_id):
         enrollment = Enrollment.query.filter_by(student_id=student.id, subject_id=module.subject_id).first()
         if not enrollment:
             return jsonify({"error": "Forbidden: You are not enrolled in this course"}), 403
+    elif role == "teacher":
+        if not is_teacher_owner_of_module(user_id, quiz.module_id):
+            return jsonify({"error": "Forbidden: You are not assigned to manage this course module"}), 403
+    elif role != "admin":
+        return jsonify({"error": "Forbidden"}), 403
 
     reveal_answers = (role == "admin") or (role == "teacher" and is_teacher_owner_of_module(user_id, quiz.module_id))
     return jsonify(serialize_quiz_for_user(quiz, reveal_answers=reveal_answers)), 200
@@ -311,17 +321,63 @@ def submit_quiz_attempt(attempt_id):
         except Exception:
             gamification = {}
 
+        remediation = None
+        try:
+            from app.services.remediation_service import build_remediation_for_attempt
+            remediation = build_remediation_for_attempt(
+                student_id=student.id,
+                quiz=quiz,
+                attempt_id=attempt.id,
+                correct_count=correct_count,
+                total_questions=total_questions,
+            )
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            remediation = None
+
         payload = attempt.to_dict(include_answers=True)
         payload["xp_gained"] = gamification.get("xp_gained", 0)
         payload["new_badges"] = gamification.get("new_badges", [])
         payload["progress"] = gamification.get("progress")
         payload["correct_count"] = correct_count
         payload["total_questions"] = total_questions
+        payload["remediation"] = remediation
         return jsonify(payload), 200
 
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to grade quiz attempt"}), 500
+
+
+@quizzes_bp.route("/remediation/<int:event_id>/choice", methods=["POST"])
+@jwt_required()
+@role_required("student")
+def record_remediation_choice(event_id):
+    from app.db_models.remediation import RemediationEvent
+    from app.services.remediation_service import VALID_CHOICES
+
+    event = db.session.get(RemediationEvent, event_id)
+    if not event:
+        return jsonify({"error": "Remediation event not found"}), 404
+
+    user_id = int(get_jwt_identity())
+    student = Student.query.filter_by(user_id=user_id).first()
+    if not student or event.student_id != student.id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    raw = request.get_json(silent=True) or {}
+    choice = raw.get("choice")
+    if choice not in VALID_CHOICES:
+        return jsonify({
+            "error": "Invalid choice",
+            "allowed": sorted(VALID_CHOICES),
+        }), 400
+
+    event.student_choice = choice
+    event.choice_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(event.to_dict()), 200
 
 
 @quizzes_bp.route("/quizzes/<int:quiz_id>/attempts", methods=["GET"])
@@ -339,11 +395,20 @@ def list_quiz_attempts(quiz_id):
         attempts = QuizAttempt.query.filter_by(quiz_id=quiz_id).order_by(QuizAttempt.id.desc()).all()
         return jsonify([att.to_dict(include_answers=True) for att in attempts]), 200
 
+    if role == "teacher":
+        return jsonify({"error": "Forbidden: You are not assigned to manage this course module"}), 403
+
     if role == "student":
         student = Student.query.filter_by(user_id=user_id).first()
         if not student:
-            return jsonify([]), 200
+            return jsonify({"error": "Student profile not found"}), 403
+        module = db.session.get(Module, quiz.module_id)
+        enrollment = Enrollment.query.filter_by(
+            student_id=student.id, subject_id=module.subject_id
+        ).first()
+        if not enrollment:
+            return jsonify({"error": "Forbidden: You are not enrolled in this course"}), 403
         attempts = QuizAttempt.query.filter_by(quiz_id=quiz_id, student_id=student.id).order_by(QuizAttempt.id.desc()).all()
         return jsonify([att.to_dict(include_answers=True) for att in attempts]), 200
 
-    return jsonify([]), 200
+    return jsonify({"error": "Forbidden"}), 403

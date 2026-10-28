@@ -2,6 +2,7 @@ export { default as Button } from './Button';
 export { default as Card } from './Card';
 export { default as ProgressRing } from './ProgressRing';
 export { default as BadgeChip } from './Badge';
+export { default as StatusBadge } from './StatusBadge';
 export { default as XPChip } from './XPChip';
 export { default as StreakChip } from './StreakChip';
 export { default as EmptyState } from './EmptyState';

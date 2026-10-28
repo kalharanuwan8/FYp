@@ -76,7 +76,14 @@ export default function SubjectDetail() {
     return apiBase.replace(/\/api\/?$/, '');
   };
 
-  const resolveMediaUrl = (fileUrl) => {
+  const resolveMediaUrl = (itemOrUrl) => {
+    // Prefer authenticated material file route when we have a content id.
+    if (itemOrUrl && typeof itemOrUrl === 'object' && itemOrUrl.id) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('access_token') || '';
+      return `${apiBase}/courses/materials/${itemOrUrl.id}/file?token=${encodeURIComponent(token)}`;
+    }
+    const fileUrl = itemOrUrl;
     if (!fileUrl) return '#';
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
     const origin = getBackendOrigin();
@@ -244,7 +251,7 @@ export default function SubjectDetail() {
     } else if (item.content_type === 'quiz' && item.quiz_id) {
       navigate(`/student/quizzes/${item.quiz_id}`);
     } else {
-      window.open(resolveMediaUrl(item.file_url), '_blank');
+      window.open(resolveMediaUrl(item), '_blank');
     }
   };
 

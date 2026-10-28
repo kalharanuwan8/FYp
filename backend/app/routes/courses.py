@@ -202,7 +202,16 @@ def get_subject_detail(subject_id):
             if not (is_admin or is_owner):
                 return jsonify({"error": f"Subject #{subject_id} is archived and unavailable"}), 404
 
-        return jsonify(subject.to_dict(include_modules=True)), 200
+        # Students must not receive milestone correct answers in subject detail.
+        reveal_answers = (role == "admin") or (
+            role == "teacher" and is_teacher_owner_of_subject(user_id, subject_id)
+        )
+        return jsonify(
+            subject.to_dict(
+                include_modules=True,
+                reveal_milestone_answers=reveal_answers,
+            )
+        ), 200
     except Exception as err:
         current_app.logger.error(f"Error fetching subject detail for ID {subject_id}: {str(err)}")
         return jsonify({"error": f"Failed to load course #{subject_id}: {str(err)}"}), 500
@@ -447,6 +456,56 @@ def get_material(material_id):
     if not content:
         return jsonify({"error": "Material not found"}), 404
     return jsonify(content.to_dict(include_milestones=True)), 200
+
+
+def _can_access_material_file(user_id: int, role: str, content: ModuleContent) -> bool:
+    """Teacher owner, admin, or enrolled student may download the file."""
+    if role == "admin":
+        return True
+    if role == "teacher":
+        return is_teacher_owner_of_material(user_id, content.id)
+    if role == "student":
+        student = Student.query.filter_by(user_id=user_id).first()
+        if not student:
+            return False
+        module = db.session.get(Module, content.module_id)
+        if not module:
+            return False
+        enrollment = Enrollment.query.filter_by(
+            student_id=student.id, subject_id=module.subject_id
+        ).first()
+        return enrollment is not None
+    return False
+
+
+@courses_bp.route("/materials/<int:material_id>/file", methods=["GET"])
+@jwt_required()
+def download_material_file(material_id):
+    """Serve an uploaded material file only to enrolled students or owning teachers."""
+    content = db.session.get(ModuleContent, material_id)
+    if not content or not content.file_url:
+        return jsonify({"error": "Material file not found"}), 404
+
+    claims = get_jwt()
+    role = str(claims.get("role", "")).lower()
+    user_id = int(get_jwt_identity())
+    if not _can_access_material_file(user_id, role, content):
+        return jsonify({"error": "Forbidden: You do not have access to this material"}), 403
+
+    # Stored as /uploads/<unique_name> (or absolute URL — only local uploads are served).
+    file_url = content.file_url
+    if file_url.startswith("http://") or file_url.startswith("https://"):
+        return jsonify({"error": "External material URLs are not proxied"}), 400
+    filename = os.path.basename(file_url)
+    if not filename or filename in {".", ".."}:
+        return jsonify({"error": "Invalid material path"}), 400
+
+    upload_folder = current_app.config.get(
+        "UPLOAD_FOLDER", os.path.join(current_app.root_path, "..", "uploads")
+    )
+    if not os.path.isabs(upload_folder):
+        upload_folder = os.path.join(current_app.root_path, "..", upload_folder)
+    return send_from_directory(upload_folder, filename)
 
 
 @courses_bp.route("/materials/<int:material_id>", methods=["PATCH"])

@@ -261,7 +261,7 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
               type="button"
               onClick={handleGenerate}
               disabled={generating || uploadingFile}
-              className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+              className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold cursor-pointer disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
               {generating ? 'Generating…' : 'Generate summary & quiz'}

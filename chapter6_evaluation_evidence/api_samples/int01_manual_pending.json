@@ -1,0 +1,25 @@
+{
+  "t1": {
+    "intervention": {
+      "intervention_id": 1,
+      "intervention_type": "ambient_cue",
+      "message": "Let's refocus together!",
+      "payload": {},
+      "tier": 1,
+      "triggered_at": "2026-10-23T04:10:11.473446"
+    },
+    "intervention_triggered": true
+  },
+  "t1b_status": 409,
+  "t2": {
+    "intervention": {
+      "intervention_id": 2,
+      "intervention_type": "pacing_pause",
+      "message": "Still with me? Tap to continue.",
+      "payload": {},
+      "tier": 2,
+      "triggered_at": "2026-10-23T04:10:11.485444"
+    },
+    "intervention_triggered": true
+  }
+}

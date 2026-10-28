@@ -24,6 +24,7 @@ from app.db_models.analytics import (
 )
 from app.db_models.system_setting import SystemSetting
 from app.db_models.gamification import StudentProgress, Badge, StudentBadge
+from app.db_models.remediation import RemediationEvent
 
 __all__ = [
     "User",
@@ -53,4 +54,5 @@ __all__ = [
     "StudentProgress",
     "Badge",
     "StudentBadge",
+    "RemediationEvent",
 ]

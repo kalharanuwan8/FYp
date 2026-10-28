@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import studentService from '../../services/studentService';
 import courseService from '../../services/courseService';
-import { usePreferences } from '../../context/PreferencesContext';
+import { usePreferences, THEME_OPTIONS } from '../../context/PreferencesContext';
 import {
   Button,
   Card,
@@ -121,15 +121,56 @@ export default function StudentSettings() {
 
       <Card className="p-5 space-y-5">
         <h2 className="font-display font-bold text-text">Look &amp; feel</h2>
-        <SegmentedControl
-          label="Theme"
-          options={[
-            { value: 'light', label: 'Light' },
-            { value: 'calm-dark', label: 'Calm dark' },
-          ]}
-          value={theme}
-          onChange={(v) => savePrefs({ theme: v })}
-        />
+
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-semibold text-text">Theme</legend>
+          <p className="text-xs text-text-muted -mt-1">
+            Plain backgrounds only — learning screens stay still and uncluttered.
+          </p>
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+            role="radiogroup"
+            aria-label="Colour theme"
+          >
+            {THEME_OPTIONS.map((opt) => {
+              const selected = theme === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => savePrefs({ theme: opt.value })}
+                  className={`flex items-start gap-3 min-h-14 px-3 py-3 rounded-2xl border text-left cursor-pointer transition-colors ${
+                    selected
+                      ? 'border-primary border-2 bg-primary-soft'
+                      : 'border-border bg-surface hover:border-primary/40'
+                  }`}
+                >
+                  <span
+                    className="theme-swatch mt-0.5"
+                    style={{
+                      background:
+                        opt.value === 'sage'
+                          ? '#eef3ee'
+                          : opt.value === 'warm'
+                            ? '#f3efe8'
+                            : opt.value === 'pale-blue'
+                              ? '#e8eef4'
+                              : '#161c28',
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-text">{opt.label}</span>
+                    <span className="block text-xs text-text-muted">{opt.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
         <SegmentedControl
           label="Text size"
           options={[
@@ -142,7 +183,7 @@ export default function StudentSettings() {
         />
         <ToggleRow
           label="Reduce motion"
-          hint="Calms animations and turns off celebrations."
+          hint="Calms short transitions and turns off celebrations. Learning backgrounds stay still either way."
           checked={reduceMotion}
           onChange={(v) => savePrefs({ reduceMotion: v })}
         />

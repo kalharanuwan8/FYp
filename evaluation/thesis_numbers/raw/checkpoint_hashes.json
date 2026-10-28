@@ -1,0 +1,37 @@
+{
+  "m1_best": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model1_gaze\\best.pt",
+    "sha256": "8127a926c74a21b41f4398d43f8a662c653f61e31f2dd62302cd995b442eba32",
+    "bytes": 27089538
+  },
+  "m1_last": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model1_gaze\\last.pt",
+    "sha256": "8127a926c74a21b41f4398d43f8a662c653f61e31f2dd62302cd995b442eba32",
+    "bytes": 27089538
+  },
+  "m1_epoch15_backup": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model1_gaze\\last_epoch15_96_backup.pt",
+    "sha256": "8127a926c74a21b41f4398d43f8a662c653f61e31f2dd62302cd995b442eba32",
+    "bytes": 27089538
+  },
+  "m2_best": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model2_pose\\best.pt",
+    "sha256": "a91162707d5eff172e21f16cac93feeec9b57306dac1ca78531efd4e8050f629",
+    "bytes": 134253858
+  },
+  "m2_last": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model2_pose\\last.pt",
+    "sha256": "61104a6df32837d4f1a0fdd8bb35d61c61a3688442e14f0f7cf46bb43a695962",
+    "bytes": 134253858
+  },
+  "m4": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model4_engagement\\model.pkl",
+    "sha256": "d39b5f16d3e78653c06fdead842518e2d6add967194474de6f632373beb237e9",
+    "bytes": 2419
+  },
+  "m5": {
+    "path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model5_fusion\\model.pkl",
+    "sha256": "b465e0c48af9067b9417a696a7c510ddf34ac98779d6aea6adba94e7d42020e6",
+    "bytes": 1853
+  }
+}

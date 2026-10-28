@@ -81,6 +81,8 @@ class InterventionEngine:
         self.last_intervention_at: float = 0.0
         self.t4_used: bool = False
         self._pending_intervention: bool = False  # waiting for outcome
+        # One ambient_cue per open distraction episode (no pending lock / cooldown).
+        self._ambient_episode_key: Optional[Any] = None
 
     def record_outcome(self, outcome: str):
         outcome = (outcome or "").lower().strip()
@@ -97,6 +99,20 @@ class InterventionEngine:
         self.last_tier = None
         self.last_outcome = None
         self._pending_intervention = False
+        self._ambient_episode_key = None
+
+    @staticmethod
+    def _episode_key(distraction_event) -> Optional[Any]:
+        """Stable identity for the open episode (DB id, else started_at, else object id)."""
+        if distraction_event is None:
+            return None
+        eid = getattr(distraction_event, "id", None)
+        if eid is not None:
+            return ("id", eid)
+        started = getattr(distraction_event, "started_at", None)
+        if started is not None:
+            return ("started_at", started)
+        return ("obj", id(distraction_event))
 
     def hold_on_unknown(self):
         """
@@ -177,6 +193,18 @@ class InterventionEngine:
         resolved_tier = self._resolve_enabled_tier(target_tier)
         if resolved_tier is None:
             return None
+
+        # Tier 1 ambient_cue: log once per episode, but do not take the pending
+        # lock or start the 30 s cooldown (those blocked Tier 2 under defaults).
+        if resolved_tier == 1:
+            key = self._episode_key(distraction_event)
+            if key is not None and key == self._ambient_episode_key:
+                return None
+            triggered = self._select_intervention(1, is_quiz_context)
+            self._ambient_episode_key = key
+            self.last_tier = 1
+            self.last_outcome = None
+            return triggered
 
         triggered = self._select_intervention(resolved_tier, is_quiz_context)
         self.last_intervention_at = ts

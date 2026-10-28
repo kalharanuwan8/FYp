@@ -614,6 +614,20 @@ def send_heartbeat(session_id):
         engagement_score = None
         confidence = None
 
+    # Additive diagnostics for thesis/debug; existing keys keep their meaning.
+    diagnostics = {
+        "inference_path": (ml_features or {}).get("inference_path"),
+        "gaze_label": (ml_features or {}).get("gaze_label", gaze_label),
+        "head_pose_yaw": (ml_features or {}).get("head_pose_yaw"),
+        "head_pose_pitch": (ml_features or {}).get("head_pose_pitch"),
+        "head_pose_roll": (ml_features or {}).get("head_pose_roll"),
+        "distract_prob": (ml_features or {}).get("distract_prob"),
+        "face_box_px": (ml_features or {}).get("face_box_px"),
+        "pose_baseline_yaw": (ml_features or {}).get("pose_baseline_yaw"),
+        "pose_baseline_pitch": (ml_features or {}).get("pose_baseline_pitch"),
+        "fusion_threshold": (ml_features or {}).get("fusion_threshold"),
+    }
+
     return jsonify({
         "status": "recorded",
         "session_id": session.id,
@@ -624,6 +638,7 @@ def send_heartbeat(session_id):
         "gaze_label": gaze_label,
         "engagement_score": engagement_score,
         "face_detected": face_out,
+        "diagnostics": diagnostics,
         "noise_dbfs": data.noise_dbfs,
         "noise_baseline_dbfs": noise_monitor.baseline_dbfs if noise_monitor else None,
         "noise_triggered": noise_triggered,
@@ -761,6 +776,70 @@ def stop_session(session_id):
     if not session or session.student_id != student.id:
         return jsonify({"error": "Learning session not found"}), 404
 
+    return jsonify(_finalize_session(session, student.id)), 200
+
+
+def _active_session_payload(session: LearningSession) -> dict:
+    module = session.module
+    subject = getattr(module, "subject", None) if module else None
+    started = session.start_time
+    return {
+        "session_id": session.id,
+        "module_id": session.module_id,
+        "module_title": module.title if module else None,
+        "subject_id": subject.id if subject else None,
+        "subject_title": subject.title if subject else None,
+        "start_time": started.isoformat() if started else None,
+        "running_seconds": int((datetime.utcnow() - started).total_seconds()) if started else 0,
+        "is_monitored": session.is_monitored,
+    }
+
+
+@session_bp.route("/active", methods=["GET"])
+@jwt_required()
+@role_required("student")
+def list_active_sessions():
+    """Open (not yet stopped) sessions for the current student, newest first."""
+    user_id = int(get_jwt_identity())
+    student = Student.query.filter_by(user_id=user_id).first()
+    if not student:
+        return jsonify({"error": "Student profile not found"}), 403
+
+    sessions = (
+        LearningSession.query.filter_by(student_id=student.id, end_time=None)
+        .order_by(LearningSession.start_time.desc())
+        .all()
+    )
+    return jsonify({
+        "count": len(sessions),
+        "sessions": [_active_session_payload(s) for s in sessions],
+    }), 200
+
+
+@session_bp.route("/stop-active", methods=["POST"])
+@jwt_required()
+@role_required("student")
+def stop_active_sessions():
+    """
+    Stop every open session for the current student — e.g. monitoring left
+    running after a closed tab. Each session is finalized exactly like /stop.
+    """
+    user_id = int(get_jwt_identity())
+    student = Student.query.filter_by(user_id=user_id).first()
+    if not student:
+        return jsonify({"error": "Student profile not found"}), 403
+
+    sessions = LearningSession.query.filter_by(student_id=student.id, end_time=None).all()
+    summaries = [_finalize_session(s, student.id) for s in sessions]
+    return jsonify({
+        "message": f"Stopped {len(summaries)} monitoring session(s)",
+        "stopped_count": len(summaries),
+        "sessions": summaries,
+    }), 200
+
+
+def _finalize_session(session: LearningSession, student_id: int) -> dict:
+    """End a session (idempotent), release runtime state, seal coverage and award XP."""
     now_dt = datetime.utcnow()
     # Idempotent end: only the first successful UPDATE sets end_time.
     ended_rows = db.session.execute(
@@ -810,11 +889,11 @@ def stop_session(session_id):
     # Historical ended sessions sealed with xp_awarded=True at migration time.
     gamification = award_claimed_session_xp(
         session_id=session.id,
-        student_id=student.id,
+        student_id=student_id,
         observed_focused_seconds=coverage.observed_focused_seconds,
     )
 
-    return jsonify({
+    return {
         "message": "Learning session completed",
         "session_id": session.id,
         "start_time": session.start_time.isoformat() if session.start_time else None,
@@ -834,4 +913,4 @@ def stop_session(session_id):
         "focus_minutes": gamification.get("focus_minutes", 0),
         "progress": gamification.get("progress"),
         "new_badges": gamification.get("new_badges", []),
-    }), 200
+    }

@@ -1,0 +1,2149 @@
+{
+  "a_no_response_wallclock_base": {
+    "label": "no_response",
+    "response": null,
+    "base_now": 1700000000.0,
+    "cooldown_seconds": 30.0,
+    "enabled_tiers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_heartbeats": 61,
+    "interventions": [
+      {
+        "second": 6,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 10,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      }
+    ],
+    "trace": [
+      {
+        "second": 0,
+        "duration_seconds": 0.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 2,
+        "duration_seconds": 2.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 4,
+        "duration_seconds": 4.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 6,
+        "duration_seconds": 6.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 8,
+        "duration_seconds": 8.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 10,
+        "duration_seconds": 10.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 12,
+        "duration_seconds": 12.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 14,
+        "duration_seconds": 14.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 16,
+        "duration_seconds": 16.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 18,
+        "duration_seconds": 18.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 20,
+        "duration_seconds": 20.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 22,
+        "duration_seconds": 22.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 24,
+        "duration_seconds": 24.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 26,
+        "duration_seconds": 26.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 28,
+        "duration_seconds": 28.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 30,
+        "duration_seconds": 30.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 32,
+        "duration_seconds": 32.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 34,
+        "duration_seconds": 34.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 36,
+        "duration_seconds": 36.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 38,
+        "duration_seconds": 38.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 40,
+        "duration_seconds": 40.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 42,
+        "duration_seconds": 42.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 44,
+        "duration_seconds": 44.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 46,
+        "duration_seconds": 46.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 48,
+        "duration_seconds": 48.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 50,
+        "duration_seconds": 50.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 52,
+        "duration_seconds": 52.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 54,
+        "duration_seconds": 54.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 56,
+        "duration_seconds": 56.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 58,
+        "duration_seconds": 58.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 60,
+        "duration_seconds": 60.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 62,
+        "duration_seconds": 62.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 64,
+        "duration_seconds": 64.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 66,
+        "duration_seconds": 66.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 68,
+        "duration_seconds": 68.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 70,
+        "duration_seconds": 70.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 72,
+        "duration_seconds": 72.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 74,
+        "duration_seconds": 74.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 76,
+        "duration_seconds": 76.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 78,
+        "duration_seconds": 78.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 80,
+        "duration_seconds": 80.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 82,
+        "duration_seconds": 82.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 84,
+        "duration_seconds": 84.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 86,
+        "duration_seconds": 86.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 88,
+        "duration_seconds": 88.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 90,
+        "duration_seconds": 90.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 92,
+        "duration_seconds": 92.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 94,
+        "duration_seconds": 94.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 96,
+        "duration_seconds": 96.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 98,
+        "duration_seconds": 98.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 100,
+        "duration_seconds": 100.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 102,
+        "duration_seconds": 102.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 104,
+        "duration_seconds": 104.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 106,
+        "duration_seconds": 106.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 108,
+        "duration_seconds": 108.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 110,
+        "duration_seconds": 110.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 112,
+        "duration_seconds": 112.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 114,
+        "duration_seconds": 114.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 116,
+        "duration_seconds": 116.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 118,
+        "duration_seconds": 118.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 120,
+        "duration_seconds": 120.0,
+        "pending_before_decide": null,
+        "fired": false
+      }
+    ],
+    "pending_at_end": true,
+    "last_tier_at_end": 2,
+    "last_outcome_at_end": null,
+    "last_intervention_at_end": 1700000010.0
+  },
+  "b_acknowledged_2s_after_wallclock_base": {
+    "label": "acknowledged",
+    "response": "acknowledged",
+    "base_now": 1700000000.0,
+    "cooldown_seconds": 30.0,
+    "enabled_tiers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_heartbeats": 61,
+    "interventions": [
+      {
+        "second": 6,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 10,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      }
+    ],
+    "trace": [
+      {
+        "second": 0,
+        "duration_seconds": 0.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 2,
+        "duration_seconds": 2.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 4,
+        "duration_seconds": 4.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 6,
+        "duration_seconds": 6.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 8,
+        "duration_seconds": 8.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 10,
+        "duration_seconds": 10.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 12,
+        "event": "record_outcome",
+        "response": "acknowledged",
+        "pending_before": true,
+        "pending_after": true,
+        "last_outcome": null,
+        "last_tier": 2
+      },
+      {
+        "second": 12,
+        "duration_seconds": 12.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 14,
+        "duration_seconds": 14.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 16,
+        "duration_seconds": 16.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 18,
+        "duration_seconds": 18.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 20,
+        "duration_seconds": 20.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 22,
+        "duration_seconds": 22.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 24,
+        "duration_seconds": 24.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 26,
+        "duration_seconds": 26.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 28,
+        "duration_seconds": 28.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 30,
+        "duration_seconds": 30.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 32,
+        "duration_seconds": 32.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 34,
+        "duration_seconds": 34.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 36,
+        "duration_seconds": 36.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 38,
+        "duration_seconds": 38.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 40,
+        "duration_seconds": 40.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 42,
+        "duration_seconds": 42.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 44,
+        "duration_seconds": 44.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 46,
+        "duration_seconds": 46.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 48,
+        "duration_seconds": 48.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 50,
+        "duration_seconds": 50.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 52,
+        "duration_seconds": 52.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 54,
+        "duration_seconds": 54.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 56,
+        "duration_seconds": 56.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 58,
+        "duration_seconds": 58.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 60,
+        "duration_seconds": 60.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 62,
+        "duration_seconds": 62.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 64,
+        "duration_seconds": 64.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 66,
+        "duration_seconds": 66.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 68,
+        "duration_seconds": 68.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 70,
+        "duration_seconds": 70.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 72,
+        "duration_seconds": 72.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 74,
+        "duration_seconds": 74.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 76,
+        "duration_seconds": 76.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 78,
+        "duration_seconds": 78.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 80,
+        "duration_seconds": 80.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 82,
+        "duration_seconds": 82.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 84,
+        "duration_seconds": 84.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 86,
+        "duration_seconds": 86.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 88,
+        "duration_seconds": 88.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 90,
+        "duration_seconds": 90.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 92,
+        "duration_seconds": 92.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 94,
+        "duration_seconds": 94.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 96,
+        "duration_seconds": 96.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 98,
+        "duration_seconds": 98.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 100,
+        "duration_seconds": 100.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 102,
+        "duration_seconds": 102.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 104,
+        "duration_seconds": 104.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 106,
+        "duration_seconds": 106.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 108,
+        "duration_seconds": 108.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 110,
+        "duration_seconds": 110.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 112,
+        "duration_seconds": 112.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 114,
+        "duration_seconds": 114.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 116,
+        "duration_seconds": 116.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 118,
+        "duration_seconds": 118.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 120,
+        "duration_seconds": 120.0,
+        "pending_before_decide": null,
+        "fired": false
+      }
+    ],
+    "pending_at_end": true,
+    "last_tier_at_end": 2,
+    "last_outcome_at_end": null,
+    "last_intervention_at_end": 1700000010.0
+  },
+  "extra_ignored_2s_after_wallclock_base": {
+    "label": "ignored",
+    "response": "ignored",
+    "base_now": 1700000000.0,
+    "cooldown_seconds": 30.0,
+    "enabled_tiers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_heartbeats": 61,
+    "interventions": [
+      {
+        "second": 6,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 10,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 40,
+        "tier": 4,
+        "intervention_type": "content_pacing_reduction"
+      },
+      {
+        "second": 70,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 100,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      }
+    ],
+    "trace": [
+      {
+        "second": 0,
+        "duration_seconds": 0.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 2,
+        "duration_seconds": 2.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 4,
+        "duration_seconds": 4.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 6,
+        "duration_seconds": 6.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 8,
+        "duration_seconds": 8.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 10,
+        "duration_seconds": 10.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 12,
+        "event": "record_outcome",
+        "response": "ignored",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "ignored",
+        "last_tier": 2
+      },
+      {
+        "second": 12,
+        "duration_seconds": 12.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 14,
+        "duration_seconds": 14.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 16,
+        "duration_seconds": 16.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 18,
+        "duration_seconds": 18.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 20,
+        "duration_seconds": 20.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 22,
+        "duration_seconds": 22.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 24,
+        "duration_seconds": 24.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 26,
+        "duration_seconds": 26.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 28,
+        "duration_seconds": 28.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 30,
+        "duration_seconds": 30.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 32,
+        "duration_seconds": 32.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 34,
+        "duration_seconds": 34.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 36,
+        "duration_seconds": 36.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 38,
+        "duration_seconds": 38.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 40,
+        "duration_seconds": 40.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "content_pacing_reduction"
+      },
+      {
+        "second": 42,
+        "event": "record_outcome",
+        "response": "ignored",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "ignored",
+        "last_tier": 4
+      },
+      {
+        "second": 42,
+        "duration_seconds": 42.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 44,
+        "duration_seconds": 44.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 46,
+        "duration_seconds": 46.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 48,
+        "duration_seconds": 48.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 50,
+        "duration_seconds": 50.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 52,
+        "duration_seconds": 52.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 54,
+        "duration_seconds": 54.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 56,
+        "duration_seconds": 56.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 58,
+        "duration_seconds": 58.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 60,
+        "duration_seconds": 60.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 62,
+        "duration_seconds": 62.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 64,
+        "duration_seconds": 64.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 66,
+        "duration_seconds": 66.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 68,
+        "duration_seconds": 68.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 70,
+        "duration_seconds": 70.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 72,
+        "event": "record_outcome",
+        "response": "ignored",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "ignored",
+        "last_tier": 4
+      },
+      {
+        "second": 72,
+        "duration_seconds": 72.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 74,
+        "duration_seconds": 74.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 76,
+        "duration_seconds": 76.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 78,
+        "duration_seconds": 78.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 80,
+        "duration_seconds": 80.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 82,
+        "duration_seconds": 82.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 84,
+        "duration_seconds": 84.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 86,
+        "duration_seconds": 86.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 88,
+        "duration_seconds": 88.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 90,
+        "duration_seconds": 90.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 92,
+        "duration_seconds": 92.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 94,
+        "duration_seconds": 94.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 96,
+        "duration_seconds": 96.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 98,
+        "duration_seconds": 98.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 100,
+        "duration_seconds": 100.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 102,
+        "event": "record_outcome",
+        "response": "ignored",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "ignored",
+        "last_tier": 4
+      },
+      {
+        "second": 102,
+        "duration_seconds": 102.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 104,
+        "duration_seconds": 104.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 106,
+        "duration_seconds": 106.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 108,
+        "duration_seconds": 108.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 110,
+        "duration_seconds": 110.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 112,
+        "duration_seconds": 112.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 114,
+        "duration_seconds": 114.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 116,
+        "duration_seconds": 116.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 118,
+        "duration_seconds": 118.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 120,
+        "duration_seconds": 120.0,
+        "pending_before_decide": null,
+        "fired": false
+      }
+    ],
+    "pending_at_end": false,
+    "last_tier_at_end": 4,
+    "last_outcome_at_end": "ignored",
+    "last_intervention_at_end": 1700000100.0
+  },
+  "extra_reengaged_2s_after_wallclock_base": {
+    "label": "reengaged",
+    "response": "reengaged",
+    "base_now": 1700000000.0,
+    "cooldown_seconds": 30.0,
+    "enabled_tiers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_heartbeats": 61,
+    "interventions": [
+      {
+        "second": 6,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 10,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 40,
+        "tier": 4,
+        "intervention_type": "content_pacing_reduction"
+      },
+      {
+        "second": 70,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 100,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      }
+    ],
+    "trace": [
+      {
+        "second": 0,
+        "duration_seconds": 0.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 2,
+        "duration_seconds": 2.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 4,
+        "duration_seconds": 4.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 6,
+        "duration_seconds": 6.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 1,
+        "intervention_type": "ambient_cue"
+      },
+      {
+        "second": 8,
+        "duration_seconds": 8.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 10,
+        "duration_seconds": 10.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 2,
+        "intervention_type": "pacing_pause"
+      },
+      {
+        "second": 12,
+        "event": "record_outcome",
+        "response": "reengaged",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "reengaged",
+        "last_tier": null
+      },
+      {
+        "second": 12,
+        "duration_seconds": 12.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 14,
+        "duration_seconds": 14.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 16,
+        "duration_seconds": 16.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 18,
+        "duration_seconds": 18.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 20,
+        "duration_seconds": 20.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 22,
+        "duration_seconds": 22.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 24,
+        "duration_seconds": 24.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 26,
+        "duration_seconds": 26.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 28,
+        "duration_seconds": 28.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 30,
+        "duration_seconds": 30.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 32,
+        "duration_seconds": 32.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 34,
+        "duration_seconds": 34.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 36,
+        "duration_seconds": 36.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 38,
+        "duration_seconds": 38.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 40,
+        "duration_seconds": 40.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "content_pacing_reduction"
+      },
+      {
+        "second": 42,
+        "event": "record_outcome",
+        "response": "reengaged",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "reengaged",
+        "last_tier": null
+      },
+      {
+        "second": 42,
+        "duration_seconds": 42.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 44,
+        "duration_seconds": 44.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 46,
+        "duration_seconds": 46.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 48,
+        "duration_seconds": 48.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 50,
+        "duration_seconds": 50.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 52,
+        "duration_seconds": 52.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 54,
+        "duration_seconds": 54.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 56,
+        "duration_seconds": 56.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 58,
+        "duration_seconds": 58.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 60,
+        "duration_seconds": 60.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 62,
+        "duration_seconds": 62.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 64,
+        "duration_seconds": 64.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 66,
+        "duration_seconds": 66.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 68,
+        "duration_seconds": 68.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 70,
+        "duration_seconds": 70.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 72,
+        "event": "record_outcome",
+        "response": "reengaged",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "reengaged",
+        "last_tier": null
+      },
+      {
+        "second": 72,
+        "duration_seconds": 72.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 74,
+        "duration_seconds": 74.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 76,
+        "duration_seconds": 76.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 78,
+        "duration_seconds": 78.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 80,
+        "duration_seconds": 80.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 82,
+        "duration_seconds": 82.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 84,
+        "duration_seconds": 84.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 86,
+        "duration_seconds": 86.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 88,
+        "duration_seconds": 88.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 90,
+        "duration_seconds": 90.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 92,
+        "duration_seconds": 92.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 94,
+        "duration_seconds": 94.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 96,
+        "duration_seconds": 96.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 98,
+        "duration_seconds": 98.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 100,
+        "duration_seconds": 100.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 4,
+        "intervention_type": "suggest_break"
+      },
+      {
+        "second": 102,
+        "event": "record_outcome",
+        "response": "reengaged",
+        "pending_before": true,
+        "pending_after": false,
+        "last_outcome": "reengaged",
+        "last_tier": null
+      },
+      {
+        "second": 102,
+        "duration_seconds": 102.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 104,
+        "duration_seconds": 104.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 106,
+        "duration_seconds": 106.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 108,
+        "duration_seconds": 108.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 110,
+        "duration_seconds": 110.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 112,
+        "duration_seconds": 112.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 114,
+        "duration_seconds": 114.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 116,
+        "duration_seconds": 116.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 118,
+        "duration_seconds": 118.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 120,
+        "duration_seconds": 120.0,
+        "pending_before_decide": null,
+        "fired": false
+      }
+    ],
+    "pending_at_end": false,
+    "last_tier_at_end": null,
+    "last_outcome_at_end": "reengaged",
+    "last_intervention_at_end": 1700000100.0
+  },
+  "a_no_response_clock_starting_at_0": {
+    "label": "no_response_clock0",
+    "response": null,
+    "base_now": 0.0,
+    "cooldown_seconds": 30.0,
+    "enabled_tiers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_heartbeats": 61,
+    "interventions": [
+      {
+        "second": 30,
+        "tier": 3,
+        "intervention_type": "milestone_quiz"
+      }
+    ],
+    "trace": [
+      {
+        "second": 0,
+        "duration_seconds": 0.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 2,
+        "duration_seconds": 2.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 4,
+        "duration_seconds": 4.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 6,
+        "duration_seconds": 6.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 8,
+        "duration_seconds": 8.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 10,
+        "duration_seconds": 10.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 12,
+        "duration_seconds": 12.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 14,
+        "duration_seconds": 14.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 16,
+        "duration_seconds": 16.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 18,
+        "duration_seconds": 18.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 20,
+        "duration_seconds": 20.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 22,
+        "duration_seconds": 22.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 24,
+        "duration_seconds": 24.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 26,
+        "duration_seconds": 26.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 28,
+        "duration_seconds": 28.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 30,
+        "duration_seconds": 30.0,
+        "pending_before_decide": null,
+        "fired": true,
+        "tier": 3,
+        "intervention_type": "milestone_quiz"
+      },
+      {
+        "second": 32,
+        "duration_seconds": 32.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 34,
+        "duration_seconds": 34.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 36,
+        "duration_seconds": 36.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 38,
+        "duration_seconds": 38.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 40,
+        "duration_seconds": 40.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 42,
+        "duration_seconds": 42.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 44,
+        "duration_seconds": 44.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 46,
+        "duration_seconds": 46.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 48,
+        "duration_seconds": 48.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 50,
+        "duration_seconds": 50.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 52,
+        "duration_seconds": 52.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 54,
+        "duration_seconds": 54.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 56,
+        "duration_seconds": 56.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 58,
+        "duration_seconds": 58.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 60,
+        "duration_seconds": 60.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 62,
+        "duration_seconds": 62.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 64,
+        "duration_seconds": 64.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 66,
+        "duration_seconds": 66.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 68,
+        "duration_seconds": 68.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 70,
+        "duration_seconds": 70.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 72,
+        "duration_seconds": 72.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 74,
+        "duration_seconds": 74.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 76,
+        "duration_seconds": 76.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 78,
+        "duration_seconds": 78.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 80,
+        "duration_seconds": 80.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 82,
+        "duration_seconds": 82.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 84,
+        "duration_seconds": 84.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 86,
+        "duration_seconds": 86.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 88,
+        "duration_seconds": 88.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 90,
+        "duration_seconds": 90.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 92,
+        "duration_seconds": 92.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 94,
+        "duration_seconds": 94.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 96,
+        "duration_seconds": 96.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 98,
+        "duration_seconds": 98.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 100,
+        "duration_seconds": 100.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 102,
+        "duration_seconds": 102.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 104,
+        "duration_seconds": 104.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 106,
+        "duration_seconds": 106.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 108,
+        "duration_seconds": 108.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 110,
+        "duration_seconds": 110.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 112,
+        "duration_seconds": 112.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 114,
+        "duration_seconds": 114.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 116,
+        "duration_seconds": 116.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 118,
+        "duration_seconds": 118.0,
+        "pending_before_decide": null,
+        "fired": false
+      },
+      {
+        "second": 120,
+        "duration_seconds": 120.0,
+        "pending_before_decide": null,
+        "fired": false
+      }
+    ],
+    "pending_at_end": true,
+    "last_tier_at_end": 3,
+    "last_outcome_at_end": null,
+    "last_intervention_at_end": 30.0
+  },
+  "cooldown_when_last_intervention_at_is_0": {
+    "field_name_in_code": "last_intervention_at",
+    "initial_value": 0.0,
+    "there_is_no_field_named_last_triggered_at": true,
+    "comparison": "if ts - self.last_intervention_at < self.cooldown_seconds: return None",
+    "now_10_with_duration_8s": null,
+    "pending_after_now_10": false,
+    "now_1700000000_with_duration_8s": {
+      "tier": 1,
+      "type": "ambient_cue"
+    },
+    "default_time_time_with_duration_8s": {
+      "tier": 1,
+      "type": "ambient_cue"
+    },
+    "default_last_intervention_at_after": 0.0
+  },
+  "enabled_tiers_3_4_episode_6s": {
+    "enabled_tiers": [
+      3,
+      4
+    ],
+    "duration_seconds": 6.0,
+    "fired": null,
+    "pending_after": false
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "test_date": "2026-10-23",
+  "git": {
+    "branch": "camtesting",
+    "head": "b6ea923ff1819ef12212456ad5295726f3147b24",
+    "phase2a_code_commit": "6b1d6541fc551a367038b569f18db1904c7df481",
+    "note": "HEAD includes Phase 2A code + report-hash docs commit. Uncommitted UI theme files remain (not part of Phase 2A evaluation scope). Not described as a fully frozen tree.",
+    "uncommitted_themes_present": true
+  },
+  "platform": {
+    "os": "Microsoft Windows 11 Pro 10.0.26200",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "ram_mb": 16088,
+    "gpu": ["NVIDIA GeForce RTX 4050 Laptop GPU", "Intel(R) UHD Graphics"],
+    "python": "3.12.5",
+    "torch": "2.5.1+cu121",
+    "cuda_available": true,
+    "inference_device_observed": "cuda available in process; MediaPipe/TFLite CPU XNNPACK also logged"
+  },
+  "browser": {
+    "automation": "Cursor IDE browser",
+    "frontend": "http://localhost:5173",
+    "backend": "http://localhost:5000"
+  },
+  "checkpoints_sha256": {
+    "model1_gaze/best.pt": "8127a926c74a21b41f4398d43f8a662c653f61e31f2dd62302cd995b442eba32",
+    "model2_pose/best.pt": "a91162707d5eff172e21f16cac93feeec9b57306dac1ca78531efd4e8050f629",
+    "model4_engagement/model.pkl": "d39b5f16d3e78653c06fdead842518e2d6add967194474de6f632373beb237e9",
+    "model5_fusion/model.pkl": "b465e0c48af9067b9417a696a7c510ddf34ac98779d6aea6adba94e7d42020e6",
+    "pose_landmarker_lite.task": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a"
+  },
+  "inference": {
+    "ml_mode_observed_in_harness": "full",
+    "heartbeat_interval_ms": 2000,
+    "focus_metric_version": "observed_v1",
+    "T_support_s": 3.0,
+    "T_gap_max_s": 5.0
+  },
+  "input_modes_used": {
+    "harness_heartbeats": "blank JPEG (no face) and TESTING verdict injection",
+    "manual_intervention_triggers": "POST /trigger-intervention (bypasses duration/cooldown; pending lock still applies)",
+    "browser": "canvas captureStream mock camera; DemoPanel T1/T2",
+    "real_camera": "not_executed"
+  }
+}

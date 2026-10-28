@@ -26,6 +26,9 @@ export default function QuizAttempt() {
   const [feedback, setFeedback] = useState(null);
   const [activeIntervention, setActiveIntervention] = useState(null);
   const [monitorEnabled, setMonitorEnabled] = useState(false);
+  const [remediationChoice, setRemediationChoice] = useState(null);
+  const [remediationBusy, setRemediationBusy] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState(null);
 
   const onIntervention = useCallback((intervention) => {
     setActiveIntervention(intervention);
@@ -114,6 +117,41 @@ export default function QuizAttempt() {
     }
   };
 
+  const handleRemediationChoice = async (offer) => {
+    const remediation = result?.remediation;
+    if (!remediation?.event_id || !offer?.kind) return;
+    setRemediationBusy(true);
+    try {
+      await quizService.recordRemediationChoice(remediation.event_id, offer.kind);
+      setRemediationChoice(offer.kind);
+      setSelectedOffer(offer);
+      if (offer.kind === 'alternative_material' && (offer.content_id || offer.file_url)) {
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const token = localStorage.getItem('access_token') || '';
+        const url = offer.content_id
+          ? `${apiBase}/courses/materials/${offer.content_id}/file?token=${encodeURIComponent(token)}`
+          : offer.file_url;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not save your choice.');
+    } finally {
+      setRemediationBusy(false);
+    }
+  };
+
+  // Ends the monitored session only; the quiz attempt itself carries on.
+  const handleStopMonitoring = async () => {
+    setActiveIntervention(null);
+    try {
+      await stopMonitoredSession();
+    } catch {
+      /* ignore */
+    }
+    setMonitorEnabled(false);
+    setFeedback({ type: 'gentle', text: 'Monitoring stopped. You can finish the quiz as normal.' });
+  };
+
   const selectOption = (questionId, optionId) => {
     setAnswers((prev) => ({
       ...prev,
@@ -190,7 +228,7 @@ export default function QuizAttempt() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6 animate-fade-in">
+    <div className="learning-shell max-w-xl mx-auto space-y-6 animate-fade-in px-1">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -206,7 +244,7 @@ export default function QuizAttempt() {
       />
 
       {phase === 'intro' && quiz && (
-        <Card className="p-6 md:p-8 space-y-5">
+        <Card className="p-6 md:p-8 space-y-5 bg-learning">
           <h1 className="font-display text-2xl font-bold text-text">{quiz.title}</h1>
           <p className="text-text-muted">
             {totalQuestions} question{totalQuestions === 1 ? '' : 's'} · one at a time
@@ -239,7 +277,10 @@ export default function QuizAttempt() {
                 cameraActive={cameraActive}
                 compact
               />
-              <span>Camera on for helpful hints · stays private</span>
+              <span className="flex-1">Camera on for helpful hints · stays private</span>
+              <Button variant="ghost" size="sm" onClick={handleStopMonitoring}>
+                Stop monitoring
+              </Button>
             </div>
           )}
 
@@ -277,8 +318,8 @@ export default function QuizAttempt() {
             </div>
           </div>
 
-          <Card className="p-6 md:p-8 space-y-5">
-            <h2 className="font-display text-xl font-bold text-text leading-snug">
+          <Card className="p-6 md:p-8 space-y-5 bg-learning shadow-soft">
+            <h2 className="font-display text-xl md:text-2xl font-bold text-text leading-snug">
               {current.question_text}
             </h2>
 
@@ -390,29 +431,135 @@ export default function QuizAttempt() {
       )}
 
       {phase === 'submitted' && result && (
-        <Card className="p-6 md:p-8 space-y-5 text-center">
-          <p className="text-4xl" aria-hidden="true">
-            🌟
-          </p>
-          <h1 className="font-display text-2xl font-bold text-text">You have completed this quiz</h1>
-          <p className="text-lg text-text">
-            Score: <strong>{result.score}%</strong>
-            {result.correct_count != null && (
-              <span className="text-text-muted text-base">
-                {' '}
-                ({result.correct_count}/{result.total_questions} correct)
-              </span>
+        <div className="space-y-4">
+          <Card className="p-6 md:p-8 space-y-5 text-center">
+            <p className="text-4xl" aria-hidden="true">
+              🌟
+            </p>
+            <h1 className="font-display text-2xl font-bold text-text">You have completed this quiz</h1>
+            <p className="text-lg text-text">
+              Score: <strong>{result.score}%</strong>
+              {result.correct_count != null && (
+                <span className="text-text-muted text-base">
+                  {' '}
+                  ({result.correct_count}/{result.total_questions} correct)
+                </span>
+              )}
+            </p>
+            {result.xp_gained > 0 && (
+              <div className="flex justify-center">
+                <XPChip xp={result.xp_gained} />
+              </div>
             )}
-          </p>
-          {result.xp_gained > 0 && (
-            <div className="flex justify-center">
-              <XPChip xp={result.xp_gained} />
-            </div>
+            <Button size="lg" onClick={() => navigate(-1)}>
+              Back to lesson
+            </Button>
+          </Card>
+
+          {result.remediation && (
+            <Card className="p-6 md:p-8 space-y-4 text-left bg-learning rounded-2xl border border-border shadow-soft">
+              <h2 className="font-display text-xl font-bold text-text">
+                Let&apos;s try this another way
+              </h2>
+              <p className="text-sm text-text-muted">
+                The same ideas can help more when they are shown in a different form.
+              </p>
+
+              {!remediationChoice && (
+                <div className="space-y-3">
+                  {(result.remediation.offers || []).map((offer) => {
+                    let label = 'Continue';
+                    if (offer.kind === 'alternative_material') label = 'Open the written version';
+                    else if (offer.kind === 'approved_pack') label = 'Read the explanation';
+                    else if (offer.kind === 'guided_rewatch') label = 'Watch in short parts';
+                    return (
+                      <Button
+                        key={`${offer.kind}-${offer.content_id}`}
+                        size="lg"
+                        variant="secondary"
+                        className="w-full justify-center"
+                        disabled={remediationBusy}
+                        onClick={() => handleRemediationChoice(offer)}
+                      >
+                        {label}
+                        {offer.title ? ` — ${offer.title}` : ''}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {remediationChoice && selectedOffer && (
+                <div className="rounded-2xl bg-mint/15 border border-mint/30 p-4 text-sm space-y-3">
+                  {selectedOffer.kind === 'alternative_material' && (
+                    <>
+                      <p className="font-semibold text-text">{selectedOffer.title}</p>
+                      <p className="text-text-muted">
+                        A written version of this lesson is ready for you.
+                      </p>
+                      {(selectedOffer.content_id || selectedOffer.file_url) && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            const apiBase =
+                              import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+                            const token = localStorage.getItem('access_token') || '';
+                            const url = selectedOffer.content_id
+                              ? `${apiBase}/courses/materials/${selectedOffer.content_id}/file?token=${encodeURIComponent(token)}`
+                              : selectedOffer.file_url;
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                        >
+                          Open the written version
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {selectedOffer.kind === 'approved_pack' && (
+                    <>
+                      <p className="font-semibold text-text">{selectedOffer.title}</p>
+                      <p className="text-text whitespace-pre-wrap">{selectedOffer.summary}</p>
+                      {(selectedOffer.milestones || []).length > 0 && (
+                        <ol className="list-decimal pl-5 space-y-2 text-text">
+                          {selectedOffer.milestones.map((m) => (
+                            <li key={m.id}>
+                              <span className="font-medium">{m.question}</span>
+                              {(m.options || []).length > 0 && (
+                                <ul className="list-disc pl-5 text-text-muted mt-1">
+                                  {m.options.map((opt, idx) => (
+                                    <li key={idx}>{opt}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </>
+                  )}
+                  {selectedOffer.kind === 'guided_rewatch' && (
+                    <>
+                      <p className="font-semibold text-text">{selectedOffer.title}</p>
+                      <p className="text-text-muted">
+                        Watch the video in short parts. Use the checkpoint questions between parts.
+                      </p>
+                      {(selectedOffer.milestones || []).length > 0 && (
+                        <ol className="list-decimal pl-5 space-y-2 text-text">
+                          {selectedOffer.milestones.map((m) => (
+                            <li key={m.id}>{m.question}</li>
+                          ))}
+                        </ol>
+                      )}
+                      <Button size="lg" onClick={() => navigate(-1)}>
+                        Back to the video
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </Card>
           )}
-          <Button size="lg" onClick={() => navigate(-1)}>
-            Back to lesson
-          </Button>
-        </Card>
+        </div>
       )}
     </div>
   );

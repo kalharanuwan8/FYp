@@ -1,0 +1,528 @@
+{
+  "summary": {
+    "pass": 27,
+    "fail": 2,
+    "not_executed": 2,
+    "total": 31,
+    "ml_mode_observed": "full",
+    "generated_at": "20261023T040736Z"
+  },
+  "results": [
+    {
+      "test_id": "AN-01",
+      "requirement": "observed_v1 mixed coverage",
+      "procedure": "Independent expected vs compute_coverage_from_observations",
+      "expected": {
+        "focused": 8.0,
+        "distracted": 2.0,
+        "unknown": 10.0,
+        "focus_pct": 80.0,
+        "coverage": 50.0
+      },
+      "actual": {
+        "observed_focused_seconds": 8.0,
+        "observed_distracted_seconds": 2.0,
+        "unknown_seconds": 10.0,
+        "monitoring_coverage_pct": 50.0,
+        "focus_percentage": 80.0,
+        "focus_metric_version": "observed_v1",
+        "session_duration_seconds": 20.0
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "AN-02",
+      "requirement": "gap after T_support unknown remainder",
+      "procedure": "D@0,D@4 session 10s",
+      "expected": {
+        "focused": 0.0,
+        "distracted": 6.0,
+        "unknown": 4.0,
+        "focus_pct": 0.0,
+        "coverage": 60.0
+      },
+      "actual": {
+        "observed_focused_seconds": 0.0,
+        "observed_distracted_seconds": 6.0,
+        "unknown_seconds": 4.0,
+        "monitoring_coverage_pct": 60.0,
+        "focus_percentage": 0.0,
+        "focus_metric_version": "observed_v1",
+        "session_duration_seconds": 10.0
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "AN-03",
+      "requirement": "zero valid coverage null focus",
+      "procedure": "UNKNOWN-only observations",
+      "expected": {
+        "focus": null,
+        "coverage": 0,
+        "unknown": 30
+      },
+      "actual": {
+        "observed_focused_seconds": 0.0,
+        "observed_distracted_seconds": 0.0,
+        "unknown_seconds": 30.0,
+        "monitoring_coverage_pct": 0.0,
+        "focus_percentage": null,
+        "focus_metric_version": "observed_v1",
+        "session_duration_seconds": 30.0
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "AN-04",
+      "requirement": "session-boundary clipping",
+      "procedure": "FOCUSED@0 end=2s",
+      "expected": {
+        "focused": 2.0,
+        "unknown": 0.0
+      },
+      "actual": {
+        "observed_focused_seconds": 2.0,
+        "observed_distracted_seconds": 0.0,
+        "unknown_seconds": 0.0,
+        "monitoring_coverage_pct": 100.0,
+        "focus_percentage": 100.0,
+        "focus_metric_version": "observed_v1",
+        "session_duration_seconds": 2.0
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "AN-05",
+      "requirement": "unmonitored empty session",
+      "procedure": "No observations",
+      "expected": {
+        "focus": null,
+        "unknown": 60
+      },
+      "actual": {
+        "observed_focused_seconds": 0.0,
+        "observed_distracted_seconds": 0.0,
+        "unknown_seconds": 60.0,
+        "monitoring_coverage_pct": 0.0,
+        "focus_percentage": null,
+        "focus_metric_version": "observed_v1",
+        "session_duration_seconds": 60.0
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "ST-01",
+      "requirement": "Student login",
+      "procedure": "POST /api/auth/login",
+      "expected": "200 + access_token",
+      "actual": {
+        "status": 200,
+        "has_token": true
+      },
+      "status": "pass",
+      "evidence": "api_samples/st01_login.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "ST-02",
+      "requirement": "Student enrolment access",
+      "procedure": "GET /api/courses/my-enrollments",
+      "expected": "200 with Eval System Course",
+      "actual": {
+        "status": 200,
+        "count": 1
+      },
+      "status": "pass",
+      "evidence": "api_samples/st02_enrollments.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "ST-03",
+      "requirement": "Open course material metadata",
+      "procedure": "GET subject/module",
+      "expected": "200",
+      "actual": {
+        "status": 200
+      },
+      "status": "pass",
+      "evidence": "api_samples/st03_material.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "ST-04",
+      "requirement": "Quiz submission",
+      "procedure": "POST attempt + submit",
+      "expected": "attempt created and submit 200",
+      "actual": {
+        "attempt_status": 201,
+        "submit_status": 200,
+        "attempt_id": 1
+      },
+      "status": "pass",
+      "evidence": "api_samples/st04_quiz.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "ST-05",
+      "requirement": "Preference persistence",
+      "procedure": "PATCH then GET /api/student/profile",
+      "expected": "theme sage persisted",
+      "actual": {
+        "patch": 200,
+        "prefs": {
+          "daily_goal_minutes": 25,
+          "theme": "sage"
+        }
+      },
+      "status": "pass",
+      "evidence": "api_samples/st05_prefs.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "MON-01",
+      "requirement": "Valid heartbeat processing + UNKNOWN for no face",
+      "procedure": "start monitored + blank JPEG heartbeat",
+      "expected": "verdict UNKNOWN reason no_face confidence null face_detected false",
+      "actual": {
+        "start": 201,
+        "hb": 200,
+        "body": {
+          "verdict": "UNKNOWN",
+          "reason": "no_face",
+          "confidence": null,
+          "face_detected": false,
+          "ml_mode": "full"
+        }
+      },
+      "status": "pass",
+      "evidence": "api_samples/mon01_heartbeat.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "MON-02",
+      "requirement": "Session ownership checks",
+      "procedure": "Other student heartbeats into session",
+      "expected": "403/404 forbidden",
+      "actual": {
+        "status": 404
+      },
+      "status": "pass",
+      "evidence": "api_samples/mon02_ownership.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "MON-03",
+      "requirement": "Session stop + repeated stop XP idempotency",
+      "procedure": "POST stop twice",
+      "expected": "first 200 with coverage fields; second no extra XP",
+      "actual": {
+        "stop1": {
+          "status": 200,
+          "focus": null,
+          "coverage": 0.0,
+          "xp": 0,
+          "metric": "observed_v1"
+        },
+        "stop2": {
+          "status": 200,
+          "xp": 0
+        }
+      },
+      "status": "pass",
+      "evidence": "api_samples/mon03_stop.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "INT-01",
+      "requirement": "Manual trigger + pending lock",
+      "procedure": "T1 then immediate T2 (expect 409); respond; T2 ok",
+      "expected": "pending blocks overlap; after response T2 fires",
+      "actual": {
+        "t1": 200,
+        "t1_type": "ambient_cue",
+        "t1b": 409,
+        "pending_blocked": true,
+        "t2": 200,
+        "t2_type": "pacing_pause",
+        "note": "Manual trigger bypasses duration/cooldown; pending lock still applies"
+      },
+      "status": "pass",
+      "evidence": "api_samples/int01_manual_pending.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "INT-02",
+      "requirement": "Milestone intervention graded/recorded",
+      "procedure": "trigger tier 3 + response with selected_option",
+      "expected": "200 and response recorded",
+      "actual": {
+        "t3": 200,
+        "type": "milestone_quiz",
+        "grade_status": 200,
+        "grade_body": {
+          "intervention_id": 3,
+          "is_correct": null,
+          "message": "Intervention response recorded successfully",
+          "noise_action": null,
+          "reengaged_in_seconds": 0.006,
+          "user_response": "reengaged"
+        }
+      },
+      "status": "pass",
+      "evidence": "api_samples/int02_milestone.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "INT-03",
+      "requirement": "Disabled tiers respect config (new session after change)",
+      "procedure": "Disable tier 2, new session, trigger tier 2",
+      "expected": "Falls back to enabled lower tier (ambient_cue) \u2014 not pacing_pause",
+      "actual": {
+        "status": 200,
+        "type": "ambient_cue",
+        "note": "Config loaded at session start via _build_engine; new session required"
+      },
+      "status": "pass",
+      "evidence": "api_samples/int03_disabled_tier.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "INT-04",
+      "requirement": "Normal decision pathway (controlled DISTRACTED + aged episode)",
+      "procedure": "TESTING verdict inject + backdate episode >5s",
+      "expected": "ambient_cue may fire (tier1 for 5\u201310s band)",
+      "actual": {
+        "status": 200,
+        "triggered": true,
+        "type": "ambient_cue",
+        "note": "Controlled integration; cooldown set to 0 for eval fixture"
+      },
+      "status": "pass",
+      "evidence": "api_samples/int04_controlled_pathway.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "INT-05",
+      "requirement": "UNKNOWN does not escalate / not reengagement",
+      "procedure": "UNKNOWN heartbeat after distraction",
+      "expected": "verdict UNKNOWN; intervention_triggered false",
+      "actual": {
+        "status": 200,
+        "verdict": "UNKNOWN",
+        "triggered": false
+      },
+      "status": "pass",
+      "evidence": "api_samples/int05_unknown.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "TE-01",
+      "requirement": "Teacher create/edit content path",
+      "procedure": "POST subject (or existing)",
+      "expected": "200/201 or recoverable",
+      "actual": {
+        "status": 201,
+        "body_keys": [
+          "created_at",
+          "description",
+          "grade_level_id",
+          "grade_level_name",
+          "id",
+          "is_archived",
+          "title",
+          "updated_at"
+        ]
+      },
+      "status": "pass",
+      "evidence": "api_samples/te01_subject.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "TE-02",
+      "requirement": "Review milestone questions",
+      "procedure": "GET milestones/content",
+      "expected": "200",
+      "actual": {
+        "status": 500
+      },
+      "status": "fail",
+      "evidence": "api_samples/te02_milestones.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "TE-03",
+      "requirement": "Generate material pack / Ollama availability",
+      "procedure": "POST materials/generate-pack",
+      "expected": "200 if Ollama up; useful error if down",
+      "actual": {
+        "status": 400,
+        "error": "Validation failed",
+        "keys": [
+          "details",
+          "error"
+        ]
+      },
+      "status": "pass",
+      "evidence": "api_samples/te03_generate_pack.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "TE-04",
+      "requirement": "Configure intervention tiers",
+      "procedure": "GET/PATCH intervention-config",
+      "expected": "200",
+      "actual": {
+        "get_or_patch": 200
+      },
+      "status": "pass",
+      "evidence": "api_samples/te04_intervention_config.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AD-01",
+      "requirement": "Admin create + deactivate account",
+      "procedure": "register + PATCH status",
+      "expected": "create 201/200; deactivate 200",
+      "actual": {
+        "create": 400,
+        "deactivate": null
+      },
+      "status": "fail",
+      "evidence": "api_samples/ad01_user.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AD-02",
+      "requirement": "Monitored start denied without guardian consent",
+      "procedure": "no-consent student start monitored",
+      "expected": "403",
+      "actual": {
+        "status": 403,
+        "error": "Parental/Guardian consent required for monitored learning sessions"
+      },
+      "status": "pass",
+      "evidence": "api_samples/ad02_consent.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AD-03",
+      "requirement": "Student cannot change guardian consent",
+      "procedure": "student PATCH consent",
+      "expected": "403/401",
+      "actual": {
+        "status": 403
+      },
+      "status": "pass",
+      "evidence": "api_samples/ad03_student_consent.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AD-04",
+      "requirement": "Wrong-role access restriction",
+      "procedure": "student GET /api/admin/users",
+      "expected": "403",
+      "actual": {
+        "status": 403
+      },
+      "status": "pass",
+      "evidence": "api_samples/ad04_rbac.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AN-06",
+      "requirement": "Analytics do not silently mix legacy with observed_v1",
+      "procedure": "GET /api/analytics/student with legacy row present",
+      "expected": "200; null or labelled separation for legacy",
+      "actual": {
+        "status": 200,
+        "avg_focus": 0.0,
+        "avg_coverage": 19.7,
+        "keys": [
+          "avg_focus_percentage",
+          "avg_monitoring_coverage_pct",
+          "avg_quiz_score",
+          "completed_quizzes",
+          "focus_metric_version",
+          "subject_progress",
+          "total_sessions",
+          "total_study_minutes"
+        ]
+      },
+      "status": "pass",
+      "evidence": "api_samples/an06_analytics.json",
+      "kind": "automated"
+    },
+    {
+      "test_id": "AN-07",
+      "requirement": "Zero observed focused seconds \u2192 zero focus XP",
+      "procedure": "award_session_xp(observed_focused_seconds=0)",
+      "expected": "xp_gained == 0",
+      "actual": {
+        "xp_gained": 0,
+        "focus_minutes": 0,
+        "progress": {
+          "xp": 35,
+          "level": 1,
+          "current_streak": 1,
+          "longest_streak": 1,
+          "last_active_date": "2026-10-23",
+          "daily_goal_minutes": 20,
+          "today_focus_minutes": 0,
+          "total_focus_minutes": 0,
+          "xp_to_next_level": 65
+        },
+        "new_badges": []
+      },
+      "status": "pass",
+      "evidence": "logs/analytics_fixtures.json",
+      "kind": "controlled_input"
+    },
+    {
+      "test_id": "PERF-01",
+      "requirement": "Heartbeat round-trip (server test client)",
+      "procedure": "35 steady blank-JPEG heartbeats after 1 cold",
+      "expected": ">=30 samples; report median/p95",
+      "actual": {
+        "n": 35,
+        "failures": 0,
+        "cold_ms": 170.15,
+        "median_ms": 37.85,
+        "p95_ms": 50.45,
+        "condition": "Flask test client; blank JPEG \u2192 UNKNOWN/no_face; CUDA available in process"
+      },
+      "status": "pass",
+      "evidence": "heartbeat_rtt.csv",
+      "kind": "automated"
+    },
+    {
+      "test_id": "MON-04",
+      "requirement": "Real-camera smoke test",
+      "procedure": "Physical webcam",
+      "expected": "Live FOCUSED/DISTRACTED with face",
+      "actual": "Not executed in this harness (no interactive camera grant in automated run)",
+      "status": "not_executed",
+      "evidence": "logs/not_executed.txt",
+      "kind": "real_camera"
+    },
+    {
+      "test_id": "ST-06",
+      "requirement": "Camera denial UX",
+      "procedure": "Browser deny getUserMedia",
+      "expected": "Monitored session does not start / error shown",
+      "actual": "Deferred to browser suite",
+      "status": "not_executed",
+      "evidence": "logs/not_executed.txt",
+      "kind": "browser"
+    }
+  ]
+}

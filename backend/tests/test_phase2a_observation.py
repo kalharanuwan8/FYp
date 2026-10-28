@@ -204,8 +204,10 @@ def test_predict_exception_is_unknown_not_focused():
     MLService._instance = None
     svc = MLService()
     with patch.object(svc, "_decode_frame", return_value=__import__("numpy").zeros((10, 10, 3), dtype="uint8")):
-        with patch.object(svc, "_infer_frame_signals", side_effect=RuntimeError("boom")):
-            verdict, conf, meta = svc.predict_frame_image("ignored", session_id=42)
+        # Face gate runs before inference; pass a box so the exception path is reached.
+        with patch.object(svc, "_detect_face", return_value=(1, 1, 8, 8)):
+            with patch.object(svc, "_infer_frame_signals", side_effect=RuntimeError("boom")):
+                verdict, conf, meta = svc.predict_frame_image("ignored", session_id=42)
     assert verdict == "UNKNOWN"
     assert conf is None
     assert meta.get("face_detected") is not True
@@ -545,10 +547,12 @@ def test_episode_gap_breaks_continuity_for_intervention(app):
 
 
 def test_unknown_does_not_reset_pending_intervention():
+    # Retargeted to 12 s (Tier 2) after ambient_cue stopped taking the pending
+    # lock — pending+UNKNOWN hold still apply to tiers 2–4.
     engine = InterventionEngine(cooldown_seconds=30.0)
     class _Ep:
         def duration_seconds(self, now=None):
-            return 8.0
+            return 12.0
 
     triggered = engine.decide_intervention(
         distraction_event=_Ep(),
@@ -557,6 +561,7 @@ def test_unknown_does_not_reset_pending_intervention():
         now=100.0,
     )
     assert triggered is not None
+    assert triggered.tier == 2
     assert engine._pending_intervention is True
     last_tier = engine.last_tier
     last_at = engine.last_intervention_at

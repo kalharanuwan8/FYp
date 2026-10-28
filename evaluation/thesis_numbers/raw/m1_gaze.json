@@ -1,0 +1,279 @@
+{
+  "checkpoint": {
+    "loaded_path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model1_gaze\\best.pt",
+    "sha256": "8127a926c74a21b41f4398d43f8a662c653f61e31f2dd62302cd995b442eba32",
+    "epoch_field": 15,
+    "img_size_field": 96,
+    "best_f1_field": 0.569808,
+    "num_classes": 4,
+    "keys": [
+      "best_f1",
+      "epoch",
+      "img_size",
+      "label_map",
+      "model_state",
+      "num_classes",
+      "optimizer_state",
+      "scaler_state",
+      "scheduler_state"
+    ],
+    "identical_sha_to_last": true,
+    "identical_sha_to_epoch15_backup": true,
+    "train_log_path": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\logs\\model1_gaze\\train_log.csv",
+    "train_log_rows": [
+      {
+        "epoch": 1,
+        "train_loss": 0.611905,
+        "val_acc": 0.565345,
+        "val_f1": 0.485895,
+        "lr": 0.000296886
+      },
+      {
+        "epoch": 2,
+        "train_loss": 0.381469,
+        "val_acc": 0.622305,
+        "val_f1": 0.569808,
+        "lr": 0.000296886
+      },
+      {
+        "epoch": 3,
+        "train_loss": 0.584451,
+        "val_acc": 0.538663,
+        "val_f1": 0.490653,
+        "lr": 0.0002876802
+      },
+      {
+        "epoch": 4,
+        "train_loss": 0.439524,
+        "val_acc": 0.565999,
+        "val_f1": 0.511467,
+        "lr": 0.0002727849
+      },
+      {
+        "epoch": 5,
+        "train_loss": 0.392573,
+        "val_acc": 0.568939,
+        "val_f1": 0.521175,
+        "lr": 0.0002528511
+      },
+      {
+        "epoch": 6,
+        "train_loss": 0.361793,
+        "val_acc": 0.587672,
+        "val_f1": 0.531952,
+        "lr": 0.00022875
+      },
+      {
+        "epoch": 7,
+        "train_loss": 0.329826,
+        "val_acc": 0.578523,
+        "val_f1": 0.518878,
+        "lr": 0.0002015349
+      },
+      {
+        "epoch": 8,
+        "train_loss": 0.298791,
+        "val_acc": 0.580157,
+        "val_f1": 0.530948,
+        "lr": 0.0001723953
+      },
+      {
+        "epoch": 9,
+        "train_loss": 0.271034,
+        "val_acc": 0.574711,
+        "val_f1": 0.515494,
+        "lr": 0.0001426047
+      },
+      {
+        "epoch": 10,
+        "train_loss": 0.243205,
+        "val_acc": 0.581573,
+        "val_f1": 0.52542,
+        "lr": 0.0001134651
+      },
+      {
+        "epoch": 11,
+        "train_loss": 0.218809,
+        "val_acc": 0.593662,
+        "val_f1": 0.529227,
+        "lr": 8.625e-05
+      },
+      {
+        "epoch": 12,
+        "train_loss": 0.194139,
+        "val_acc": 0.595295,
+        "val_f1": 0.529913,
+        "lr": 6.214889e-05
+      },
+      {
+        "epoch": 13,
+        "train_loss": 0.173894,
+        "val_acc": 0.593335,
+        "val_f1": 0.523572,
+        "lr": 4.221508e-05
+      },
+      {
+        "epoch": 14,
+        "train_loss": 0.156122,
+        "val_acc": 0.602156,
+        "val_f1": 0.535968,
+        "lr": 2.731977e-05
+      },
+      {
+        "epoch": 15,
+        "train_loss": 0.143933,
+        "val_acc": 0.609998,
+        "val_f1": 0.542339,
+        "lr": 1.811397e-05
+      }
+    ],
+    "train_log_max_val_f1": 0.569808,
+    "train_log_epochs_at_max_val_f1": [
+      2
+    ]
+  },
+  "test": {
+    "split": "test",
+    "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model1_gaze\\test.csv",
+    "n": 5996,
+    "n_predicted": 5996,
+    "subjects": [
+      "p13",
+      "p14"
+    ],
+    "image_cache_used": true,
+    "img_size": 96,
+    "label_order": [
+      "center",
+      "left",
+      "right",
+      "down"
+    ],
+    "accuracy": 0.6017344896597732,
+    "macro_f1": 0.5593556663019074,
+    "per_class": {
+      "center": {
+        "precision": 0.590815627141878,
+        "recall": 0.7305084745762712,
+        "f1": 0.6532777567260326,
+        "support": 2360
+      },
+      "left": {
+        "precision": 0.8013318534961155,
+        "recall": 0.5224312590448625,
+        "f1": 0.6325010950503723,
+        "support": 1382
+      },
+      "right": {
+        "precision": 0.23903966597077245,
+        "recall": 0.7508196721311475,
+        "f1": 0.36262866191607285,
+        "support": 305
+      },
+      "down": {
+        "precision": 0.7653814602132896,
+        "recall": 0.4787070292457671,
+        "f1": 0.5890151515151515,
+        "support": 1949
+      }
+    },
+    "confusion_matrix_rows_true_cols_pred": [
+      [
+        1724,
+        90,
+        443,
+        103
+      ],
+      [
+        478,
+        722,
+        10,
+        172
+      ],
+      [
+        60,
+        5,
+        229,
+        11
+      ],
+      [
+        656,
+        84,
+        276,
+        933
+      ]
+    ]
+  },
+  "val": {
+    "split": "val",
+    "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model1_gaze\\val.csv",
+    "n": 9182,
+    "n_predicted": 9182,
+    "subjects": [
+      "p11",
+      "p12"
+    ],
+    "image_cache_used": true,
+    "img_size": 96,
+    "label_order": [
+      "center",
+      "left",
+      "right",
+      "down"
+    ],
+    "accuracy": 0.6098889130908299,
+    "macro_f1": 0.5422462958962487,
+    "per_class": {
+      "center": {
+        "precision": 0.7155571377714489,
+        "recall": 0.5113202747392521,
+        "f1": 0.5964391691394659,
+        "support": 3931
+      },
+      "left": {
+        "precision": 0.46963123644251625,
+        "recall": 0.43213572854291415,
+        "f1": 0.4501039501039501,
+        "support": 1002
+      },
+      "right": {
+        "precision": 0.32345876701361087,
+        "recall": 0.5603328710124826,
+        "f1": 0.4101522842639594,
+        "support": 721
+      },
+      "down": {
+        "precision": 0.6551642075202284,
+        "recall": 0.780328798185941,
+        "f1": 0.7122897800776197,
+        "support": 3528
+      }
+    },
+    "confusion_matrix_rows_true_cols_pred": [
+      [
+        2010,
+        334,
+        615,
+        972
+      ],
+      [
+        226,
+        433,
+        1,
+        342
+      ],
+      [
+        179,
+        3,
+        404,
+        135
+      ],
+      [
+        394,
+        152,
+        229,
+        2753
+      ]
+    ]
+  }
+}

@@ -1,0 +1,804 @@
+{
+  "runs": [
+    {
+      "label": "Run 2",
+      "session_id": 85,
+      "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\evaluation\\thesis_numbers\\raw\\live_webcam_selftest_20261028T031728Z.csv",
+      "notes": "Pre face-gate / pre S3; no inference_path or face_box_px columns.",
+      "n_heartbeats": 105,
+      "columns": [
+        "timestamp_utc",
+        "phase",
+        "seconds_from_phase_start",
+        "verdict",
+        "confidence",
+        "reason",
+        "ml_mode",
+        "intervention_fired",
+        "intervention_tier",
+        "intervention_type",
+        "http_status",
+        "error"
+      ],
+      "phases": [
+        {
+          "phase": "read_1",
+          "n": 30,
+          "focused": 15,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 2,
+          "unknown": 13,
+          "unknown_reasons": {
+            "no_face": 13
+          },
+          "coverage_face_based": 0.5666666666666667,
+          "coverage_incl_body": 0.5666666666666667,
+          "first_distracted_any": "2.078566800104454",
+          "first_distracted_fusion": "2.078566800104454",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "phone",
+          "n": 15,
+          "focused": 4,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 11,
+          "unknown_reasons": {
+            "no_face": 11
+          },
+          "coverage_face_based": 0.26666666666666666,
+          "coverage_incl_body": 0.26666666666666666,
+          "first_distracted_any": "none",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "away",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 1,
+          "unknown": 14,
+          "unknown_reasons": {
+            "no_face": 14
+          },
+          "coverage_face_based": 0.06666666666666667,
+          "coverage_incl_body": 0.06666666666666667,
+          "first_distracted_any": "24.514926000032574",
+          "first_distracted_fusion": "24.514926000032574",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "out_of_chair",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 2,
+          "unknown": 13,
+          "unknown_reasons": {
+            "no_face": 13
+          },
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 0.13333333333333333,
+          "first_distracted_any": "0.10165029997006059",
+          "first_distracted_fusion": "0.10165029997006059",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "read_2",
+          "n": 30,
+          "focused": 6,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 23,
+          "unknown": 1,
+          "unknown_reasons": {
+            "no_face": 1
+          },
+          "coverage_face_based": 0.9666666666666667,
+          "coverage_incl_body": 0.9666666666666667,
+          "first_distracted_any": "2.1395227001048625",
+          "first_distracted_fusion": "2.1395227001048625",
+          "first_distracted_body": "none",
+          "first_intervention": "22.626326499972492",
+          "first_intervention_tier": "1"
+        }
+      ],
+      "interventions": [
+        {
+          "timestamp_utc": "2026-10-28T03:16:45.776743+00:00",
+          "phase": "read_2",
+          "seconds_from_phase_start": "22.626326499972492",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_undifferentiated",
+          "reason": "",
+          "inference_path": ""
+        }
+      ],
+      "false_interventions": {
+        "n_reading_interventions": 1,
+        "reading_minutes": 2.0,
+        "false_interventions_per_study_minute": 0.5,
+        "details": [
+          {
+            "timestamp_utc": "2026-10-28T03:16:45.776743+00:00",
+            "phase": "read_2",
+            "seconds_from_phase_start": "22.626326499972492",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_undifferentiated",
+            "reason": "",
+            "inference_path": ""
+          }
+        ]
+      },
+      "reading_face": {
+        "n_reading": 60,
+        "face_true": 46,
+        "face_false": 14,
+        "face_unknown_col": 0,
+        "share_face_true_of_n": 0.7666666666666667,
+        "share_face_true_of_decidable": 0.7666666666666667
+      }
+    },
+    {
+      "label": "Run 3",
+      "session_id": 91,
+      "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\evaluation\\thesis_numbers\\raw\\live_webcam_selftest_20261028T041833Z.csv",
+      "notes": "Post face-gate; has inference_path; no body_no_face yet.",
+      "n_heartbeats": 105,
+      "columns": [
+        "timestamp_utc",
+        "phase",
+        "seconds_from_phase_start",
+        "verdict",
+        "confidence",
+        "reason",
+        "ml_mode",
+        "intervention_fired",
+        "intervention_tier",
+        "intervention_type",
+        "http_status",
+        "error",
+        "inference_path",
+        "gaze_label",
+        "head_pose_yaw",
+        "head_pose_pitch",
+        "head_pose_roll",
+        "distract_prob",
+        "face_box_px"
+      ],
+      "phases": [
+        {
+          "phase": "read_1",
+          "n": 30,
+          "focused": 0,
+          "distracted_fusion": 28,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 2,
+          "unknown_reasons": {
+            "no_face": 2
+          },
+          "coverage_face_based": 0.9333333333333333,
+          "coverage_incl_body": 0.9333333333333333,
+          "first_distracted_any": "2.0839261000510305",
+          "first_distracted_fusion": "2.0839261000510305",
+          "first_distracted_body": "none",
+          "first_intervention": "8.17659360007383",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "phone",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 2,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 13,
+          "unknown_reasons": {
+            "no_face": 13
+          },
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 0.13333333333333333,
+          "first_distracted_any": "2.1502664999570698",
+          "first_distracted_fusion": "2.1502664999570698",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "away",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 2,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 13,
+          "unknown_reasons": {
+            "no_face": 13
+          },
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 0.13333333333333333,
+          "first_distracted_any": "8.305425300030038",
+          "first_distracted_fusion": "8.305425300030038",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "out_of_chair",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 15,
+          "unknown_reasons": {
+            "no_face": 15
+          },
+          "coverage_face_based": 0.0,
+          "coverage_incl_body": 0.0,
+          "first_distracted_any": "none",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "none",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "read_2",
+          "n": 30,
+          "focused": 4,
+          "distracted_fusion": 20,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 6,
+          "unknown_reasons": {
+            "no_face": 6
+          },
+          "coverage_face_based": 0.8,
+          "coverage_incl_body": 0.8,
+          "first_distracted_any": "10.336471399990842",
+          "first_distracted_fusion": "10.336471399990842",
+          "first_distracted_body": "none",
+          "first_intervention": "37.01676809997298",
+          "first_intervention_tier": "1"
+        }
+      ],
+      "interventions": [
+        {
+          "timestamp_utc": "2026-10-28T04:14:48.014747+00:00",
+          "phase": "read_1",
+          "seconds_from_phase_start": "8.17659360007383",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        },
+        {
+          "timestamp_utc": "2026-10-28T04:18:07.136104+00:00",
+          "phase": "read_2",
+          "seconds_from_phase_start": "37.01676809997298",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        }
+      ],
+      "false_interventions": {
+        "n_reading_interventions": 2,
+        "reading_minutes": 2.0,
+        "false_interventions_per_study_minute": 1.0,
+        "details": [
+          {
+            "timestamp_utc": "2026-10-28T04:14:48.014747+00:00",
+            "phase": "read_1",
+            "seconds_from_phase_start": "8.17659360007383",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          },
+          {
+            "timestamp_utc": "2026-10-28T04:18:07.136104+00:00",
+            "phase": "read_2",
+            "seconds_from_phase_start": "37.01676809997298",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          }
+        ]
+      },
+      "reading_face": {
+        "n_reading": 60,
+        "face_true": 52,
+        "face_false": 8,
+        "face_unknown_col": 0,
+        "share_face_true_of_n": 0.8666666666666667,
+        "share_face_true_of_decidable": 0.8666666666666667
+      }
+    },
+    {
+      "label": "Run 4",
+      "session_id": 93,
+      "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\evaluation\\thesis_numbers\\raw\\live_webcam_selftest_20261028T050110Z.csv",
+      "notes": "Post S3; body_no_face + fusion_threshold + pose baseline columns.",
+      "n_heartbeats": 105,
+      "columns": [
+        "timestamp_utc",
+        "phase",
+        "seconds_from_phase_start",
+        "verdict",
+        "confidence",
+        "reason",
+        "ml_mode",
+        "intervention_fired",
+        "intervention_tier",
+        "intervention_type",
+        "http_status",
+        "error",
+        "inference_path",
+        "gaze_label",
+        "head_pose_yaw",
+        "head_pose_pitch",
+        "head_pose_roll",
+        "distract_prob",
+        "face_box_px",
+        "pose_baseline_yaw",
+        "pose_baseline_pitch",
+        "fusion_threshold"
+      ],
+      "phases": [
+        {
+          "phase": "read_1",
+          "n": 30,
+          "focused": 10,
+          "distracted_fusion": 9,
+          "distracted_body_no_face": 11,
+          "distracted_undifferentiated": 0,
+          "unknown": 0,
+          "unknown_reasons": {},
+          "coverage_face_based": 0.6333333333333333,
+          "coverage_incl_body": 1.0,
+          "first_distracted_any": "0.027041800087317824",
+          "first_distracted_fusion": "6.195024699904025",
+          "first_distracted_body": "0.027041800087317824",
+          "first_intervention": "38.852072400040925",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "phone",
+          "n": 15,
+          "focused": 2,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 13,
+          "distracted_undifferentiated": 0,
+          "unknown": 0,
+          "unknown_reasons": {},
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 1.0,
+          "first_distracted_any": "0.10084199998527765",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "0.10084199998527765",
+          "first_intervention": "12.514111399883404",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "away",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 3,
+          "distracted_body_no_face": 10,
+          "distracted_undifferentiated": 0,
+          "unknown": 2,
+          "unknown_reasons": {
+            "no_face": 2
+          },
+          "coverage_face_based": 0.2,
+          "coverage_incl_body": 0.8666666666666667,
+          "first_distracted_any": "0.10036849998869002",
+          "first_distracted_fusion": "0.10036849998869002",
+          "first_distracted_body": "6.219217499950901",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "out_of_chair",
+          "n": 15,
+          "focused": 0,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 4,
+          "distracted_undifferentiated": 0,
+          "unknown": 11,
+          "unknown_reasons": {
+            "no_face": 11
+          },
+          "coverage_face_based": 0.0,
+          "coverage_incl_body": 0.26666666666666666,
+          "first_distracted_any": "0.1004560999572277",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "0.1004560999572277",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "read_2",
+          "n": 30,
+          "focused": 17,
+          "distracted_fusion": 11,
+          "distracted_body_no_face": 1,
+          "distracted_undifferentiated": 0,
+          "unknown": 1,
+          "unknown_reasons": {
+            "no_face": 1
+          },
+          "coverage_face_based": 0.9333333333333333,
+          "coverage_incl_body": 0.9666666666666667,
+          "first_distracted_any": "2.176362699829042",
+          "first_distracted_fusion": "2.176362699829042",
+          "first_distracted_body": "34.960294499993324",
+          "first_intervention": "51.27745639998466",
+          "first_intervention_tier": "1"
+        }
+      ],
+      "interventions": [
+        {
+          "timestamp_utc": "2026-10-28T04:57:53.876408+00:00",
+          "phase": "read_1",
+          "seconds_from_phase_start": "38.852072400040925",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        },
+        {
+          "timestamp_utc": "2026-10-28T04:58:32.604673+00:00",
+          "phase": "phone",
+          "seconds_from_phase_start": "12.514111399883404",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_body_no_face",
+          "reason": "body_no_face",
+          "inference_path": "body_no_face"
+        },
+        {
+          "timestamp_utc": "2026-10-28T05:00:56.613161+00:00",
+          "phase": "read_2",
+          "seconds_from_phase_start": "51.27745639998466",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        }
+      ],
+      "false_interventions": {
+        "n_reading_interventions": 2,
+        "reading_minutes": 2.0,
+        "false_interventions_per_study_minute": 1.0,
+        "details": [
+          {
+            "timestamp_utc": "2026-10-28T04:57:53.876408+00:00",
+            "phase": "read_1",
+            "seconds_from_phase_start": "38.852072400040925",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          },
+          {
+            "timestamp_utc": "2026-10-28T05:00:56.613161+00:00",
+            "phase": "read_2",
+            "seconds_from_phase_start": "51.27745639998466",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          }
+        ]
+      },
+      "reading_face": {
+        "n_reading": 60,
+        "face_true": 47,
+        "face_false": 13,
+        "face_unknown_col": 0,
+        "share_face_true_of_n": 0.7833333333333333,
+        "share_face_true_of_decidable": 0.7833333333333333
+      }
+    },
+    {
+      "label": "Run 5: frozen settings, post-escalation fix, same participant",
+      "session_id": 94,
+      "csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\evaluation\\thesis_numbers\\raw\\live_webcam_selftest_20261028T063352Z.csv",
+      "notes": "Post escalation fix; settings frozen (ML_FUSION_THRESHOLD=0.75).",
+      "n_heartbeats": 97,
+      "columns": [
+        "timestamp_utc",
+        "phase",
+        "seconds_from_phase_start",
+        "verdict",
+        "confidence",
+        "reason",
+        "ml_mode",
+        "intervention_fired",
+        "intervention_tier",
+        "intervention_type",
+        "http_status",
+        "error",
+        "inference_path",
+        "gaze_label",
+        "head_pose_yaw",
+        "head_pose_pitch",
+        "head_pose_roll",
+        "distract_prob",
+        "face_box_px",
+        "pose_baseline_yaw",
+        "pose_baseline_pitch",
+        "fusion_threshold"
+      ],
+      "phases": [
+        {
+          "phase": "read_1",
+          "n": 22,
+          "focused": 10,
+          "distracted_fusion": 11,
+          "distracted_body_no_face": 0,
+          "distracted_undifferentiated": 0,
+          "unknown": 1,
+          "unknown_reasons": {
+            "no_face": 1
+          },
+          "coverage_face_based": 0.9545454545454546,
+          "coverage_incl_body": 0.9545454545454546,
+          "first_distracted_any": "26.91141609987244",
+          "first_distracted_fusion": "26.91141609987244",
+          "first_distracted_body": "none",
+          "first_intervention": "43.34083639993332",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "phone",
+          "n": 15,
+          "focused": 2,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 13,
+          "distracted_undifferentiated": 0,
+          "unknown": 0,
+          "unknown_reasons": {},
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 1.0,
+          "first_distracted_any": "4.190390500007197",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "4.190390500007197",
+          "first_intervention": "12.360739100025967",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "away",
+          "n": 15,
+          "focused": 1,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 14,
+          "distracted_undifferentiated": 0,
+          "unknown": 0,
+          "unknown_reasons": {},
+          "coverage_face_based": 0.06666666666666667,
+          "coverage_incl_body": 1.0,
+          "first_distracted_any": "0.10139569989405572",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "0.10139569989405572",
+          "first_intervention": "10.256145599996671",
+          "first_intervention_tier": "1"
+        },
+        {
+          "phase": "out_of_chair",
+          "n": 15,
+          "focused": 2,
+          "distracted_fusion": 0,
+          "distracted_body_no_face": 1,
+          "distracted_undifferentiated": 0,
+          "unknown": 12,
+          "unknown_reasons": {
+            "no_face": 12
+          },
+          "coverage_face_based": 0.13333333333333333,
+          "coverage_incl_body": 0.2,
+          "first_distracted_any": "0.10076569998636842",
+          "first_distracted_fusion": "none",
+          "first_distracted_body": "0.10076569998636842",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        },
+        {
+          "phase": "read_2",
+          "n": 30,
+          "focused": 24,
+          "distracted_fusion": 4,
+          "distracted_body_no_face": 1,
+          "distracted_undifferentiated": 0,
+          "unknown": 1,
+          "unknown_reasons": {
+            "no_face": 1
+          },
+          "coverage_face_based": 0.9333333333333333,
+          "coverage_incl_body": 0.9666666666666667,
+          "first_distracted_any": "2.1685492999386042",
+          "first_distracted_fusion": "2.1685492999386042",
+          "first_distracted_body": "41.38973170006648",
+          "first_intervention": "none",
+          "first_intervention_tier": "none"
+        }
+      ],
+      "interventions": [
+        {
+          "timestamp_utc": "2026-10-28T06:30:41.479592+00:00",
+          "phase": "read_1",
+          "seconds_from_phase_start": "43.34083639993332",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        },
+        {
+          "timestamp_utc": "2026-10-28T06:30:45.527992+00:00",
+          "phase": "read_1",
+          "seconds_from_phase_start": "47.389975500060245",
+          "tier": "2",
+          "type": "pacing_pause",
+          "verdict_source": "distracted_fusion",
+          "reason": "",
+          "inference_path": "fusion"
+        },
+        {
+          "timestamp_utc": "2026-10-28T06:31:15.755257+00:00",
+          "phase": "phone",
+          "seconds_from_phase_start": "12.360739100025967",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_body_no_face",
+          "reason": "body_no_face",
+          "inference_path": "body_no_face"
+        },
+        {
+          "timestamp_utc": "2026-10-28T06:31:17.790898+00:00",
+          "phase": "phone",
+          "seconds_from_phase_start": "14.39580629998818",
+          "tier": "2",
+          "type": "pacing_pause",
+          "verdict_source": "distracted_body_no_face",
+          "reason": "body_no_face",
+          "inference_path": "body_no_face"
+        },
+        {
+          "timestamp_utc": "2026-10-28T06:31:48.742201+00:00",
+          "phase": "away",
+          "seconds_from_phase_start": "10.256145599996671",
+          "tier": "1",
+          "type": "ambient_cue",
+          "verdict_source": "distracted_body_no_face",
+          "reason": "body_no_face",
+          "inference_path": "body_no_face"
+        },
+        {
+          "timestamp_utc": "2026-10-28T06:31:52.857198+00:00",
+          "phase": "away",
+          "seconds_from_phase_start": "14.37096540001221",
+          "tier": "2",
+          "type": "pacing_pause",
+          "verdict_source": "distracted_body_no_face",
+          "reason": "body_no_face",
+          "inference_path": "body_no_face"
+        }
+      ],
+      "false_interventions": {
+        "n_reading_interventions": 2,
+        "reading_minutes": 2.0,
+        "false_interventions_per_study_minute": 1.0,
+        "details": [
+          {
+            "timestamp_utc": "2026-10-28T06:30:41.479592+00:00",
+            "phase": "read_1",
+            "seconds_from_phase_start": "43.34083639993332",
+            "tier": "1",
+            "type": "ambient_cue",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          },
+          {
+            "timestamp_utc": "2026-10-28T06:30:45.527992+00:00",
+            "phase": "read_1",
+            "seconds_from_phase_start": "47.389975500060245",
+            "tier": "2",
+            "type": "pacing_pause",
+            "verdict_source": "distracted_fusion",
+            "reason": "",
+            "inference_path": "fusion"
+          }
+        ]
+      },
+      "reading_face": {
+        "n_reading": 52,
+        "face_true": 49,
+        "face_false": 3,
+        "face_unknown_col": 0,
+        "share_face_true_of_n": 0.9423076923076923,
+        "share_face_true_of_decidable": 0.9423076923076923
+      }
+    }
+  ],
+  "session_summaries": [
+    {
+      "id": 85,
+      "focus_metric_version": "observed_v1",
+      "focus_percentage": 46.809988151073135,
+      "monitoring_coverage_pct": 38.85204036250304,
+      "observed_focused_seconds": 51.18948698043823,
+      "observed_distracted_seconds": 58.16641974449158,
+      "unknown_seconds": 172.1116962750702,
+      "started_at": "2026-10-28T03:12:46.935986",
+      "ended_at": "2026-10-28T03:17:28.403589"
+    },
+    {
+      "id": 91,
+      "focus_metric_version": "observed_v1",
+      "focus_percentage": 7.06039220888751,
+      "monitoring_coverage_pct": 37.09924177368838,
+      "observed_focused_seconds": 8.231949090957642,
+      "observed_distracted_seconds": 108.36141920089722,
+      "unknown_seconds": 197.68089370814516,
+      "started_at": "2026-10-28T04:13:19.157412",
+      "ended_at": "2026-10-28T04:18:33.431674"
+    },
+    {
+      "id": 93,
+      "focus_metric_version": "observed_v1",
+      "focus_percentage": 31.161904248355583,
+      "monitoring_coverage_pct": 79.00505448337819,
+      "observed_focused_seconds": 59.16362643241882,
+      "observed_distracted_seconds": 130.69520235061646,
+      "unknown_seconds": 50.45342721696471,
+      "started_at": "2026-10-28T04:57:10.164942",
+      "ended_at": "2026-10-28T05:01:10.477198"
+    },
+    {
+      "id": 94,
+      "focus_metric_version": "observed_v1",
+      "focus_percentage": 46.91830345147059,
+      "monitoring_coverage_pct": 58.40542339214008,
+      "observed_focused_seconds": 82.044597864151,
+      "observed_distracted_seconds": 92.82233428955078,
+      "unknown_seconds": 124.53494184629824,
+      "started_at": "2026-10-28T06:28:52.201702",
+      "ended_at": "2026-10-28T06:33:51.603576"
+    }
+  ],
+  "source_notes": {
+    "distracted_fusion": "DISTRACTED with inference_path=fusion (or heuristic), not body_no_face.",
+    "distracted_body_no_face": "DISTRACTED with reason/inference_path=body_no_face.",
+    "distracted_undifferentiated": "DISTRACTED without inference_path column (Run 2). body_no_face did not exist; treated as face-based for coverage."
+  }
+}

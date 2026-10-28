@@ -5,7 +5,7 @@ the server (via `flask run`, gunicorn, or eventlet directly for SocketIO).
 
 import os
 import traceback
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -58,7 +58,7 @@ def create_app(env=None):
         return response
 
     # --- Import models & Ensure all DB tables exist ---
-    from app.db_models import user, course, quiz, session, analytics, system_setting, gamification  # noqa: F401
+    from app.db_models import user, course, quiz, session, analytics, system_setting, gamification, remediation  # noqa: F401
     from app.db_models.system_setting import SystemSetting
 
     with app.app_context():
@@ -320,11 +320,22 @@ def create_app(env=None):
                 db.session.add(SystemSetting(key=k, value=v))
         db.session.commit()
 
-    # --- Serve Uploaded Material Files ---
-    @app.route("/uploads/<filename>")
-    def serve_upload(filename):
-        uploads_dir = os.path.join(app.root_path, "..", "uploads")
-        return send_from_directory(uploads_dir, filename)
+        # Demo accounts + grade levels (idempotent; skips existing emails)
+        if app.config.get("SEED_DEFAULT_ACCOUNTS"):
+            try:
+                from app.services.default_accounts import ensure_default_data
+
+                ensure_default_data()
+            except Exception:
+                traceback.print_exc()
+
+    # Public /uploads/<filename> removed — use authenticated
+    # GET /api/courses/materials/<id>/file (enrolment / teacher ownership).
+    @app.route("/uploads/<path:filename>")
+    def serve_upload_blocked(filename):
+        return jsonify({
+            "error": "Direct upload URLs are disabled. Use /api/courses/materials/<id>/file with a JWT."
+        }), 401
 
     # --- Register blueprints ---
     from app.routes.auth import auth_bp

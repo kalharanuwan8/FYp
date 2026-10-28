@@ -1,0 +1,10 @@
+{
+  "started_utc": "2026-10-27T12:54:03.570193+00:00",
+  "seed": 42,
+  "device": "cuda",
+  "cuda_device_name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "torch": "2.5.1+cu121",
+  "cwd": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models",
+  "cudnn_deterministic": true,
+  "finished_utc": "2026-10-27T12:55:31.879658+00:00"
+}

@@ -67,7 +67,15 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     lessonAudioActive: isPlaying && !isMuted,
   });
 
-  const resolveMediaUrl = (fileUrl) => {
+  const resolveMediaUrl = (mat) => {
+    if (!mat) return '';
+    // Authenticated route (JWT via query string for <video src>).
+    if (mat.id) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('access_token') || '';
+      return `${apiBase}/courses/materials/${mat.id}/file?token=${encodeURIComponent(token)}`;
+    }
+    const fileUrl = mat.file_url;
     if (!fileUrl) return '';
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
       return fileUrl;
@@ -77,7 +85,7 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     return `${origin}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
   };
 
-  const videoSrc = resolveMediaUrl(material?.file_url);
+  const videoSrc = resolveMediaUrl(material);
 
   const bootGenRef = useRef(0);
 

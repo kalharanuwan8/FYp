@@ -486,3 +486,63 @@ def test_claim_session_xp_award_is_atomic(tmp_path, monkeypatch):
 
     MLService._instance = None
 
+
+
+def test_list_and_stop_active_sessions(client, app):
+    """Students can see and stop monitoring left running (e.g. a closed tab)."""
+    from app.db_models import LearningSession
+
+    seeded = _seed_student_session(app, email="stop_active@test.com")
+    headers = {"Authorization": f"Bearer {seeded['token']}"}
+
+    res_empty = client.get("/api/session/active", headers=headers)
+    assert res_empty.status_code == 200
+    assert res_empty.json["count"] == 0
+
+    res_start = client.post(
+        "/api/session/start",
+        json={"module_id": seeded["mod_id"], "is_monitored": True},
+        headers=headers,
+    )
+    session_id = res_start.json["session_id"]
+
+    res_active = client.get("/api/session/active", headers=headers)
+    assert res_active.json["count"] == 1
+    row = res_active.json["sessions"][0]
+    assert row["session_id"] == session_id
+    assert row["module_title"] == "Kinematics"
+    assert row["subject_title"] == "Physics 101"
+
+    res_stop = client.post("/api/session/stop-active", headers=headers)
+    assert res_stop.status_code == 200
+    assert res_stop.json["stopped_count"] == 1
+    assert res_stop.json["sessions"][0]["session_id"] == session_id
+    assert session_id not in session_routes.SESSION_ENGINES
+
+    with app.app_context():
+        assert db.session.get(LearningSession, session_id).end_time is not None
+
+    # Nothing left to stop; calling again is harmless
+    assert client.get("/api/session/active", headers=headers).json["count"] == 0
+    res_again = client.post("/api/session/stop-active", headers=headers)
+    assert res_again.status_code == 200
+    assert res_again.json["stopped_count"] == 0
+
+
+def test_stop_active_only_touches_own_sessions(client, app):
+    from app.db_models import LearningSession
+
+    a = _seed_student_session(app, email="owner_a@test.com")
+    b = _seed_student_session(app, email="owner_b@test.com")
+    ha = {"Authorization": f"Bearer {a['token']}"}
+    hb = {"Authorization": f"Bearer {b['token']}"}
+
+    sid_a = client.post("/api/session/start", json={"module_id": a["mod_id"], "is_monitored": True}, headers=ha).json["session_id"]
+    sid_b = client.post("/api/session/start", json={"module_id": b["mod_id"], "is_monitored": True}, headers=hb).json["session_id"]
+
+    res = client.post("/api/session/stop-active", headers=ha)
+    assert res.json["stopped_count"] == 1
+
+    with app.app_context():
+        assert db.session.get(LearningSession, sid_a).end_time is not None
+        assert db.session.get(LearningSession, sid_b).end_time is None

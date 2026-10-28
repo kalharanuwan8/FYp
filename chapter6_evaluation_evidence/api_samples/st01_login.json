@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "keys": [
+    "access_token",
+    "user"
+  ],
+  "role": "student"
+}

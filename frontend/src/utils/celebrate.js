@@ -10,7 +10,7 @@ export async function celebrateIfAllowed({ reduceMotion } = {}) {
       particleCount: 48,
       spread: 55,
       origin: { y: 0.7 },
-      colors: ['#3CBF9A', '#5AB0EE', '#F4C152', '#8B7CF6'],
+      colors: ['#286B63', '#35698A', '#B08920', '#6B6A9A'],
     });
   } catch {
     /* optional dependency — celebration is never essential */

@@ -1,6 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Nunito:wght@600;700;800&display=swap");
 @import "tailwindcss";
 
+/*
+  Luma semantic theme tokens.
+  Page/chrome use --bg; lesson/quiz panels use --learning-surface for a
+  plain, dominant reading surface. See dev/UI_THEME_IMPLEMENTATION.md.
+*/
+
 @theme {
   --font-sans: "Lexend", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Nunito", "Lexend", ui-sans-serif, sans-serif;
@@ -8,9 +14,11 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-learning: var(--learning-surface);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
   --color-on-primary: var(--on-primary);
   --color-success: var(--success);
@@ -33,59 +41,130 @@
   --animate-slide-up: slide-up 0.4s ease-out;
 }
 
+/* Sage — default (soft sage page, warm off-white lesson panel, deep teal) */
 :root,
+[data-theme="sage"],
 [data-theme="light"] {
-  --bg: #f6f7fb;
-  --surface: #ffffff;
+  --bg: #eef3ee;
+  --surface: #fafaf7;
   --surface-raised: #ffffff;
-  --text: #1f2a44;
-  --text-muted: #5b6478;
-  --primary: #3d7a9c;
-  --primary-soft: #e8f2f7;
+  --learning-surface: #fafaf7;
+  --text: #243444;
+  --text-muted: #4a5a68;
+  --primary: #286b63;
+  --primary-hover: #1f564f;
+  --primary-soft: #d9ebe8;
   --on-primary: #ffffff;
-  --success: #1f8a6a;
-  --attention: #f2836b;
-  --danger: #c93a2e;
-  --warning: #b97e14;
-  --info: #2f7fb8;
-  --border: #e4e8f0;
-  --shadow-soft-value: 0 4px 24px rgba(31, 42, 68, 0.06);
-  --shadow-lift-value: 0 8px 32px rgba(31, 42, 68, 0.12);
-  --accent-lavender: #8b7cf6;
-  --accent-mint: #3cbf9a;
-  --accent-peach: #ff9f7a;
-  --accent-sun: #f4c152;
-  --accent-sky: #5ab0ee;
-  --ring-glow: rgba(61, 122, 156, 0.25);
-  --buddy-good: #3cbf9a;
-  --buddy-wander: #f4c152;
+  --success: #1f6b52;
+  --attention: #c45c3e;
+  --danger: #b5362c;
+  --warning: #8a6a12;
+  --info: #2a6f95;
+  --border: #c9d4cc;
+  --shadow-soft-value: 0 2px 12px rgba(36, 52, 68, 0.07);
+  --shadow-lift-value: 0 6px 20px rgba(36, 52, 68, 0.1);
+  --accent-lavender: #6b6a9a;
+  --accent-mint: #2f8a72;
+  --accent-peach: #c47a5a;
+  --accent-sun: #b08920;
+  --accent-sky: #3a7ea8;
+  --ring-glow: rgba(40, 107, 99, 0.28);
+  --buddy-good: #2f8a72;
+  --buddy-wander: #b08920;
+  --focus-ring: #286b63;
 }
 
+/* Warm neutral — parchment page, warm paper panel, olive-brown action */
+[data-theme="warm"] {
+  --bg: #f3efe8;
+  --surface: #fbf8f2;
+  --surface-raised: #ffffff;
+  --learning-surface: #fbf8f2;
+  --text: #2c2924;
+  --text-muted: #5c564c;
+  --primary: #5c6b4a;
+  --primary-hover: #4a563c;
+  --primary-soft: #e4e8dc;
+  --on-primary: #ffffff;
+  --success: #3d6b4f;
+  --attention: #a85a3a;
+  --danger: #a33d32;
+  --warning: #8a6a18;
+  --info: #3d6d8c;
+  --border: #d4cfc4;
+  --shadow-soft-value: 0 2px 12px rgba(44, 41, 36, 0.07);
+  --shadow-lift-value: 0 6px 20px rgba(44, 41, 36, 0.1);
+  --accent-lavender: #7a6f8c;
+  --accent-mint: #4a7a5c;
+  --accent-peach: #b07858;
+  --accent-sun: #a08030;
+  --accent-sky: #4a7390;
+  --ring-glow: rgba(92, 107, 74, 0.28);
+  --buddy-good: #4a7a5c;
+  --buddy-wander: #a08030;
+  --focus-ring: #5c6b4a;
+}
+
+/* Pale blue — cool mist page, paper panel, slate-blue action */
+[data-theme="pale-blue"] {
+  --bg: #e8eef4;
+  --surface: #f7f9fc;
+  --surface-raised: #ffffff;
+  --learning-surface: #f7f9fc;
+  --text: #1e2d3d;
+  --text-muted: #4a5c6e;
+  --primary: #35698a;
+  --primary-hover: #2a5470;
+  --primary-soft: #d6e4ef;
+  --on-primary: #ffffff;
+  --success: #1f6b52;
+  --attention: #c45c3e;
+  --danger: #b5362c;
+  --warning: #8a6a12;
+  --info: #2a6f95;
+  --border: #c5d0db;
+  --shadow-soft-value: 0 2px 12px rgba(30, 45, 61, 0.07);
+  --shadow-lift-value: 0 6px 20px rgba(30, 45, 61, 0.1);
+  --accent-lavender: #6a6f9a;
+  --accent-mint: #2f8a72;
+  --accent-peach: #c47a5a;
+  --accent-sun: #b08920;
+  --accent-sky: #3a7ea8;
+  --ring-glow: rgba(53, 105, 138, 0.28);
+  --buddy-good: #2f8a72;
+  --buddy-wander: #b08920;
+  --focus-ring: #35698a;
+}
+
+/* Calm dark — existing dark theme, contrast-checked for AA */
 [data-theme="calm-dark"] {
-  --bg: #141a2a;
-  --surface: #1d2438;
-  --surface-raised: #242e47;
-  --text: #e7eaf3;
-  --text-muted: #a9b0c3;
-  --primary: #6fb3d6;
-  --primary-soft: #243044;
-  --on-primary: #10222f;
+  --bg: #161c28;
+  --surface: #1e2636;
+  --surface-raised: #273143;
+  --learning-surface: #1e2636;
+  --text: #e8ecf4;
+  --text-muted: #a8b0c2;
+  --primary: #5eb3a8;
+  --primary-hover: #4a9e94;
+  --primary-soft: #243640;
+  --on-primary: #102018;
   --success: #5dd4b0;
-  --attention: #f2836b;
+  --attention: #f0a08c;
   --danger: #ff9a8a;
-  --warning: #f6d07a;
+  --warning: #f0d078;
   --info: #7dc0f2;
-  --border: #2a3348;
-  --shadow-soft-value: 0 4px 24px rgba(0, 0, 0, 0.35);
-  --shadow-lift-value: 0 8px 32px rgba(0, 0, 0, 0.45);
-  --accent-lavender: #a99ef8;
+  --border: #343e52;
+  --shadow-soft-value: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lift-value: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --accent-lavender: #9a94d4;
   --accent-mint: #5dd4b0;
-  --accent-peach: #ffb396;
-  --accent-sun: #f6d07a;
+  --accent-peach: #e8a888;
+  --accent-sun: #f0d078;
   --accent-sky: #7dc0f2;
-  --ring-glow: rgba(111, 179, 214, 0.3);
+  --ring-glow: rgba(94, 179, 168, 0.32);
   --buddy-good: #5dd4b0;
-  --buddy-wander: #f6d07a;
+  --buddy-wander: #f0d078;
+  --focus-ring: #5eb3a8;
 }
 
 html {
@@ -130,8 +209,26 @@ h4,
 }
 
 *:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring, var(--primary));
   outline-offset: 2px;
+}
+
+/* Learning / quiz shell: solid page, dominant plain panel — no scenery */
+.learning-shell {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+.learning-panel {
+  background: var(--learning-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft-value);
+}
+
+.focus-session-chrome {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -166,7 +263,7 @@ html.reduce-motion *::after {
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -174,60 +271,52 @@ html.reduce-motion *::after {
   }
 }
 
-@keyframes soft-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-  50% {
-    box-shadow: 0 0 20px 4px var(--ring-glow);
-  }
-}
-
-@keyframes buddy-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.85;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-}
-
+/* Break breathing ring — only used inside the break dialog; never on lesson backgrounds */
 @keyframes breathe-ring {
   0%,
   100% {
-    transform: scale(0.85);
+    transform: scale(0.92);
+    opacity: 0.55;
   }
   50% {
-    transform: scale(1.15);
+    transform: scale(1.05);
+    opacity: 0.85;
   }
 }
 
 .animate-fade-in {
-  animation: fade-in 0.35s ease-out;
+  animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-up {
-  animation: slide-up 0.4s ease-out;
+  animation: slide-up 0.3s ease-out;
 }
 
-.motion-safe\:animate-soft-glow {
-  animation: soft-glow 2.5s ease-in-out infinite;
-}
-
+/* Focus Buddy — static status colour; no continuous pulse */
 .buddy-ring-good {
   background: var(--buddy-good);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--buddy-good) 45%, transparent);
+  box-shadow: none;
 }
 
 .buddy-ring-wander {
   background: var(--buddy-wander);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--buddy-wander) 45%, transparent);
+  box-shadow: none;
+}
+
+.buddy-ring-unknown {
+  background: var(--border);
+  box-shadow: none;
 }
 
 .prose-narrow {
   max-width: 65ch;
+}
+
+/* Theme swatches in settings */
+.theme-swatch {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
 }
