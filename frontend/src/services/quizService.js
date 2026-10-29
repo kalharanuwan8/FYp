@@ -35,6 +35,13 @@ export const quizService = {
     const response = await api.post(`/courses/remediation/${eventId}/choice`, { choice });
     return response.data;
   },
+
+  getQuestionHint: async (attemptId, questionId) => {
+    const response = await api.get(
+      `/courses/attempts/${attemptId}/questions/${questionId}/hint`
+    );
+    return response.data;
+  },
 };
 
 export default quizService;

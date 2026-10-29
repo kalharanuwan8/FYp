@@ -1,0 +1,13 @@
+{
+  "test_id": "ST-03-student-blocked-admin",
+  "fr": "no FR text yet",
+  "steps": "student GET /api/admin/users",
+  "expected": "403 (or 401)",
+  "http_status": 403,
+  "body": {
+    "error": "Forbidden: Insufficient privileges for this role"
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:08.718838+00:00"
+}

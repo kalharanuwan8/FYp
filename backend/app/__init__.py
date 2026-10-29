@@ -321,6 +321,83 @@ def create_app(env=None):
                         )
                     )
                     db.session.commit()
+
+            # DSM-5 multi-signal columns (record-only behavioural proxies).
+            tables = set(insp.get_table_names())
+            if "quizzes" in tables:
+                quiz_cols = {c["name"] for c in insp.get_columns("quizzes")}
+                if "time_limit_minutes" not in quiz_cols:
+                    db.session.execute(
+                        text("ALTER TABLE quizzes ADD COLUMN time_limit_minutes INTEGER")
+                    )
+                    db.session.commit()
+            if "quiz_questions" in tables:
+                qq_cols = {c["name"] for c in insp.get_columns("quiz_questions")}
+                if "difficulty" not in qq_cols:
+                    db.session.execute(
+                        text(
+                            "ALTER TABLE quiz_questions ADD COLUMN difficulty "
+                            "VARCHAR(16) DEFAULT 'medium' NOT NULL"
+                        )
+                    )
+                if "hint_text" not in qq_cols:
+                    db.session.execute(
+                        text("ALTER TABLE quiz_questions ADD COLUMN hint_text TEXT")
+                    )
+                db.session.commit()
+            if "quiz_answers" in tables:
+                qa_cols = {c["name"] for c in insp.get_columns("quiz_answers")}
+                if "hint_used" not in qa_cols:
+                    bool_false = "FALSE" if dialect == "postgresql" else "0"
+                    db.session.execute(
+                        text(
+                            "ALTER TABLE quiz_answers ADD COLUMN hint_used "
+                            f"BOOLEAN DEFAULT {bool_false} NOT NULL"
+                        )
+                    )
+                if "response_ms" not in qa_cols:
+                    db.session.execute(
+                        text("ALTER TABLE quiz_answers ADD COLUMN response_ms INTEGER")
+                    )
+                db.session.commit()
+
+            tables = set(insp.get_table_names())
+            if "behaviour_events" not in tables:
+                db.session.execute(
+                    text(
+                        """
+                        CREATE TABLE behaviour_events (
+                            id INTEGER PRIMARY KEY,
+                            student_id INTEGER NOT NULL,
+                            indicator VARCHAR(32) NOT NULL,
+                            context VARCHAR(32) NOT NULL,
+                            quiz_attempt_id INTEGER,
+                            module_content_id INTEGER,
+                            started_at DATETIME NOT NULL,
+                            duration_seconds FLOAT NOT NULL,
+                            created_at DATETIME NOT NULL,
+                            FOREIGN KEY(student_id) REFERENCES students (id),
+                            FOREIGN KEY(quiz_attempt_id) REFERENCES quiz_attempts (id),
+                            FOREIGN KEY(module_content_id) REFERENCES module_contents (id)
+                        )
+                        """
+                        if dialect != "postgresql"
+                        else """
+                        CREATE TABLE IF NOT EXISTS behaviour_events (
+                            id SERIAL PRIMARY KEY,
+                            student_id INTEGER NOT NULL REFERENCES students(id),
+                            indicator VARCHAR(32) NOT NULL,
+                            context VARCHAR(32) NOT NULL,
+                            quiz_attempt_id INTEGER REFERENCES quiz_attempts(id),
+                            module_content_id INTEGER REFERENCES module_contents(id),
+                            started_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                            duration_seconds DOUBLE PRECISION NOT NULL,
+                            created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                        )
+                        """
+                    )
+                )
+                db.session.commit()
         except Exception:
             db.session.rollback()
             traceback.print_exc()
@@ -361,6 +438,7 @@ def create_app(env=None):
     from app.routes.session import session_bp
     from app.routes.analytics import analytics_bp
     from app.routes.student_profile import student_profile_bp
+    from app.routes.behaviour import behaviour_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
@@ -369,5 +447,6 @@ def create_app(env=None):
     app.register_blueprint(session_bp, url_prefix="/api/session")
     app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
     app.register_blueprint(student_profile_bp, url_prefix="/api/student")
+    app.register_blueprint(behaviour_bp, url_prefix="/api/behaviour")
 
     return app

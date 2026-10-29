@@ -32,6 +32,8 @@ from app.db_models import (
     ModuleContent,
     Enrollment,
     LearningSession,
+    MonitoringObservation,
+    DistractionEvent,
     StudentProgress,
 )
 
@@ -210,49 +212,210 @@ def _ensure_progress(student):
     print("  · Progress: 245 XP, Level 3, 4-day streak, 12/20 min today")
 
 
+def _delete_sessions(session_ids):
+    """Remove sessions and dependent rows (events / observations) safely."""
+    ids = [int(i) for i in session_ids if i is not None]
+    if not ids:
+        return
+    # Intervention logs reference distraction_events — delete logs first.
+    db.session.execute(
+        text("DELETE FROM intervention_logs WHERE session_id = ANY(:ids)"),
+        {"ids": ids},
+    )
+    DistractionEvent.query.filter(DistractionEvent.session_id.in_(ids)).delete(
+        synchronize_session=False
+    )
+    MonitoringObservation.query.filter(
+        MonitoringObservation.session_id.in_(ids)
+    ).delete(synchronize_session=False)
+    # Optional FKs — null rather than delete learner quiz/remediation history
+    db.session.execute(
+        text("UPDATE quiz_attempts SET session_id = NULL WHERE session_id = ANY(:ids)"),
+        {"ids": ids},
+    )
+    db.session.execute(
+        text(
+            "UPDATE remediation_events SET session_id = NULL WHERE session_id = ANY(:ids)"
+        ),
+        {"ids": ids},
+    )
+    LearningSession.query.filter(LearningSession.id.in_(ids)).delete(
+        synchronize_session=False
+    )
+    db.session.flush()
+
+
+def _add_session(
+    student,
+    module,
+    *,
+    days_ago: int,
+    duration_sec: float,
+    focused: float,
+    distracted: float,
+    unknown: float,
+    coverage: float,
+    focus_pct,
+):
+    """One ended observed_v1 session (focus_pct may be None = unavailable)."""
+    start = datetime.utcnow() - timedelta(days=days_ago, hours=2)
+    end = start + timedelta(seconds=duration_sec)
+    db.session.add(
+        LearningSession(
+            student_id=student.id,
+            module_id=module.id,
+            start_time=start,
+            end_time=end,
+            is_monitored=True,
+            xp_awarded=True,
+            focus_metric_version="observed_v1",
+            observed_focused_seconds=focused,
+            observed_distracted_seconds=distracted,
+            unknown_seconds=unknown,
+            monitoring_coverage_pct=coverage,
+            focus_percentage=focus_pct,
+        )
+    )
+
+
 def _ensure_sessions(student, modules):
-    """Ended sessions on UI/UX modules so dashboard focus stats look filled."""
+    """
+    Demo sessions for analytics screenshot:
+      - UI/UX: focus + coverage both visible (chapter6 AN-01 style + variants)
+      Values mirror analytics_fixtures.json where noted.
+    """
     mod_ids = [m.id for m in modules]
-    existing = (
-        LearningSession.query.filter(
+    # Drop prior screenshot fixture sessions on these modules so re-runs refresh numbers
+    old_ids = [
+        row.id
+        for row in LearningSession.query.filter(
             LearningSession.student_id == student.id,
             LearningSession.module_id.in_(mod_ids),
-        ).count()
-    )
-    if existing >= 5:
-        print(f"  · UI/UX sessions already present ({existing}) — skipping")
-        return
-
-    now = datetime.utcnow()
-    samples = [
-        (modules[0], 72.0, 18),
-        (modules[0], 68.0, 22),
-        (modules[1], 81.0, 15),
-        (modules[1], 75.0, 20),
-        (modules[2], 64.0, 12),
+        ).all()
     ]
-    for i, (mod, focus, mins) in enumerate(samples):
-        start = now - timedelta(days=i + 1, hours=2)
-        end = start + timedelta(minutes=mins)
-        focused = mins * 60 * (focus / 100.0)
-        distracted = mins * 60 - focused
-        db.session.add(
-            LearningSession(
-                student_id=student.id,
-                module_id=mod.id,
-                start_time=start,
-                end_time=end,
-                is_monitored=True,
-                xp_awarded=True,
-                focus_metric_version="observed_v1",
-                observed_focused_seconds=focused,
-                observed_distracted_seconds=distracted,
-                unknown_seconds=0.0,
-                monitoring_coverage_pct=100.0,
-                focus_percentage=focus,
-            )
+    _delete_sessions(old_ids)
+
+    # AN-01: focused 8, distracted 2, unknown 10 → focus 80%, coverage 50%
+    _add_session(
+        student,
+        modules[0],
+        days_ago=1,
+        duration_sec=20.0,
+        focused=8.0,
+        distracted=2.0,
+        unknown=10.0,
+        coverage=50.0,
+        focus_pct=80.0,
+    )
+    # Strong coverage / focus (AN-04-like scaled to a longer lesson)
+    _add_session(
+        student,
+        modules[1],
+        days_ago=2,
+        duration_sec=900.0,
+        focused=720.0,
+        distracted=90.0,
+        unknown=90.0,
+        coverage=90.0,
+        focus_pct=88.9,
+    )
+    _add_session(
+        student,
+        modules[1],
+        days_ago=3,
+        duration_sec=1200.0,
+        focused=840.0,
+        distracted=240.0,
+        unknown=120.0,
+        coverage=90.0,
+        focus_pct=77.8,
+    )
+    _add_session(
+        student,
+        modules[2],
+        days_ago=4,
+        duration_sec=600.0,
+        focused=420.0,
+        distracted=120.0,
+        unknown=60.0,
+        coverage=90.0,
+        focus_pct=77.8,
+    )
+    # AN-02: focus 0% with coverage 60% (still a numeric focus, not unavailable)
+    _add_session(
+        student,
+        modules[0],
+        days_ago=5,
+        duration_sec=10.0,
+        focused=0.0,
+        distracted=6.0,
+        unknown=4.0,
+        coverage=60.0,
+        focus_pct=0.0,
+    )
+    print(f"  + Added 5 dummy focus+coverage sessions on UI/UX modules")
+
+
+def _ensure_unavailable_focus_subject(student, teacher, grade_id):
+    """
+    Second enrolled subject where every session has focus_percentage=null
+    (all UNKNOWN → focus unavailable) but coverage is still shown (0%).
+    Mirrors chapter6 AN-03 / AN-05.
+    """
+    title = "Camera Calibration Labs"
+    subject = _ensure_subject(
+        title,
+        "Low-light / no-face fixture — focus unavailable, coverage recorded.",
+        grade_id,
+        teacher,
+    )
+    mod = Module.query.filter_by(subject_id=subject.id, title="No-face coverage check").first()
+    if not mod:
+        mod = Module(
+            title="No-face coverage check",
+            description="All-UNKNOWN observed_v1 sessions for screenshot.",
+            subject_id=subject.id,
+            sequence_order=1,
         )
-    print(f"  + Added {len(samples)} dummy focus sessions on UI/UX modules")
+        db.session.add(mod)
+        db.session.flush()
+
+    old_ids = [
+        row.id
+        for row in LearningSession.query.filter(
+            LearningSession.student_id == student.id,
+            LearningSession.module_id == mod.id,
+        ).all()
+    ]
+    _delete_sessions(old_ids)
+
+    # AN-03: 30s all unknown → coverage 0%, focus null
+    _add_session(
+        student,
+        mod,
+        days_ago=2,
+        duration_sec=30.0,
+        focused=0.0,
+        distracted=0.0,
+        unknown=30.0,
+        coverage=0.0,
+        focus_pct=None,
+    )
+    # AN-05: 60s all unknown
+    _add_session(
+        student,
+        mod,
+        days_ago=6,
+        duration_sec=60.0,
+        focused=0.0,
+        distracted=0.0,
+        unknown=60.0,
+        coverage=0.0,
+        focus_pct=None,
+    )
+    _ensure_enrollment(student, subject, enrolled_at=datetime(2026, 1, 3, 9, 0, 0))
+    print(f"  + Subject '{title}' with focus unavailable · 0% coverage sessions")
+    return subject
 
 
 def seed_ui_screenshots():
@@ -296,9 +459,6 @@ def seed_ui_screenshots():
         db.session.flush()
 
         keep_ids = []
-        # DEMO: filler subjects disabled — only real subjects for the doctor demo.
-        # To bring them back, re-add:
-        #     + [(x["title"], x["description"]) for x in EXTRA_SUBJECTS]
         for i, (sub_title, sub_desc) in enumerate(
             [(SUBJECT_TITLE, main.description)]
         ):
@@ -321,16 +481,19 @@ def seed_ui_screenshots():
             keep_ids.append(sub.id)
 
         print(f"  · Enrollments reset ({len(keep_ids)}) — UI/UX first for screenshots")
-        # DEMO: dummy XP/streak and fake focus sessions disabled so dashboards
-        # show only real monitored data. Uncomment for screenshot fixtures.
-        # _ensure_progress(student)
-        # _ensure_sessions(student, modules)
+        # Screenshot fixture: progress + focus/coverage sessions + unavailable focus subject
+        _ensure_progress(student)
+        _ensure_sessions(student, modules)
+        unavailable = _ensure_unavailable_focus_subject(student, teacher, grade.id)
+        keep_ids.append(unavailable.id)
 
         db.session.commit()
         print(
             "Done.\n"
             "  Student: student@luma.com / Student123!  → Kalhara\n"
-            "  Teacher: teacher@luma.com / Teacher123!  → Mrs. Nayanaransi"
+            "  Teacher: teacher@luma.com / Teacher123!  → Mrs. Nayanaransi\n"
+            "  Open http://localhost:5173/student/analytics for the screenshot\n"
+            "  (Average focus + Monitoring coverage stats; Camera Calibration Labs shows focus unavailable)"
         )
 
 

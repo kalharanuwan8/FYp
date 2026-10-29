@@ -1,0 +1,20 @@
+{
+  "test_id": "ST-04-admin-stats",
+  "fr": "no FR text yet",
+  "steps": "admin GET /api/admin/dashboard/stats",
+  "expected": "200",
+  "http_status": 200,
+  "body": {
+    "active_sessions": 2,
+    "note": null,
+    "storage_used_mb": 49.68,
+    "total_admins": 2,
+    "total_courses": 9,
+    "total_students": 7,
+    "total_teachers": 2,
+    "total_users": 11
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:08.785838+00:00"
+}

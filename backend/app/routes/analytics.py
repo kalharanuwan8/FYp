@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
@@ -14,11 +14,28 @@ from app.db_models import (
     QuizAttempt,
     LearningSession,
 )
+from app.services.analytics_service import AnalyticsService
 from app.services.focus_metrics import average_coverage_pct, average_focus_percentage
 from app.services.observation_coverage import FOCUS_METRIC_VERSION
 from app.utils.decorators import role_required
 
 analytics_bp = Blueprint("analytics", __name__)
+
+
+def _teacher_can_view_student(teacher: Teacher, student_id: int) -> bool:
+    subject_ids = [
+        ts.subject_id
+        for ts in TeacherSubject.query.filter_by(teacher_id=teacher.id).all()
+    ]
+    if not subject_ids:
+        return False
+    return (
+        Enrollment.query.filter(
+            Enrollment.student_id == student_id,
+            Enrollment.subject_id.in_(subject_ids),
+        ).first()
+        is not None
+    )
 
 
 @analytics_bp.route("/teacher", methods=["GET"])
@@ -189,6 +206,77 @@ def get_student_analytics():
         "completed_quizzes": len(attempts),
         "subject_progress": subject_progress,
     }), 200
+
+
+@analytics_bp.route("/teacher/students", methods=["GET"])
+@jwt_required()
+@role_required("teacher")
+def list_teacher_students():
+    """Students enrolled in any subject assigned to this teacher."""
+    user_id = int(get_jwt_identity())
+    teacher = Teacher.query.filter_by(user_id=user_id).first()
+    if not teacher:
+        return jsonify({"error": "Teacher profile not found"}), 403
+
+    subject_ids = [
+        ts.subject_id
+        for ts in TeacherSubject.query.filter_by(teacher_id=teacher.id).all()
+    ]
+    if not subject_ids:
+        return jsonify({"students": []}), 200
+
+    enrollments = Enrollment.query.filter(Enrollment.subject_id.in_(subject_ids)).all()
+    by_student = {}
+    for e in enrollments:
+        by_student.setdefault(e.student_id, set()).add(e.subject_id)
+
+    students = []
+    for sid, sub_ids in by_student.items():
+        student = db.session.get(Student, sid)
+        if not student:
+            continue
+        user = db.session.get(User, student.user_id)
+        students.append(
+            {
+                "student_id": sid,
+                "name": (
+                    f"{user.first_name} {user.last_name}".strip() if user else f"Student {sid}"
+                ),
+                "email": user.email if user else None,
+                "subject_ids": sorted(sub_ids),
+            }
+        )
+    students.sort(key=lambda s: (s["name"] or "").lower())
+    return jsonify({"students": students}), 200
+
+
+@analytics_bp.route("/teacher/students/<int:student_id>/dsm-profile", methods=["GET"])
+@jwt_required()
+@role_required("teacher")
+def get_teacher_student_dsm_profile(student_id):
+    user_id = int(get_jwt_identity())
+    teacher = Teacher.query.filter_by(user_id=user_id).first()
+    if not teacher:
+        return jsonify({"error": "Teacher profile not found"}), 403
+
+    student = db.session.get(Student, student_id)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+
+    if not _teacher_can_view_student(teacher, student_id):
+        return jsonify(
+            {"error": "Forbidden: student is not enrolled in your subjects"}
+        ), 403
+
+    days = request.args.get("days", default=7, type=int) or 7
+    days = max(1, min(int(days), 90))
+    profile = AnalyticsService.dsm_profile(student_id=student_id, days=days)
+    user = db.session.get(User, student.user_id)
+    profile["student_name"] = (
+        f"{user.first_name} {user.last_name}".strip() if user else None
+    )
+    profile["student_email"] = user.email if user else None
+    return jsonify(profile), 200
 
 
 @analytics_bp.route("/admin", methods=["GET"])

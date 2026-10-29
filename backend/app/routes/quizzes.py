@@ -38,10 +38,13 @@ def serialize_quiz_for_user(quiz, reveal_answers: bool):
             "question_text": q.question_text,
             "question_type": q.question_type,
             "sequence_order": q.sequence_order,
+            "difficulty": getattr(q, "difficulty", None) or "medium",
+            "has_hint": bool((getattr(q, "hint_text", None) or "").strip()),
             "created_at": q.created_at.isoformat() if q.created_at else None,
         }
         if reveal_answers:
             q_dict["correct_answer_text"] = q.correct_answer_text
+            q_dict["hint_text"] = getattr(q, "hint_text", None)
 
         options_list = []
         for opt in q.options:
@@ -85,7 +88,8 @@ def create_quiz(module_id):
         # 1. Create Quiz
         new_quiz = Quiz(
             module_id=module_id,
-            title=data.title
+            title=data.title,
+            time_limit_minutes=data.time_limit_minutes,
         )
         db.session.add(new_quiz)
         db.session.flush()
@@ -97,7 +101,9 @@ def create_quiz(module_id):
                 question_text=q_data.question_text,
                 question_type=q_data.question_type,
                 correct_answer_text=q_data.correct_answer_text,
-                sequence_order=idx
+                sequence_order=idx,
+                difficulty=q_data.difficulty or "medium",
+                hint_text=(q_data.hint_text or None),
             )
             db.session.add(new_question)
             db.session.flush()
@@ -293,15 +299,33 @@ def submit_quiz_attempt(attempt_id):
             if is_correct:
                 correct_count += 1
 
-            new_answer = QuizAnswer(
-                attempt_id=attempt.id,
-                question_id=question.id,
-                selected_option_id=ans_data.selected_option_id,
-                answer_text=ans_data.answer_text,
-                is_correct=is_correct,
-                answered_at=datetime.utcnow()
-            )
-            db.session.add(new_answer)
+            hint_used = bool(getattr(ans_data, "hint_used", False))
+            response_ms = getattr(ans_data, "response_ms", None)
+            existing = QuizAnswer.query.filter_by(
+                attempt_id=attempt.id, question_id=question.id
+            ).first()
+            if existing:
+                # Merge hint stub created by GET .../hint into the final answer.
+                existing.selected_option_id = ans_data.selected_option_id
+                existing.answer_text = ans_data.answer_text
+                existing.is_correct = is_correct
+                existing.answered_at = datetime.utcnow()
+                existing.hint_used = bool(existing.hint_used) or hint_used
+                if response_ms is not None:
+                    existing.response_ms = response_ms
+            else:
+                db.session.add(
+                    QuizAnswer(
+                        attempt_id=attempt.id,
+                        question_id=question.id,
+                        selected_option_id=ans_data.selected_option_id,
+                        answer_text=ans_data.answer_text,
+                        is_correct=is_correct,
+                        answered_at=datetime.utcnow(),
+                        hint_used=hint_used,
+                        response_ms=response_ms,
+                    )
+                )
 
         # Calculate final percentage score
         score = round((correct_count / float(total_questions)) * 100.0, 2)
@@ -348,6 +372,61 @@ def submit_quiz_attempt(attempt_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to grade quiz attempt"}), 500
+
+
+@quizzes_bp.route(
+    "/attempts/<int:attempt_id>/questions/<int:question_id>/hint",
+    methods=["GET"],
+)
+@jwt_required()
+@role_required("student")
+def get_question_hint(attempt_id, question_id):
+    """Reveal teacher hint for one question; marks hint_used on a stub answer row."""
+    attempt = db.session.get(QuizAttempt, attempt_id)
+    if not attempt:
+        return jsonify({"error": "Quiz attempt not found"}), 404
+
+    user_id = int(get_jwt_identity())
+    student = Student.query.filter_by(user_id=user_id).first()
+    if not student or attempt.student_id != student.id:
+        return jsonify({"error": "Forbidden: You do not own this quiz attempt"}), 403
+
+    if attempt.completed_at is not None:
+        return jsonify({"error": "Quiz attempt already submitted"}), 400
+
+    question = db.session.get(QuizQuestion, question_id)
+    if not question or question.quiz_id != attempt.quiz_id:
+        return jsonify({"error": "Question not found on this quiz"}), 404
+
+    hint = (question.hint_text or "").strip()
+    if not hint:
+        return jsonify({"error": "No hint available for this question"}), 404
+
+    # Persist hint_used even before final submit via a lightweight answer stub,
+    # or update an existing draft answer for this question.
+    existing = QuizAnswer.query.filter_by(
+        attempt_id=attempt.id, question_id=question.id
+    ).first()
+    if existing:
+        existing.hint_used = True
+    else:
+        db.session.add(
+            QuizAnswer(
+                attempt_id=attempt.id,
+                question_id=question.id,
+                is_correct=False,
+                hint_used=True,
+                answered_at=datetime.utcnow(),
+            )
+        )
+    db.session.commit()
+    return jsonify(
+        {
+            "question_id": question.id,
+            "hint_text": hint,
+            "hint_used": True,
+        }
+    ), 200
 
 
 @quizzes_bp.route("/remediation/<int:event_id>/choice", methods=["POST"])

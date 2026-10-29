@@ -1,0 +1,13 @@
+{
+  "test_id": "ST-06-teacher-subjects",
+  "fr": "no FR text yet",
+  "steps": "teacher GET /api/courses/subjects",
+  "expected": "200 list",
+  "http_status": 200,
+  "body": {
+    "n": 6
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:08.842923+00:00"
+}

@@ -1,0 +1,21 @@
+{
+  "test_id": "ST-11-trigger-tier1",
+  "fr": "no FR text yet",
+  "steps": "POST trigger-intervention tier=1",
+  "expected": "200 with intervention OR 400 if engine refuses",
+  "http_status": 200,
+  "body": {
+    "intervention": {
+      "intervention_id": 72,
+      "intervention_type": "ambient_cue",
+      "message": "Let's refocus together!",
+      "payload": {},
+      "tier": 1,
+      "triggered_at": "2026-10-29T11:25:21.514279"
+    },
+    "intervention_triggered": true
+  },
+  "pass": true,
+  "notes": "simulated; not a person",
+  "timestamp_utc": "2026-10-29T11:25:21.537353+00:00"
+}

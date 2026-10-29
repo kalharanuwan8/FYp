@@ -1,0 +1,15 @@
+{
+  "test_id": "ST-10-heartbeat",
+  "fr": "no FR text yet",
+  "steps": "POST heartbeat with 1x1 JPEG",
+  "expected": "200 with verdict",
+  "http_status": 200,
+  "body": {
+    "verdict": "UNKNOWN",
+    "ml_mode": "partial",
+    "ms": 551.54
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.487684+00:00"
+}

@@ -1,0 +1,18 @@
+{
+  "test_id": "ST-09-session-start",
+  "fr": "no FR text yet",
+  "steps": "student POST /api/session/start monitored",
+  "expected": "201/200 with session_id OR 403 without consent",
+  "http_status": 201,
+  "body": {
+    "is_monitored": true,
+    "message": "Learning session started successfully",
+    "module_id": 9,
+    "session_id": 114,
+    "start_time": "2026-10-29T11:25:08.436249",
+    "student_id": 6
+  },
+  "pass": true,
+  "notes": "403 means consent gate fired",
+  "timestamp_utc": "2026-10-29T11:25:20.932996+00:00"
+}

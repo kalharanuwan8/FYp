@@ -1,0 +1,179 @@
+{
+  "api": "http://127.0.0.1:5000",
+  "generated_at": "2026-10-29T11:25:29.823565+00:00",
+  "results": [
+    {
+      "id": "ST-01-admin",
+      "fr": "no FR text yet",
+      "expected": "200 + access token",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-01-admin.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-01-teacher",
+      "fr": "no FR text yet",
+      "expected": "200 + access token",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-01-teacher.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-01-student",
+      "fr": "no FR text yet",
+      "expected": "200 + access token",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-01-student.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-02-student-blocked-teacher",
+      "fr": "no FR text yet",
+      "expected": "403 (or 401)",
+      "actual": "HTTP 403",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-02-student-blocked-teacher.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-03-student-blocked-admin",
+      "fr": "no FR text yet",
+      "expected": "403 (or 401)",
+      "actual": "HTTP 403",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-03-student-blocked-admin.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-04-admin-stats",
+      "fr": "no FR text yet",
+      "expected": "200",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-04-admin-stats.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-05-admin-settings",
+      "fr": "FR-ADM-05 (chapter6 label)",
+      "expected": "200",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-05-admin-settings.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-06-teacher-subjects",
+      "fr": "no FR text yet",
+      "expected": "200 list",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-06-teacher-subjects.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-07-ai-generate-pack",
+      "fr": "no FR text yet",
+      "expected": "200/201 success OR documented offline 503/502/400/500",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-07-ai-generate-pack.json",
+      "notes": "observed_status=200; LLM path recorded as-is"
+    },
+    {
+      "id": "ST-08-student-enrollments",
+      "fr": "no FR text yet",
+      "expected": "200",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-08-student-enrollments.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-09-session-start",
+      "fr": "no FR text yet",
+      "expected": "201/200 with session_id OR 403 without consent",
+      "actual": "HTTP 201",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-09-session-start.json",
+      "notes": "403 means consent gate fired"
+    },
+    {
+      "id": "ST-10-heartbeat",
+      "fr": "no FR text yet",
+      "expected": "200 with verdict",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-10-heartbeat.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-11-trigger-tier1",
+      "fr": "no FR text yet",
+      "expected": "200 with intervention OR 400 if engine refuses",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-11-trigger-tier1.json",
+      "notes": "simulated; not a person"
+    },
+    {
+      "id": "ST-12-session-stop",
+      "fr": "no FR text yet",
+      "expected": "200 with focus_percentage / monitoring_coverage_pct fields present (may be null)",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-12-session-stop.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-13-repeat-stop-xp",
+      "fr": "no FR text yet",
+      "expected": "200; does not double-award XP",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-13-repeat-stop-xp.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-14-preferences",
+      "fr": "no FR text yet",
+      "expected": "theme persists as sage",
+      "actual": "HTTP 200",
+      "pass": false,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-14-preferences.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-15-student-analytics",
+      "fr": "no FR text yet",
+      "expected": "200",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-15-student-analytics.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-16-unauthenticated",
+      "fr": "no FR text yet",
+      "expected": "401",
+      "actual": "HTTP 401",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-16-unauthenticated.json",
+      "notes": ""
+    },
+    {
+      "id": "ST-17-perf-login-20",
+      "fr": "NFR performance",
+      "expected": "all 200; median/p95 recorded",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-17-perf-login-20.json",
+      "notes": ""
+    }
+  ],
+  "pass": 18,
+  "fail": 1
+}

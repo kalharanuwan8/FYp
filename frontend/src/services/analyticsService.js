@@ -15,6 +15,19 @@ export const analyticsService = {
     const response = await api.get('/analytics/admin');
     return response.data;
   },
+
+  listTeacherStudents: async () => {
+    const response = await api.get('/analytics/teacher/students');
+    return response.data;
+  },
+
+  getTeacherStudentDsmProfile: async (studentId, days = 7) => {
+    const response = await api.get(
+      `/analytics/teacher/students/${studentId}/dsm-profile`,
+      { params: { days } }
+    );
+    return response.data;
+  },
 };
 
 export default analyticsService;

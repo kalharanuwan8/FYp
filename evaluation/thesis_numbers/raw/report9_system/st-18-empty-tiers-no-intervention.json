@@ -1,0 +1,71 @@
+{
+  "test_id": "ST-18-empty-tiers-no-intervention",
+  "fr": "no FR text yet",
+  "steps": "teacher PATCH enabled_tiers=[]; new monitored session; trigger tiers 1\u20134 (simulated)",
+  "expected": "config enabled_tiers=[]; each trigger has intervention_triggered false / no intervention payload",
+  "http_status": 200,
+  "body": {
+    "subject_id": 10,
+    "module_id": 9,
+    "session_id": 136,
+    "config_after_disable": {
+      "enabled_tiers": [],
+      "id": 5,
+      "subject_id": 10,
+      "tier1_enabled": false,
+      "tier2_enabled": false,
+      "tier3_enabled": false,
+      "tier4_enabled": false,
+      "updated_at": "2026-10-29T13:04:58.755990"
+    },
+    "triggers": [
+      {
+        "tier": 1,
+        "status": 409,
+        "intervention_triggered": false,
+        "intervention": null,
+        "error": "Cannot trigger intervention while another is pending, or tier is disabled"
+      },
+      {
+        "tier": 2,
+        "status": 409,
+        "intervention_triggered": false,
+        "intervention": null,
+        "error": "Cannot trigger intervention while another is pending, or tier is disabled"
+      },
+      {
+        "tier": 3,
+        "status": 409,
+        "intervention_triggered": false,
+        "intervention": null,
+        "error": "Cannot trigger intervention while another is pending, or tier is disabled"
+      },
+      {
+        "tier": 4,
+        "status": 409,
+        "intervention_triggered": false,
+        "intervention": null,
+        "error": "Cannot trigger intervention while another is pending, or tier is disabled"
+      }
+    ],
+    "config_restored_status": 200,
+    "config_restored": {
+      "enabled_tiers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "id": 5,
+      "subject_id": 10,
+      "tier1_enabled": true,
+      "tier2_enabled": true,
+      "tier3_enabled": true,
+      "tier4_enabled": true,
+      "updated_at": "2026-10-29T13:04:58.989948"
+    }
+  },
+  "pass": true,
+  "notes": "simulated triggers, not a person; tiers restored after case",
+  "timestamp_utc": "2026-10-29T13:04:58.994505+00:00"
+}

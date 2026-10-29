@@ -19,6 +19,7 @@ import CourseList from './pages/teacher/CourseList';
 import CourseEditor from './pages/teacher/CourseEditor';
 import TeacherAnalytics from './pages/teacher/TeacherAnalytics';
 import TeacherStudents from './pages/teacher/TeacherStudents';
+import TeacherStudentAnalytics from './pages/teacher/StudentAnalytics';
 
 import StudentLayout from './components/student/StudentLayout';
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -64,6 +65,10 @@ export function App() {
                   <Route path="/teacher/courses/:id" element={<CourseEditor />} />
                   <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
                   <Route path="/teacher/students" element={<TeacherStudents />} />
+                  <Route
+                    path="/teacher/students/:studentId/analytics"
+                    element={<TeacherStudentAnalytics />}
+                  />
                   <Route path="/teacher/settings" element={<SettingsPage />} />
                 </Route>
               </Route>

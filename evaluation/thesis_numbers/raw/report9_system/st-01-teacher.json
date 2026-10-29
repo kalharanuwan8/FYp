@@ -1,0 +1,17 @@
+{
+  "test_id": "ST-01-teacher",
+  "fr": "no FR text yet",
+  "steps": "POST /api/auth/login as teacher",
+  "expected": "200 + access token",
+  "http_status": 200,
+  "body": {
+    "has_token": true,
+    "keys": [
+      "access_token",
+      "user"
+    ]
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:07.421071+00:00"
+}

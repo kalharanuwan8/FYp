@@ -1,0 +1,132 @@
+{
+  "test_id": "ST-13-repeat-stop-xp",
+  "fr": "no FR text yet",
+  "steps": "POST stop again on same session",
+  "expected": "200; does not double-award XP",
+  "http_status": 200,
+  "body": {
+    "first_xp_awarded": null,
+    "second": {
+      "distraction_events": 0,
+      "duration_seconds": 13,
+      "end_time": "2026-10-29T11:25:21.567514",
+      "focus_metric_version": "observed_v1",
+      "focus_minutes": 0,
+      "focus_percentage": null,
+      "focused_events": 0,
+      "message": "Learning session completed",
+      "monitoring_coverage_pct": 0.0,
+      "new_badges": [],
+      "observed_distracted_seconds": 0.0,
+      "observed_focused_seconds": 0.0,
+      "progress": {
+        "badge_catalog": [
+          {
+            "code": "first_session",
+            "description": "Completed your first focus session",
+            "earned": true,
+            "icon": "\ud83c\udf31",
+            "id": 66,
+            "name": "First Focus"
+          },
+          {
+            "code": "streak_3",
+            "description": "Kept a 3-day focus streak",
+            "earned": true,
+            "icon": "\ud83d\udd25",
+            "id": 67,
+            "name": "On a Roll"
+          },
+          {
+            "code": "focus_60",
+            "description": "Logged 60 focused minutes in total",
+            "earned": true,
+            "icon": "\u23f1\ufe0f",
+            "id": 68,
+            "name": "Hour Hero"
+          },
+          {
+            "code": "quiz_ace",
+            "description": "Got every answer right on a quiz",
+            "earned": true,
+            "icon": "\ud83c\udfaf",
+            "id": 69,
+            "name": "Quiz Ace"
+          },
+          {
+            "code": "streak_7",
+            "description": "Kept a 7-day focus streak",
+            "earned": false,
+            "icon": "\ud83d\udcab",
+            "id": 70,
+            "name": "Week Warrior"
+          }
+        ],
+        "badges": [
+          {
+            "badge": {
+              "code": "focus_60",
+              "description": "Logged 60 focused minutes in total",
+              "icon": "\u23f1\ufe0f",
+              "id": 68,
+              "name": "Hour Hero"
+            },
+            "earned_at": "2026-10-29T11:25:21.732576",
+            "id": 5
+          },
+          {
+            "badge": {
+              "code": "streak_3",
+              "description": "Kept a 3-day focus streak",
+              "icon": "\ud83d\udd25",
+              "id": 67,
+              "name": "On a Roll"
+            },
+            "earned_at": "2026-10-29T11:25:21.724177",
+            "id": 4
+          },
+          {
+            "badge": {
+              "code": "first_session",
+              "description": "Completed your first focus session",
+              "icon": "\ud83c\udf31",
+              "id": 66,
+              "name": "First Focus"
+            },
+            "earned_at": "2026-10-26T04:18:03.288951",
+            "id": 2
+          },
+          {
+            "badge": {
+              "code": "quiz_ace",
+              "description": "Got every answer right on a quiz",
+              "icon": "\ud83c\udfaf",
+              "id": 69,
+              "name": "Quiz Ace"
+            },
+            "earned_at": "2026-10-22T12:18:03.267747",
+            "id": 1
+          }
+        ],
+        "current_streak": 4,
+        "daily_goal_minutes": 20,
+        "last_active_date": "2026-10-29",
+        "level": 2,
+        "longest_streak": 7,
+        "today_focus_minutes": 12,
+        "total_focus_minutes": 180,
+        "xp": 245,
+        "xp_to_next_level": 155
+      },
+      "session_id": 114,
+      "start_time": "2026-10-29T11:25:08.436249",
+      "total_events": 0,
+      "total_interventions": 1,
+      "unknown_seconds": 13.131,
+      "xp_gained": 0
+    }
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.790400+00:00"
+}

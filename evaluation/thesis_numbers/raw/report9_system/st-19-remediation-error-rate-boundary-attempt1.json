@@ -1,0 +1,47 @@
+{
+  "test_id": "ST-19-remediation-error-rate-boundary",
+  "fr": "no FR text yet",
+  "steps": "teacher creates 2-question quiz on video module; student submits all-wrong then 50%",
+  "expected": ">50% wrong \u2192 remediation offer; exactly 50% \u2192 remediation null/absent",
+  "http_status": 201,
+  "body": {
+    "module_id": 9,
+    "quiz_create_status": 201,
+    "quiz_id": 6,
+    "gt50": {
+      "attempt_status": 201,
+      "submit_status": 200,
+      "correct_count": 0,
+      "total_questions": 2,
+      "score": 0.0,
+      "remediation": {
+        "error_rate": 1.0,
+        "event_id": 2,
+        "focus_percentage": null,
+        "monitoring_coverage_pct": 0.0,
+        "offers": [
+          {
+            "content_id": 9,
+            "content_type": "document",
+            "file_url": null,
+            "kind": "alternative_material",
+            "title": "Introduction to UX Thinking"
+          }
+        ],
+        "path": "different_format",
+        "reason": "insufficient_monitoring"
+      }
+    },
+    "eq50": {
+      "attempt_status": 403,
+      "submit_status": 404,
+      "correct_count": null,
+      "total_questions": null,
+      "score": null,
+      "remediation": null
+    }
+  },
+  "pass": false,
+  "notes": "threshold is strict greater-than 0.50; module must contain video",
+  "timestamp_utc": "2026-10-29T13:03:45.067261+00:00"
+}

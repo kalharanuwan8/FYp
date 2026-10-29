@@ -1,0 +1,50 @@
+{
+  "test_id": "ST-07-ai-generate-pack",
+  "fr": "no FR text yet",
+  "steps": "teacher POST /api/courses/materials/generate-pack",
+  "expected": "200/201 success OR documented offline 503/502/400/500",
+  "http_status": 200,
+  "body": {
+    "milestones": [
+      {
+        "correct_option": 1,
+        "hint_text": null,
+        "options": [
+          "A number that shows all the things you have",
+          "A number that shows part of a whole",
+          "A way to count how many things you have",
+          "A way to show equal parts"
+        ],
+        "question": "What is a fraction?",
+        "sequence_order": 1
+      },
+      {
+        "correct_option": 0,
+        "hint_text": null,
+        "options": [
+          "Three out of four equal parts",
+          "Four out of three equal parts",
+          "One and a quarter parts",
+          "Two and three quarters"
+        ],
+        "question": "What does the number 3/4 mean?",
+        "sequence_order": 2
+      },
+      {
+        "correct_option": 2,
+        "hint_text": null,
+        "options": [
+          "Because we use them to play games",
+          "Because they help us tell time",
+          "Because they show part of a whole, like pizza slices or money"
+        ],
+        "question": "Why are fractions important in real life?",
+        "sequence_order": 3
+      }
+    ],
+    "summary": "Fractions are numbers that show part of a whole. For example, 1/2 means one out of two equal parts. We can use fractions to represent pizza slices, money, and time."
+  },
+  "pass": true,
+  "notes": "observed_status=200; LLM path recorded as-is",
+  "timestamp_utc": "2026-10-29T11:25:08.192161+00:00"
+}

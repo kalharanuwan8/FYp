@@ -1,0 +1,52 @@
+{
+  "test_id": "ST-19-remediation-error-rate-boundary",
+  "fr": "no FR text yet",
+  "steps": "two quizzes on video module (single-attempt policy); all-wrong vs 1/2 correct",
+  "expected": ">50% wrong \u2192 remediation offer; exactly 50% \u2192 remediation null/absent",
+  "http_status": 201,
+  "body": {
+    "module_id": 9,
+    "gt50_create_status": 201,
+    "eq50_create_status": 201,
+    "gt50": {
+      "quiz_id": 7,
+      "attempt_status": 201,
+      "submit_status": 200,
+      "correct_count": 0,
+      "total_questions": 2,
+      "score": 0.0,
+      "remediation": {
+        "error_rate": 1.0,
+        "event_id": 3,
+        "focus_percentage": null,
+        "monitoring_coverage_pct": 0.0,
+        "offers": [
+          {
+            "content_id": 9,
+            "content_type": "document",
+            "file_url": null,
+            "kind": "alternative_material",
+            "title": "Introduction to UX Thinking"
+          }
+        ],
+        "path": "different_format",
+        "reason": "insufficient_monitoring"
+      },
+      "submit_error": null
+    },
+    "eq50": {
+      "quiz_id": 8,
+      "attempt_status": 201,
+      "submit_status": 200,
+      "correct_count": 1,
+      "total_questions": 2,
+      "score": 50.0,
+      "remediation": null,
+      "submit_error": null
+    },
+    "prior_fail_note": "first Part9 attempt used one quiz; second attempt blocked by single-attempt policy (403)"
+  },
+  "pass": true,
+  "notes": "threshold is strict greater-than 0.50; module must contain video; two quizzes required",
+  "timestamp_utc": "2026-10-29T13:04:59.979837+00:00"
+}

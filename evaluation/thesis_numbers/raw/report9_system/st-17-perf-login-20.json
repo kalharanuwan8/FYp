@@ -1,0 +1,18 @@
+{
+  "test_id": "ST-17-perf-login-20",
+  "fr": "NFR performance",
+  "steps": "20 login requests",
+  "expected": "all 200; median/p95 recorded",
+  "http_status": 200,
+  "body": {
+    "endpoint": "POST /api/auth/login",
+    "n": 20,
+    "median_ms": 381.5108999842778,
+    "p95_ms": 487.5759999267757,
+    "min_ms": 309.7732001915574,
+    "max_ms": 605.5075000040233
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:29.822564+00:00"
+}

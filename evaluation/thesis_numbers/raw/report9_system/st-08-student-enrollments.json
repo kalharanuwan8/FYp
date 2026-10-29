@@ -1,0 +1,13 @@
+{
+  "test_id": "ST-08-student-enrollments",
+  "fr": "no FR text yet",
+  "steps": "student GET /api/courses/my-enrollments",
+  "expected": "200",
+  "http_status": 200,
+  "body": {
+    "n": 2
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:08.307219+00:00"
+}

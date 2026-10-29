@@ -1,0 +1,37 @@
+{
+  "test_id": "ST-15-student-analytics",
+  "fr": "no FR text yet",
+  "steps": "GET /api/analytics/student",
+  "expected": "200",
+  "http_status": 200,
+  "body": {
+    "avg_focus_percentage": 64.9,
+    "avg_monitoring_coverage_pct": 47.5,
+    "avg_quiz_score": 50.0,
+    "completed_quizzes": 2,
+    "focus_metric_version": "observed_v1",
+    "subject_progress": [
+      {
+        "avg_focus_percentage": 64.9,
+        "avg_monitoring_coverage_pct": 63.3,
+        "grade_level_name": "Grade 12",
+        "sessions_count": 6,
+        "subject_id": 10,
+        "title": "UI/UX Engineering"
+      },
+      {
+        "avg_focus_percentage": null,
+        "avg_monitoring_coverage_pct": 0.0,
+        "grade_level_name": "Grade 12",
+        "sessions_count": 2,
+        "subject_id": 13,
+        "title": "Camera Calibration Labs"
+      }
+    ],
+    "total_sessions": 8,
+    "total_study_minutes": 47.2
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.949668+00:00"
+}

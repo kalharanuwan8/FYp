@@ -1,0 +1,35 @@
+{
+  "api": "http://127.0.0.1:5000",
+  "generated_at": "2026-10-29T13:04:59.979837+00:00",
+  "results": [
+    {
+      "id": "ST-14-preferences-rerun",
+      "fr": "no FR text yet",
+      "expected": "ui_preferences.theme=calm-dark and reduceMotion=true after reload",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-14-preferences-rerun.json",
+      "notes": "Original ST-14 fail was test-defect top-level theme payload; see st-14-preferences-original-fail.json"
+    },
+    {
+      "id": "ST-18-empty-tiers-no-intervention",
+      "fr": "no FR text yet",
+      "expected": "config enabled_tiers=[]; each trigger has intervention_triggered false / no intervention payload",
+      "actual": "HTTP 200",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-18-empty-tiers-no-intervention.json",
+      "notes": "simulated triggers, not a person; tiers restored after case"
+    },
+    {
+      "id": "ST-19-remediation-error-rate-boundary",
+      "fr": "no FR text yet",
+      "expected": ">50% wrong \u2192 remediation offer; exactly 50% \u2192 remediation null/absent",
+      "actual": "HTTP 201",
+      "pass": true,
+      "evidence": "evaluation\\thesis_numbers\\raw\\report9_system\\st-19-remediation-error-rate-boundary.json",
+      "notes": "threshold is strict greater-than 0.50; module must contain video; two quizzes required"
+    }
+  ],
+  "pass": 3,
+  "fail": 0
+}

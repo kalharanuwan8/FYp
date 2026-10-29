@@ -6,6 +6,8 @@ const createEmptyQuestion = () => ({
   question_text: '',
   question_type: 'multiple_choice',
   correct_answer_text: '',
+  difficulty: 'medium',
+  hint_text: '',
   options: [
     { option_text: '', is_correct: true },
     { option_text: '', is_correct: false },
@@ -14,6 +16,7 @@ const createEmptyQuestion = () => ({
 
 export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
   const [title, setTitle] = useState('');
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState('');
   const [questions, setQuestions] = useState([createEmptyQuestion()]);
 
   const [loading, setLoading] = useState(false);
@@ -23,6 +26,7 @@ export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
 
   const handleResetAndClose = () => {
     setTitle('');
+    setTimeLimitMinutes('');
     setQuestions([createEmptyQuestion()]);
     setError(null);
     setLoading(false);
@@ -45,6 +49,12 @@ export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
   const updateQuestionText = (qIdx, text) => {
     setQuestions((prev) =>
       prev.map((q, i) => (i !== qIdx ? q : { ...q, question_text: text }))
+    );
+  };
+
+  const updateQuestionField = (qIdx, field, value) => {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i !== qIdx ? q : { ...q, [field]: value }))
     );
   };
 
@@ -171,25 +181,34 @@ export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
 
     setLoading(true);
 
+    const limitParsed = timeLimitMinutes.trim()
+      ? parseInt(timeLimitMinutes, 10)
+      : null;
     const payload = {
       title: title.trim(),
+      time_limit_minutes:
+        limitParsed && !Number.isNaN(limitParsed) ? limitParsed : null,
       questions: questions.map((q) => {
+        const shared = {
+          question_text: q.question_text.trim(),
+          difficulty: q.difficulty || 'medium',
+          hint_text: (q.hint_text || '').trim() || null,
+        };
         if (q.question_type === 'multiple_choice') {
           return {
-            question_text: q.question_text.trim(),
+            ...shared,
             question_type: 'multiple_choice',
             options: q.options.map((opt) => ({
               option_text: opt.option_text.trim(),
               is_correct: opt.is_correct,
             })),
           };
-        } else {
-          return {
-            question_text: q.question_text.trim(),
-            question_type: 'short_answer',
-            correct_answer_text: q.correct_answer_text.trim(),
-          };
         }
+        return {
+          ...shared,
+          question_type: 'short_answer',
+          correct_answer_text: q.correct_answer_text.trim(),
+        };
       }),
     };
 
@@ -260,6 +279,21 @@ export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
             />
           </div>
 
+          <div>
+            <label className="block font-bold text-text uppercase tracking-wider mb-1">
+              Time limit (minutes)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={240}
+              value={timeLimitMinutes}
+              onChange={(e) => setTimeLimitMinutes(e.target.value)}
+              placeholder="e.g. 20 — used for overtime / fails-to-finish"
+              className="w-full bg-bg border border-border focus:border-primary focus:bg-surface focus:outline-none rounded-lg p-2.5 text-text text-sm font-medium"
+            />
+          </div>
+
           {/* Questions Container */}
           <div className="space-y-6 pt-2">
             <div className="flex items-center justify-between">
@@ -317,6 +351,33 @@ export const CreateQuizModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
                     placeholder="Enter the question for students..."
                     className="w-full bg-surface border border-border focus:border-primary focus:outline-none rounded-lg p-2.5 text-text"
                   />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-text-muted mb-1">Difficulty</label>
+                    <select
+                      value={q.difficulty || 'medium'}
+                      onChange={(e) => updateQuestionField(qIdx, 'difficulty', e.target.value)}
+                      className="w-full bg-surface border border-border rounded-lg px-2.5 py-2 text-xs font-semibold text-text"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-text-muted mb-1">
+                      Hint (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={q.hint_text || ''}
+                      onChange={(e) => updateQuestionField(qIdx, 'hint_text', e.target.value)}
+                      placeholder="Shown only when the student asks"
+                      className="w-full bg-surface border border-border rounded-lg p-2.5 text-text"
+                    />
+                  </div>
                 </div>
 
                 {/* Question Type Specific Body */}

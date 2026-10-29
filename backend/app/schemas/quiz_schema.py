@@ -11,6 +11,8 @@ class QuestionCreateSchema(BaseModel):
     sequence_order: int = Field(1, ge=1)
     correct_answer_text: Optional[str] = None
     options: Optional[List[OptionCreateSchema]] = None
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
+    hint_text: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_question_type_requirements(self):
@@ -28,12 +30,15 @@ class QuestionCreateSchema(BaseModel):
 
 class QuizCreateSchema(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
+    time_limit_minutes: Optional[int] = Field(None, ge=1, le=240)
     questions: List[QuestionCreateSchema] = Field(..., min_length=1)
 
 class AnswerSubmitSchema(BaseModel):
     question_id: int
     selected_option_id: Optional[int] = None
     answer_text: Optional[str] = None
+    hint_used: bool = False
+    response_ms: Optional[int] = Field(None, ge=0)
 
 class AttemptSubmitSchema(BaseModel):
     answers: List[AnswerSubmitSchema] = Field(..., min_length=1)

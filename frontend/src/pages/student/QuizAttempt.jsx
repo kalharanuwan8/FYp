@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Play } from 'lucide-react';
+import { ArrowLeft, Check, Play, Lightbulb } from 'lucide-react';
 import { quizService } from '../../services/quizService';
 import WebcamCapture from '../../components/monitoring/WebcamCapture';
 import InterventionOverlay from '../../components/intervention/InterventionOverlay';
 import { useMonitoringSession } from '../../hooks/useMonitoringSession';
+import { useIdleTracker } from '../../hooks/useIdleTracker';
 import { usePreferences } from '../../context/PreferencesContext';
 import { celebrateIfAllowed } from '../../utils/celebrate';
 import { Button, Card, LoadingSpinner, ErrorBanner, XPChip } from '../../components/common';
@@ -29,6 +30,15 @@ export default function QuizAttempt() {
   const [remediationChoice, setRemediationChoice] = useState(null);
   const [remediationBusy, setRemediationBusy] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
+  const [revealedHints, setRevealedHints] = useState({});
+  const [hintBusy, setHintBusy] = useState(false);
+  const questionStartedAtRef = useRef(Date.now());
+
+  useIdleTracker({
+    enabled: phase === 'in_progress' && !!attemptId,
+    context: 'quiz',
+    quizAttemptId: attemptId,
+  });
 
   const onIntervention = useCallback((intervention) => {
     setActiveIntervention(intervention);
@@ -152,22 +162,77 @@ export default function QuizAttempt() {
     setFeedback({ type: 'gentle', text: 'Monitoring stopped. You can finish the quiz as normal.' });
   };
 
+  const stampResponseMs = (questionId) => {
+    const elapsed = Math.max(0, Date.now() - questionStartedAtRef.current);
+    setAnswers((prev) => {
+      const cur = prev[questionId] || { question_id: questionId };
+      return {
+        ...prev,
+        [questionId]: { ...cur, question_id: questionId, response_ms: elapsed },
+      };
+    });
+    return elapsed;
+  };
+
+  useEffect(() => {
+    if (phase !== 'in_progress' || !current) return;
+    questionStartedAtRef.current = Date.now();
+  }, [phase, qIndex, current?.id]);
+
   const selectOption = (questionId, optionId) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { question_id: questionId, selected_option_id: optionId },
-    }));
+    setAnswers((prev) => {
+      const cur = prev[questionId] || {};
+      return {
+        ...prev,
+        [questionId]: {
+          ...cur,
+          question_id: questionId,
+          selected_option_id: optionId,
+        },
+      };
+    });
     setFeedback({ type: 'gentle', text: 'Got it — tap Next when ready.' });
   };
 
   const setShortAnswer = (questionId, text) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { question_id: questionId, answer_text: text },
-    }));
+    setAnswers((prev) => {
+      const cur = prev[questionId] || {};
+      return {
+        ...prev,
+        [questionId]: {
+          ...cur,
+          question_id: questionId,
+          answer_text: text,
+        },
+      };
+    });
+  };
+
+  const requestHint = async () => {
+    if (!attemptId || !current?.id || !current.has_hint) return;
+    setHintBusy(true);
+    try {
+      const data = await quizService.getQuestionHint(attemptId, current.id);
+      setRevealedHints((prev) => ({ ...prev, [current.id]: data.hint_text }));
+      setAnswers((prev) => {
+        const cur = prev[current.id] || { question_id: current.id };
+        return {
+          ...prev,
+          [current.id]: { ...cur, question_id: current.id, hint_used: true },
+        };
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'gentle',
+        text: err.response?.data?.error || 'No hint available.',
+      });
+    } finally {
+      setHintBusy(false);
+    }
   };
 
   const goBack = () => {
+    if (current?.id) stampResponseMs(current.id);
     setFeedback(null);
     setQIndex((i) => Math.max(0, i - 1));
   };
@@ -178,6 +243,7 @@ export default function QuizAttempt() {
   }).length;
 
   const goNext = async () => {
+    if (current?.id) stampResponseMs(current.id);
     setFeedback(null);
     if (qIndex < totalQuestions - 1) {
       setQIndex((i) => i + 1);
@@ -187,8 +253,17 @@ export default function QuizAttempt() {
     if (!attemptId) return;
     setSubmitting(true);
     try {
+      const ms = current?.id
+        ? Math.max(0, Date.now() - questionStartedAtRef.current)
+        : null;
+      const payloadAnswers = Object.values(answers).map((a) => {
+        if (current?.id && a.question_id === current.id && ms != null) {
+          return { ...a, response_ms: a.response_ms ?? ms };
+        }
+        return a;
+      });
       const graded = await quizService.submitAttempt(attemptId, {
-        answers: Object.values(answers),
+        answers: payloadAnswers,
       });
       setResult(graded);
       setPhase('submitted');
@@ -322,6 +397,30 @@ export default function QuizAttempt() {
             <h2 className="font-display text-xl md:text-2xl font-bold text-text leading-snug">
               {current.question_text}
             </h2>
+
+            {current.has_hint && (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={hintBusy || !!revealedHints[current.id]}
+                  onClick={requestHint}
+                >
+                  <Lightbulb className="w-4 h-4 inline mr-1" aria-hidden="true" />
+                  {revealedHints[current.id]
+                    ? 'Hint shown'
+                    : hintBusy
+                      ? 'Loading hint…'
+                      : 'Need a hint?'}
+                </Button>
+                {revealedHints[current.id] && (
+                  <p className="text-sm text-text bg-primary-soft border border-primary/20 rounded-xl px-3 py-2">
+                    {revealedHints[current.id]}
+                  </p>
+                )}
+              </div>
+            )}
 
             {current.question_type === 'multiple_choice' ? (
               <div

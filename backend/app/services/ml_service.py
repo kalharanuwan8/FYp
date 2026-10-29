@@ -80,8 +80,12 @@ class MLService:
 
     def _init_models(self):
         self.models_dir = Path(__file__).resolve().parent.parent.parent.parent / "models"
-        if str(self.models_dir) not in sys.path:
-            sys.path.insert(0, str(self.models_dir))
+        # Repo root must be on sys.path so joblib can unpickle
+        # models.src.model6_natural.wrapper.Model6SklearnWrapper.
+        repo_root = self.models_dir.parent
+        for p in (str(repo_root), str(self.models_dir)):
+            if p not in sys.path:
+                sys.path.insert(0, p)
 
         self.device = "cpu"
         self.ml_mode = "fallback"  # "full" | "partial" | "fallback"

@@ -1,5 +1,17 @@
 {
   "confidence": 0.9,
+  "diagnostics": {
+    "distract_prob": null,
+    "face_box_px": null,
+    "fusion_threshold": null,
+    "gaze_label": null,
+    "head_pose_pitch": null,
+    "head_pose_roll": null,
+    "head_pose_yaw": null,
+    "inference_path": null,
+    "pose_baseline_pitch": null,
+    "pose_baseline_yaw": null
+  },
   "engagement_score": null,
   "face_detected": null,
   "focus_metric_version": "observed_v1",
@@ -10,7 +22,7 @@
     "message": "Let's refocus together!",
     "payload": {},
     "tier": 1,
-    "triggered_at": "2026-10-23T04:10:11.554444"
+    "triggered_at": "2026-10-29T11:20:39.447140"
   },
   "intervention_triggered": true,
   "ml_mode": null,

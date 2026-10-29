@@ -1,0 +1,13 @@
+{
+  "test_id": "ST-02-student-blocked-teacher",
+  "fr": "no FR text yet",
+  "steps": "student GET /api/analytics/teacher",
+  "expected": "403 (or 401)",
+  "http_status": 403,
+  "body": {
+    "error": "Forbidden: Insufficient privileges for this role"
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:08.709827+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "test_id": "ST-05-admin-settings",
+  "fr": "FR-ADM-05 (chapter6 label)",
+  "steps": "admin GET /api/admin/settings",
+  "expected": "200",
+  "http_status": 200,
+  "body": {
+    "data_retention_days": "90",
+    "intervention_max_cooldown_seconds": "120",
+    "intervention_min_cooldown_seconds": "30"
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:24:08.806838+00:00"
+}

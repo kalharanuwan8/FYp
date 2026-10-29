@@ -12,6 +12,8 @@ class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     module_id = db.Column(db.Integer, db.ForeignKey("modules.id"), nullable=False)
     title = db.Column(db.String(150), nullable=False)
+    # Teacher-set expected duration for DSM-3 overtime / fails-to-finish.
+    time_limit_minutes = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -26,6 +28,7 @@ class Quiz(db.Model):
             "id": self.id,
             "module_id": self.module_id,
             "title": self.title,
+            "time_limit_minutes": self.time_limit_minutes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -43,13 +46,17 @@ class QuizQuestion(db.Model):
     question_type = db.Column(db.String(15), nullable=False)  # 'multiple_choice', 'short_answer'
     correct_answer_text = db.Column(db.String(500), nullable=True)
     sequence_order = db.Column(db.Integer, nullable=False, default=1)
+    # Teacher tag for DSM-4 careless mistakes on easy items.
+    difficulty = db.Column(db.String(16), nullable=False, default="medium")
+    # Teacher-authored hint; revealed only when the student requests it.
+    hint_text = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     quiz = db.relationship("Quiz", back_populates="questions")
     options = db.relationship("QuizQuestionOption", back_populates="question", cascade="all, delete-orphan")
 
-    def to_dict(self, include_options=False):
+    def to_dict(self, include_options=False, include_hint=False):
         data = {
             "id": self.id,
             "quiz_id": self.quiz_id,
@@ -57,8 +64,12 @@ class QuizQuestion(db.Model):
             "question_type": self.question_type,
             "correct_answer_text": self.correct_answer_text,
             "sequence_order": self.sequence_order,
+            "difficulty": self.difficulty or "medium",
+            "has_hint": bool((self.hint_text or "").strip()),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        if include_hint:
+            data["hint_text"] = self.hint_text
         if include_options:
             data["options"] = [opt.to_dict() for opt in self.options]
         return data
@@ -125,6 +136,9 @@ class QuizAnswer(db.Model):
     answer_text = db.Column(db.Text, nullable=True)
     is_correct = db.Column(db.Boolean, default=False, nullable=False)
     answered_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # DSM-5 / DSM-6 evidence: teacher hint opened; time spent before answering.
+    hint_used = db.Column(db.Boolean, default=False, nullable=False)
+    response_ms = db.Column(db.Integer, nullable=True)
 
     # Relationships
     attempt = db.relationship("QuizAttempt", back_populates="answers")
@@ -139,5 +153,7 @@ class QuizAnswer(db.Model):
             "selected_option_id": self.selected_option_id,
             "answer_text": self.answer_text,
             "is_correct": self.is_correct,
+            "hint_used": bool(self.hint_used),
+            "response_ms": self.response_ms,
             "answered_at": self.answered_at.isoformat() if self.answered_at else None
         }

@@ -18,6 +18,7 @@ import { courseService } from '../../services/courseService';
 import { sessionService } from '../../services/sessionService';
 import FocusInterventionOverlay from '../../components/student/FocusInterventionOverlay';
 import VideoLearningPlayer from '../../components/student/VideoLearningPlayer';
+import DocumentReader from '../../components/student/DocumentReader';
 import WebcamCapture from '../../components/monitoring/WebcamCapture';
 import FocusBuddy from '../../components/student/FocusBuddy';
 import DemoPanel from '../../components/student/DemoPanel';
@@ -41,6 +42,7 @@ export default function SubjectDetail() {
   const [actionError, setActionError] = useState(null);
   const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
   const [activeVideoMaterial, setActiveVideoMaterial] = useState(null);
+  const [activeDocumentMaterial, setActiveDocumentMaterial] = useState(null);
   const [activeModuleTitle, setActiveModuleTitle] = useState('');
   const [sessionModule, setSessionModule] = useState(null);
   const [sessionStep, setSessionStep] = useState(null);
@@ -250,6 +252,9 @@ export default function SubjectDetail() {
       setActiveModuleTitle(mod.title);
     } else if (item.content_type === 'quiz' && item.quiz_id) {
       navigate(`/student/quizzes/${item.quiz_id}`);
+    } else if (item.content_type === 'document' || item.file_url) {
+      setActiveDocumentMaterial(item);
+      setActiveModuleTitle(mod.title);
     } else {
       window.open(resolveMediaUrl(item), '_blank');
     }
@@ -432,6 +437,13 @@ export default function SubjectDetail() {
             onClose={() => setActiveVideoMaterial(null)}
           />
         )}
+        {activeDocumentMaterial && (
+          <DocumentReader
+            material={activeDocumentMaterial}
+            fileUrl={resolveMediaUrl(activeDocumentMaterial)}
+            onClose={() => setActiveDocumentMaterial(null)}
+          />
+        )}
       </div>
     );
   }
@@ -460,6 +472,13 @@ export default function SubjectDetail() {
           material={activeVideoMaterial}
           moduleTitle={activeModuleTitle}
           onClose={() => setActiveVideoMaterial(null)}
+        />
+      )}
+      {activeDocumentMaterial && (
+        <DocumentReader
+          material={activeDocumentMaterial}
+          fileUrl={resolveMediaUrl(activeDocumentMaterial)}
+          onClose={() => setActiveDocumentMaterial(null)}
         />
       )}
 

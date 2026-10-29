@@ -1,0 +1,13 @@
+{
+  "test_id": "ST-16-unauthenticated",
+  "fr": "no FR text yet",
+  "steps": "GET /api/analytics/student without token",
+  "expected": "401",
+  "http_status": 401,
+  "body": {
+    "msg": "Missing JWT in headers or query_string (Missing Authorization Header; Missing 'token' query paramater)"
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.959768+00:00"
+}

@@ -1,0 +1,56 @@
+{
+  "test_id": "ST-14-preferences",
+  "fr": "no FR text yet",
+  "steps": "GET/PATCH/GET /api/student/profile theme",
+  "expected": "theme persists as sage",
+  "http_status": 200,
+  "body": {
+    "before": {
+      "consent_given": true,
+      "email": "student@luma.com",
+      "first_name": "Kalhara",
+      "grade_level": "Grade 12",
+      "guardian_email": "robert.smith@example.com",
+      "guardian_name": "Robert Smith",
+      "id": 6,
+      "last_name": "Smith",
+      "onboarding_completed": true,
+      "pseudonym_id": "2b92b2a3-3214-4152-9faf-64d95a810274",
+      "student_assent": true,
+      "ui_preferences": {
+        "breakIntervalMinutes": 18,
+        "reduceMotion": false,
+        "showCameraPreview": true,
+        "sounds": true,
+        "textSize": "l",
+        "theme": "calm-dark"
+      },
+      "user_id": 13
+    },
+    "after": {
+      "consent_given": true,
+      "email": "student@luma.com",
+      "first_name": "Kalhara",
+      "grade_level": "Grade 12",
+      "guardian_email": "robert.smith@example.com",
+      "guardian_name": "Robert Smith",
+      "id": 6,
+      "last_name": "Smith",
+      "onboarding_completed": true,
+      "pseudonym_id": "2b92b2a3-3214-4152-9faf-64d95a810274",
+      "student_assent": true,
+      "ui_preferences": {
+        "breakIntervalMinutes": 18,
+        "reduceMotion": false,
+        "showCameraPreview": true,
+        "sounds": true,
+        "textSize": "l",
+        "theme": "calm-dark"
+      },
+      "user_id": 13
+    }
+  },
+  "pass": false,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.887374+00:00"
+}

@@ -1,0 +1,35 @@
+{
+  "test_id": "ST-12-session-stop",
+  "fr": "no FR text yet",
+  "steps": "POST session stop",
+  "expected": "200 with focus_percentage / monitoring_coverage_pct fields present (may be null)",
+  "http_status": 200,
+  "body": {
+    "focus_percentage": null,
+    "monitoring_coverage_pct": 0.0,
+    "keys": [
+      "distraction_events",
+      "duration_seconds",
+      "end_time",
+      "focus_metric_version",
+      "focus_minutes",
+      "focus_percentage",
+      "focused_events",
+      "message",
+      "monitoring_coverage_pct",
+      "new_badges",
+      "observed_distracted_seconds",
+      "observed_focused_seconds",
+      "progress",
+      "session_id",
+      "start_time",
+      "total_events",
+      "total_interventions",
+      "unknown_seconds",
+      "xp_gained"
+    ]
+  },
+  "pass": true,
+  "notes": "",
+  "timestamp_utc": "2026-10-29T11:25:21.739520+00:00"
+}

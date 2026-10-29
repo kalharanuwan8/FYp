@@ -1,0 +1,35 @@
+{
+  "test_id": "ST-14-preferences-rerun",
+  "fr": "no FR text yet",
+  "steps": "GET/PATCH/GET profile with nested ui_preferences (PreferencesContext shape)",
+  "expected": "ui_preferences.theme=calm-dark and reduceMotion=true after reload",
+  "http_status": 200,
+  "body": {
+    "patch": {
+      "ui_preferences": {
+        "theme": "calm-dark",
+        "reduceMotion": true
+      }
+    },
+    "before_prefs": {
+      "breakIntervalMinutes": 18,
+      "reduceMotion": true,
+      "showCameraPreview": true,
+      "sounds": true,
+      "textSize": "l",
+      "theme": "sage"
+    },
+    "after_prefs": {
+      "breakIntervalMinutes": 18,
+      "reduceMotion": true,
+      "showCameraPreview": true,
+      "sounds": true,
+      "textSize": "l",
+      "theme": "calm-dark"
+    },
+    "patch_status": 200
+  },
+  "pass": true,
+  "notes": "Original ST-14 fail was test-defect top-level theme payload; see st-14-preferences-original-fail.json",
+  "timestamp_utc": "2026-10-29T13:04:58.649401+00:00"
+}
