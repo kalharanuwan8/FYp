@@ -8,6 +8,7 @@ import traceback
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from werkzeug.exceptions import HTTPException
 
 from app.config import config_by_name
 from app.extensions import db, migrate, jwt, socketio
@@ -45,8 +46,19 @@ def create_app(env=None):
         response.headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,PATCH,OPTIONS"
         return response
 
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        # 404/405 and other HTTP errors must keep their status. The catch-all
+        # below used to turn a missing route into a 500 plus a traceback.
+        response = jsonify({"error": e.name, "details": e.description})
+        response.status_code = e.code or 500
+        return response
+
     @app.errorhandler(Exception)
     def handle_exception(e):
+        if isinstance(e, HTTPException):
+            return handle_http_exception(e)
+
         traceback.print_exc()
         is_debug = app.config.get("DEBUG", False) or app.config.get("TESTING", False)
         payload = {"error": "Internal Server Error"}
@@ -56,6 +68,10 @@ def create_app(env=None):
         response = jsonify(payload)
         response.status_code = 500
         return response
+
+    @app.route("/")
+    def index():
+        return jsonify({"service": "distraction-api", "status": "ok"})
 
     # --- Import models & Ensure all DB tables exist ---
     from app.db_models import user, course, quiz, session, analytics, system_setting, gamification, remediation  # noqa: F401

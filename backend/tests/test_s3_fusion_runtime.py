@@ -70,6 +70,8 @@ def test_fusion_threshold_flips_verdict_around_mock_prob():
     MLService._instance = None
     svc = MLService()
     svc.fusion_model = _FakeFusion(0.70)
+    # Instantaneous threshold behaviour (model5). model6 adds hysteresis separately.
+    svc.fusion_kind = "model5"
     svc.fusion_threshold = 0.75
     svc.eng_model = None
     gaze = [np.array([0.8, 0.05, 0.05, 0.1], dtype=np.float32)]

@@ -1,6 +1,3 @@
-"""Model 6: natural-distraction fusion (Plan 1).
+"""Model 6: natural-distraction fusion trained leave-one-subject-out on CUDA."""
 
-Currently this package only contains the training-time benchmark.
-Recording, labelling, feature extraction and backend integration are
-out of scope for that benchmark (see benchmark_training_time.py).
-"""
+__all__ = ["intake", "extract", "train"]

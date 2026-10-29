@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import os
 import sys
+import time
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
@@ -24,6 +25,29 @@ FUSION_FEATURES_DEFAULT = [
     "yaw_mean", "pitch_mean", "roll_mean",
     "yaw_std", "pitch_std", "roll_std",
     "engagement_prob_mean",
+]
+
+# model6 temporal decision (seconds). Short glances stay FOCUSED.
+HYST_ENTER_PROB = 0.6
+HYST_EXIT_PROB = 0.4
+HYST_ENTER_SEC = 3.0
+HYST_EXIT_SEC = 2.0
+
+MODEL6_FEATURE_NAMES = [
+    "gaze_dev_mean",
+    "gaze_dev_std",
+    "head_yaw_dev",
+    "head_pitch_dev",
+    "head_roll_mean",
+    "on_screen_ratio",
+    "off_screen_dwell_sec",
+    "glance_count",
+    "blink_rate",
+    "perclos",
+    "face_present_ratio",
+    "body_motion_energy",
+    "hand_to_face_ratio",
+    "talking_score",
 ]
 
 _LM_IDX = {
@@ -70,6 +94,11 @@ class MLService:
         self.fusion_model = None
         self.fusion_threshold = 0.5
         self.fusion_feat_names = list(FUSION_FEATURES_DEFAULT)
+        self.fusion_kind = "model5"  # "model5" | "model6_mlp"
+        # Per-session hysteresis for fusion probabilities
+        self._session_hyst_state: Dict[Any, str] = {}
+        self._session_hyst_high_t0: Dict[Any, Optional[float]] = {}
+        self._session_hyst_low_t0: Dict[Any, Optional[float]] = {}
         # Shared task path only — each session gets its own VIDEO landmarker
         # so temporal tracking state never crosses sessions (Phase 2A).
         self._pose_landmarker_task_path: Optional[Path] = None
@@ -110,6 +139,9 @@ class MLService:
         self._session_bufs: Dict[Any, Dict[str, Deque]] = defaultdict(self._new_session_buf)
         self._session_pose_samples: Dict[Any, List[List[float]]] = defaultdict(list)
         self._session_pose_baseline: Dict[Any, Optional[Tuple[float, float]]] = {}
+        self._session_hyst_state = {}
+        self._session_hyst_high_t0 = {}
+        self._session_hyst_low_t0 = {}
 
         self._load_torch_models()
         self._load_sklearn_models()
@@ -206,10 +238,16 @@ class MLService:
             "ENG_CKPT",
             str(self._ckpt("outputs", "checkpoints", "model4_engagement", "model.pkl")),
         ))
-        fusion_ckpt = Path(os.environ.get(
-            "FUSION_CKPT",
-            str(self._ckpt("outputs", "checkpoints", "model5_fusion", "model.pkl")),
-        ))
+        # Prefer model6 when a LOSO deploy pack exists; else model5.
+        env_fusion = os.environ.get("FUSION_CKPT", "").strip()
+        model6_ckpt = self._ckpt("outputs", "checkpoints", "model6_natural", "model.pkl")
+        model5_ckpt = self._ckpt("outputs", "checkpoints", "model5_fusion", "model.pkl")
+        if env_fusion:
+            fusion_ckpt = Path(env_fusion)
+        elif model6_ckpt.exists():
+            fusion_ckpt = model6_ckpt
+        else:
+            fusion_ckpt = model5_ckpt
 
         if eng_ckpt.exists():
             try:
@@ -228,10 +266,17 @@ class MLService:
                 if isinstance(pack, dict) and "model" in pack:
                     self.fusion_model = pack["model"]
                     self.fusion_threshold = float(pack.get("threshold", 0.5))
-                    self.fusion_feat_names = pack.get("features", FUSION_FEATURES_DEFAULT)
+                    self.fusion_feat_names = list(
+                        pack.get("features", FUSION_FEATURES_DEFAULT)
+                    )
+                    self.fusion_kind = str(pack.get("kind", "model5"))
                 else:
                     self.fusion_model = pack
-                print(f"[MLService] Loaded fusion model from {fusion_ckpt.name}")
+                    self.fusion_kind = "model5"
+                print(
+                    f"[MLService] Loaded fusion model from {fusion_ckpt.name} "
+                    f"(kind={self.fusion_kind})"
+                )
             except Exception as e:
                 print(f"[MLService] Warning: could not load fusion model: {e}")
         else:
@@ -325,7 +370,34 @@ class MLService:
         self._session_bufs.pop(session_id, None)
         self._session_pose_samples.pop(session_id, None)
         self._session_pose_baseline.pop(session_id, None)
+        self._session_hyst_state.pop(session_id, None)
+        self._session_hyst_high_t0.pop(session_id, None)
+        self._session_hyst_low_t0.pop(session_id, None)
         self._close_session_landmarker(session_id)
+
+    def _apply_hysteresis(self, session_id: Any, dist_prob: float) -> str:
+        """Enter DISTRACTED only after sustained high prob; exit after sustained low."""
+        now = time.monotonic()
+        state = self._session_hyst_state.get(session_id, "FOCUSED")
+        if dist_prob >= HYST_ENTER_PROB:
+            if self._session_hyst_high_t0.get(session_id) is None:
+                self._session_hyst_high_t0[session_id] = now
+            self._session_hyst_low_t0[session_id] = None
+            held = now - float(self._session_hyst_high_t0[session_id])
+            if held >= HYST_ENTER_SEC:
+                state = "DISTRACTED"
+        elif dist_prob < HYST_EXIT_PROB:
+            if self._session_hyst_low_t0.get(session_id) is None:
+                self._session_hyst_low_t0[session_id] = now
+            self._session_hyst_high_t0[session_id] = None
+            held = now - float(self._session_hyst_low_t0[session_id])
+            if held >= HYST_EXIT_SEC:
+                state = "FOCUSED"
+        else:
+            # Mid band: freeze timers so brief dips do not reset enter/exit
+            pass
+        self._session_hyst_state[session_id] = state
+        return state
 
     @staticmethod
     def _landmarks_indicate_person(lm: Optional[dict]) -> bool:
@@ -545,6 +617,8 @@ class MLService:
         gaze_buf: List,
         pose_buf: List,
         eng_prob: float,
+        lm_buf: Optional[List] = None,
+        face_detected: bool = True,
     ) -> np.ndarray:
         gaze_arr = np.array(gaze_buf, dtype=np.float32)
         pose_arr = np.array(pose_buf, dtype=np.float32)
@@ -552,20 +626,92 @@ class MLService:
         p_l = float(np.mean(gaze_arr[:, 1]))
         p_r = float(np.mean(gaze_arr[:, 2]))
         p_d = float(np.mean(gaze_arr[:, 3]))
+        gaze_away = (p_l + p_r + p_d) / max(p_c + p_l + p_r + p_d, 1e-8)
+        yaw_mean = float(np.mean(pose_arr[:, 0]))
+        pitch_mean = float(np.mean(pose_arr[:, 1]))
+        roll_mean = float(np.mean(pose_arr[:, 2]))
         all_vals = {
             "p_center_mean": p_c,
             "p_left_mean": p_l,
             "p_right_mean": p_r,
             "p_down_mean": p_d,
-            "gaze_away_ratio": (p_l + p_r + p_d) / max(p_c + p_l + p_r + p_d, 1e-8),
-            "yaw_mean": float(np.mean(pose_arr[:, 0])),
-            "pitch_mean": float(np.mean(pose_arr[:, 1])),
-            "roll_mean": float(np.mean(pose_arr[:, 2])),
+            "gaze_away_ratio": gaze_away,
+            "yaw_mean": yaw_mean,
+            "pitch_mean": pitch_mean,
+            "roll_mean": roll_mean,
             "yaw_std": float(np.std(pose_arr[:, 0])),
             "pitch_std": float(np.std(pose_arr[:, 1])),
             "roll_std": float(np.std(pose_arr[:, 2])),
             "engagement_prob_mean": eng_prob,
         }
+
+        # Live approximations of model6 window features from the heartbeat buffer.
+        if any(name in self.fusion_feat_names for name in MODEL6_FEATURE_NAMES):
+            # ~2 s between heartbeats when window_size≈5 at 0.5 Hz; use 2.0 s/step
+            dt = 2.0
+            on_flags = []
+            for i in range(len(pose_arr)):
+                g = gaze_arr[i] if i < len(gaze_arr) else gaze_arr[-1]
+                away_i = float(g[1] + g[2] + g[3]) / max(float(g.sum()), 1e-8)
+                on_flags.append(
+                    abs(float(pose_arr[i][0])) < 18.0
+                    and abs(float(pose_arr[i][1])) < 18.0
+                    and away_i < 0.55
+                )
+            on_flags_arr = np.array(on_flags, dtype=bool) if on_flags else np.array([True])
+            longest = cur = 0
+            for on in on_flags_arr:
+                if not on:
+                    cur += 1
+                    longest = max(longest, cur)
+                else:
+                    cur = 0
+            body_motion = 0.0
+            hand_near = 0.0
+            if lm_buf:
+                noses = []
+                hands = []
+                for lm in lm_buf:
+                    if not lm:
+                        continue
+                    noses.append((float(lm.get("nose_x", 0.5)), float(lm.get("nose_y", 0.5))))
+                    nx, ny = noses[-1]
+                    for side in ("l_wrist", "r_wrist"):
+                        wx = lm.get(f"{side}_x")
+                        wy = lm.get(f"{side}_y")
+                        if wx is None or wy is None:
+                            continue
+                        hands.append(float(np.hypot(float(wx) - nx, float(wy) - ny)))
+                if len(noses) >= 2:
+                    diffs = [
+                        float(np.hypot(noses[i][0] - noses[i - 1][0], noses[i][1] - noses[i - 1][1]))
+                        for i in range(1, len(noses))
+                    ]
+                    body_motion = float(np.mean(diffs)) if diffs else 0.0
+                if hands:
+                    hand_near = float(np.mean([1.0 if h < 0.25 else 0.0 for h in hands]))
+
+            all_vals.update(
+                {
+                    "gaze_dev_mean": float(gaze_away),
+                    "gaze_dev_std": float(np.std(gaze_arr[:, 1] + gaze_arr[:, 2] + gaze_arr[:, 3]))
+                    if len(gaze_arr) > 1
+                    else 0.0,
+                    "head_yaw_dev": float(abs(yaw_mean)),
+                    "head_pitch_dev": float(abs(pitch_mean)),
+                    "head_roll_mean": float(roll_mean),
+                    "on_screen_ratio": float(np.mean(on_flags_arr)),
+                    "off_screen_dwell_sec": float(longest * dt),
+                    "glance_count": 0.0,
+                    "blink_rate": 0.0,
+                    "perclos": 0.0,
+                    "face_present_ratio": 1.0 if face_detected else 0.0,
+                    "body_motion_energy": body_motion,
+                    "hand_to_face_ratio": hand_near,
+                    "talking_score": 0.0,
+                }
+            )
+
         return np.array(
             [all_vals.get(f, 0.0) for f in self.fusion_feat_names],
             dtype=np.float32,
@@ -732,7 +878,11 @@ class MLService:
         if self.fusion_model is not None and len(gaze_buf) > 0 and len(pose_for_score) > 0:
             try:
                 feat_vec = self.build_fusion_features(
-                    list(gaze_buf), list(pose_for_score), eng_prob
+                    list(gaze_buf),
+                    list(pose_for_score),
+                    eng_prob,
+                    lm_buf=list(lm_buf) if lm_buf else None,
+                    face_detected=bool(last_meta.get("face_detected", True)),
                 )
                 if hasattr(self.fusion_model, "predict_proba"):
                     proba = self.fusion_model.predict_proba(feat_vec)[0]
@@ -741,15 +891,27 @@ class MLService:
                         dist_prob = float(proba[1])
                     else:
                         dist_prob = float(proba[0])
-                    verdict = "DISTRACTED" if dist_prob >= self.fusion_threshold else "FOCUSED"
-                    conf = dist_prob if verdict == "DISTRACTED" else (1.0 - dist_prob)
+                    raw_verdict = (
+                        "DISTRACTED"
+                        if dist_prob >= self.fusion_threshold
+                        else "FOCUSED"
+                    )
                 else:
                     pred = self.fusion_model.predict(feat_vec)[0]
-                    verdict = "DISTRACTED" if int(pred) == 1 else "FOCUSED"
-                    conf = 0.9
-                    dist_prob = 1.0 if verdict == "DISTRACTED" else 0.0
+                    raw_verdict = "DISTRACTED" if int(pred) == 1 else "FOCUSED"
+                    dist_prob = 1.0 if raw_verdict == "DISTRACTED" else 0.0
+                # Temporal hysteresis for model6 (glances < enter window stay FOCUSED).
+                # model5 keeps the instantaneous threshold decision for compatibility.
+                if self.fusion_kind == "model6_mlp":
+                    verdict = self._apply_hysteresis(sid, dist_prob)
+                else:
+                    verdict = raw_verdict
+                conf = dist_prob if verdict == "DISTRACTED" else (1.0 - dist_prob)
                 features["distract_prob"] = round(float(dist_prob), 4)
+                features["raw_fusion_verdict"] = raw_verdict
+                features["hysteresis_state"] = verdict
                 features["inference_path"] = "fusion"
+                features["fusion_kind"] = self.fusion_kind
                 return verdict, float(conf), features
             except Exception as e:
                 print(f"[MLService] Fusion scoring error: {e}")

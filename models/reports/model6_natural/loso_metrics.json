@@ -1,0 +1,71 @@
+{
+  "folds": [
+    {
+      "subject_id": "S01",
+      "n_train": 718,
+      "n_test": 606,
+      "accuracy": 0.9570957095709571,
+      "f1_positive": 0.9554794520547946,
+      "f1_macro": 0.9570390890847221,
+      "roc_auc": 0.9889734752639386,
+      "pr_auc": 0.9905835688739795,
+      "threshold": 0.4700000000000001,
+      "false_alarms_per_min_natural": 16.813186813186814,
+      "natural_n": 178,
+      "natural_pred_positive": 51,
+      "baseline_lr_f1_positive": 0.8731343283582089,
+      "baseline_lr_roc_auc": 0.8939774016228951
+    },
+    {
+      "subject_id": "S02",
+      "n_train": 1028,
+      "n_test": 296,
+      "accuracy": 0.9290540540540541,
+      "f1_positive": 0.3225806451612903,
+      "f1_macro": 0.6425737450405382,
+      "roc_auc": 0.9828178694158075,
+      "pr_auc": 0.3333333333333333,
+      "threshold": 0.77,
+      "false_alarms_per_min_natural": 20.357142857142854,
+      "natural_n": 276,
+      "natural_pred_positive": 95,
+      "baseline_lr_f1_positive": 0.13157894736842105,
+      "baseline_lr_roc_auc": 0.9841924398625429
+    },
+    {
+      "subject_id": "S03",
+      "n_train": 902,
+      "n_test": 422,
+      "accuracy": 0.7985781990521327,
+      "f1_positive": 0.42953020134228187,
+      "f1_macro": 0.6536140215344503,
+      "roc_auc": 0.8650273224043716,
+      "pr_auc": 0.7350034603283446,
+      "threshold": 0.2,
+      "false_alarms_per_min_natural": 11.935483870967742,
+      "natural_n": 182,
+      "natural_pred_positive": 37,
+      "baseline_lr_f1_positive": 0.4605263157894737,
+      "baseline_lr_roc_auc": 0.8038391481014432
+    }
+  ],
+  "mean": {
+    "f1_positive": 0.5691967661861222,
+    "f1_macro": 0.7510756185532369,
+    "roc_auc": 0.9456062223613726,
+    "accuracy": 0.8949093208923813,
+    "false_alarms_per_min_natural": 16.368604513765803,
+    "baseline_lr_f1_positive": 0.4884131971720345,
+    "baseline_lr_roc_auc": 0.8940029965289603
+  },
+  "honest_baseline": {
+    "roc_auc": 0.77,
+    "f1_positive": 0.54
+  },
+  "beats_honest_baseline": true,
+  "device": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "windows_csv": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\data\\processed\\model6_natural\\windows.csv",
+  "n_subjects": 3,
+  "deployed": true,
+  "checkpoint": "D:\\uni\\6th sem\\IRP\\distraction model\\distraction_project\\models\\outputs\\checkpoints\\model6_natural\\model.pkl"
+}
