@@ -2,6 +2,19 @@
 
 Working research document (research task 1 of the intervention review). It feeds the doctor-facing brief (`DOCTOR_REVIEW_BRIEF.md`) and, after her review, Chapters 2, 3, 6 and 7 of the thesis.
 
+> **Timing update (2026-11-04) — the timings below predate the REPORT_3 escalation fix.**
+> Measured from the current engine (`backend/tests/test_intervention_escalation.py::_simulate`,
+> 2 s heartbeats, one continuous distraction episode, 30 s cooldown):
+>
+> | Learner behaviour | Prompts (seconds into the episode) |
+> |---|---|
+> | Responds to each prompt (or presses "ignore") | 6 s gentle cue → 10 s pacing pause → 40 s pace reduction → 70 s break → a break every 30 s after that |
+> | Never responds to the 10 s pacing pause | 6 s gentle cue → 10 s pacing pause, then nothing further (the prompt stays pending) |
+>
+> Tier 2 (pacing pause) **is** reached in a continuous episode. The brief quiz (tier 3) is not
+> reached in a continuous episode: the engine moves from tier 2 at 10 s to tier 4 at 40 s.
+> Update the tables in this document to match before it is sent.
+
 **Status statement (use this wording externally):** Luma applies interventions informed by related educational research; their suitability is being reviewed, and their effectiveness in this particular platform has not yet been established.
 
 All behaviour described in Part A was read from the code, not from design notes. Source files:

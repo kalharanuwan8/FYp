@@ -6,7 +6,7 @@ live self-test phase keys/durations in live_webcam_selftest.py.
 
   venvpy312\\Scripts\\python.exe evaluation\\thesis_numbers\\generate_simulated_selftest.py
 
-Output: evaluation/thesis_numbers/raw/simulated_selftest_protocol.csv
+Output: evaluation/thesis_numbers/raw/simulated/simulated_selftest_protocol.csv
 Every row has protocol=SIMULATED and measured=false.
 """
 from __future__ import annotations
@@ -135,7 +135,8 @@ def summarise(rows: list[dict]) -> list[dict]:
 
 def main() -> None:
     rows = build_rows()
-    csv_path = OUT / "simulated_selftest_protocol.csv"
+    csv_path = OUT / "simulated" / "simulated_selftest_protocol.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()

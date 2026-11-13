@@ -1,0 +1,160 @@
+{
+  "run": "Run 6",
+  "session_note": "from CSV filename 20261029T063746Z",
+  "csv": "evaluation\\thesis_numbers\\raw\\live_webcam_selftest_20261029T063746Z.csv",
+  "n": 103,
+  "phases": [
+    {
+      "phase": "read_1",
+      "n": 29,
+      "focused": 27,
+      "distracted_fusion": 0,
+      "distracted_heuristic": 0,
+      "distracted_body_no_face": 1,
+      "distracted_undifferentiated": 0,
+      "unknown": 1,
+      "pct_focused": 0.9310344827586207,
+      "pct_distracted": 0.034482758620689655,
+      "pct_unknown": 0.034482758620689655,
+      "first_distracted_any": "54.076937600038946",
+      "first_distracted_fusion": "none",
+      "first_distracted_body": "54.076937600038946",
+      "first_intervention": "none",
+      "first_intervention_tier": "none",
+      "face_box_present": 27
+    },
+    {
+      "phase": "phone",
+      "n": 15,
+      "focused": 6,
+      "distracted_fusion": 0,
+      "distracted_heuristic": 0,
+      "distracted_body_no_face": 9,
+      "distracted_undifferentiated": 0,
+      "unknown": 0,
+      "pct_focused": 0.4,
+      "pct_distracted": 0.6,
+      "pct_unknown": 0.0,
+      "first_distracted_any": "4.25903690000996",
+      "first_distracted_fusion": "none",
+      "first_distracted_body": "4.25903690000996",
+      "first_intervention": "10.50189539999701",
+      "first_intervention_tier": "1",
+      "face_box_present": 6
+    },
+    {
+      "phase": "away",
+      "n": 15,
+      "focused": 2,
+      "distracted_fusion": 0,
+      "distracted_heuristic": 0,
+      "distracted_body_no_face": 13,
+      "distracted_undifferentiated": 0,
+      "unknown": 0,
+      "pct_focused": 0.13333333333333333,
+      "pct_distracted": 0.8666666666666667,
+      "pct_unknown": 0.0,
+      "first_distracted_any": "0.10079880012199283",
+      "first_distracted_fusion": "none",
+      "first_distracted_body": "0.10079880012199283",
+      "first_intervention": "10.492915500188246",
+      "first_intervention_tier": "1",
+      "face_box_present": 2
+    },
+    {
+      "phase": "out_of_chair",
+      "n": 15,
+      "focused": 2,
+      "distracted_fusion": 0,
+      "distracted_heuristic": 0,
+      "distracted_body_no_face": 0,
+      "distracted_undifferentiated": 0,
+      "unknown": 13,
+      "pct_focused": 0.13333333333333333,
+      "pct_distracted": 0.0,
+      "pct_unknown": 0.8666666666666667,
+      "first_distracted_any": "none",
+      "first_distracted_fusion": "none",
+      "first_distracted_body": "none",
+      "first_intervention": "none",
+      "first_intervention_tier": "none",
+      "face_box_present": 2
+    },
+    {
+      "phase": "read_2",
+      "n": 29,
+      "focused": 28,
+      "distracted_fusion": 0,
+      "distracted_heuristic": 0,
+      "distracted_body_no_face": 0,
+      "distracted_undifferentiated": 0,
+      "unknown": 1,
+      "pct_focused": 0.9655172413793104,
+      "pct_distracted": 0.0,
+      "pct_unknown": 0.034482758620689655,
+      "first_distracted_any": "none",
+      "first_distracted_fusion": "none",
+      "first_distracted_body": "none",
+      "first_intervention": "none",
+      "first_intervention_tier": "none",
+      "face_box_present": 28
+    }
+  ],
+  "interventions": [
+    {
+      "timestamp_utc": "2026-10-29T06:35:08.794674+00:00",
+      "phase": "phone",
+      "seconds_from_phase_start": "10.50189539999701",
+      "intervention_tier": "1",
+      "intervention_type": "ambient_cue",
+      "verdict": "DISTRACTED",
+      "reason": "body_no_face",
+      "inference_path": "body_no_face"
+    },
+    {
+      "timestamp_utc": "2026-10-29T06:35:12.874506+00:00",
+      "phase": "phone",
+      "seconds_from_phase_start": "14.581033500144258",
+      "intervention_tier": "2",
+      "intervention_type": "pacing_pause",
+      "verdict": "DISTRACTED",
+      "reason": "body_no_face",
+      "inference_path": "body_no_face"
+    },
+    {
+      "timestamp_utc": "2026-10-29T06:35:43.816379+00:00",
+      "phase": "away",
+      "seconds_from_phase_start": "10.492915500188246",
+      "intervention_tier": "1",
+      "intervention_type": "ambient_cue",
+      "verdict": "DISTRACTED",
+      "reason": "body_no_face",
+      "inference_path": "body_no_face"
+    },
+    {
+      "timestamp_utc": "2026-10-29T06:35:47.984231+00:00",
+      "phase": "away",
+      "seconds_from_phase_start": "14.660461800172925",
+      "intervention_tier": "2",
+      "intervention_type": "pacing_pause",
+      "verdict": "DISTRACTED",
+      "reason": "body_no_face",
+      "inference_path": "body_no_face"
+    }
+  ],
+  "false_interventions": {
+    "n_reading_interventions": 0,
+    "reading_minutes": 2.0,
+    "false_interventions_per_study_minute": 0.0,
+    "details": []
+  },
+  "reading_face": {
+    "n_reading": 58,
+    "face_true": 55,
+    "share": 0.9482758620689655
+  },
+  "phone_away_distracted_by_source": {
+    "distracted_body_no_face": 22
+  },
+  "phone_away_fusion_share": 0.0
+}

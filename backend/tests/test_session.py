@@ -224,7 +224,7 @@ def test_heartbeat_with_image_returns_ml_verdict(client, app):
     assert body["confidence"] is None
     assert body["reason"] == "no_face"
     assert body["face_detected"] is False
-    assert body["ml_mode"] in ("full", "partial", "fallback")
+    assert body["ml_mode"] in ("full", "partial", "fallback", "model6", "rule")
     assert "intervention_triggered" in body
     assert body["intervention_triggered"] is False
 

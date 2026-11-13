@@ -39,13 +39,15 @@ from app.services.focus_metrics import (
     apply_coverage_to_session,
     compute_session_coverage,
 )
-from app.services.observation_coverage import FOCUS_METRIC_VERSION, T_SUPPORT
+from app.services.observation_coverage import EPISODE_GAP_MAX, FOCUS_METRIC_VERSION, T_SUPPORT
 from app.utils.decorators import role_required
 
 session_bp = Blueprint("session", __name__)
 
 # In-memory registry of active session intervention engines keyed by session_id
 SESSION_ENGINES = {}
+# 6 frames x 200 KB base64 + JSON overhead; well above a real 2 fps heartbeat (~60 KB).
+MAX_HEARTBEAT_BYTES = 2 * 1024 * 1024
 
 # Per-session background-noise monitors keyed by session_id
 SESSION_NOISE_MONITORS = {}
@@ -56,6 +58,9 @@ DB_FOCUSED = "focused"
 API_UNKNOWN = "UNKNOWN"
 API_FOCUSED = "FOCUSED"
 API_DISTRACTED = "DISTRACTED"
+
+# PLAN 4: brief UNKNOWN runs pause the episode clock but do not close it.
+UNKNOWN_HOLD_SEC = 5.0
 
 
 def format_validation_errors(err: ValidationError):
@@ -180,15 +185,29 @@ def _prior_observation(session_id: int, before_dt: datetime):
     )
 
 
+def _last_distracted_observation_at(session_id: int, now_dt: datetime):
+    """Most recent DISTRACTED observation at-or-before now (for UNKNOWN hold)."""
+    return (
+        MonitoringObservation.query.filter(
+            MonitoringObservation.session_id == session_id,
+            MonitoringObservation.observed_at <= now_dt,
+            MonitoringObservation.state == API_DISTRACTED,
+        )
+        .order_by(MonitoringObservation.observed_at.desc())
+        .first()
+    )
+
+
 def upsert_distraction_episode(session_id: int, verdict: str, confidence: float, now_dt: datetime):
     """
     Open-episode semantics:
       DISTRACTED + no open → create
-      DISTRACTED + open, gap ≤ T_SUPPORT from prior valid DISTRACTED → keep open
-      DISTRACTED + open, gap > T_SUPPORT → close at prior+T_SUPPORT, open new
+      DISTRACTED + open, gap ≤ EPISODE_GAP_MAX from prior valid DISTRACTED → keep open
+      DISTRACTED + open, gap > EPISODE_GAP_MAX → close at prior+T_SUPPORT, open new
         (unknown gap must not accumulate toward visual escalation)
       FOCUSED + open → close with ended_at (re-engagement)
-      UNKNOWN + open → close at UNKNOWN time (interrupted; not re-engagement)
+      UNKNOWN + open, ≤ UNKNOWN_HOLD_SEC since last DISTRACTED → keep open (paused)
+      UNKNOWN + open, longer → close at UNKNOWN time (interrupted; not re-engagement)
       UNKNOWN + no open → no-op
     Returns (open_or_closed_event, just_closed: bool)
 
@@ -207,7 +226,7 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
                 prior_at = open_event.started_at
             if prior_at is not None:
                 gap = (now_dt - prior_at).total_seconds()
-                if gap > T_SUPPORT:
+                if gap > EPISODE_GAP_MAX:
                     # Break continuity across the unknown remainder after support.
                     open_event.ended_at = prior_at + timedelta(seconds=T_SUPPORT)
                     db.session.commit()
@@ -237,6 +256,13 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
 
     if verdict_u == API_UNKNOWN:
         if open_event:
+            last_dist = _last_distracted_observation_at(session_id, now_dt)
+            anchor = last_dist.observed_at if last_dist is not None else open_event.started_at
+            hold_for = (now_dt - anchor).total_seconds() if anchor is not None else 0.0
+            if hold_for <= UNKNOWN_HOLD_SEC:
+                # Brief UNKNOWN: keep episode open but do not advance the clock
+                # (intervention path gets episode_clock_held / UNKNOWN hold).
+                return open_event, False
             open_event.ended_at = now_dt
             db.session.commit()
             return open_event, True
@@ -400,6 +426,16 @@ def _persist_triggered_intervention(session, triggered, distraction_event_id, no
         db.session.commit()
         payload = _client_milestone_payload(payload)
 
+    # Align engine pending id with the DB log id the client will echo back.
+    pending = getattr(triggered, "intervention_id", None)
+    eng_pending = getattr(
+        SESSION_ENGINES.get(session.id), "_pending", None
+    ) if session.id in SESSION_ENGINES else None
+    if eng_pending is not None and (
+        pending is None or eng_pending.id == pending
+    ):
+        eng_pending.id = str(log_entry.id)
+
     return {
         "intervention_id": log_entry.id,
         "tier": triggered.tier,
@@ -407,6 +443,8 @@ def _persist_triggered_intervention(session, triggered, distraction_event_id, no
         "message": triggered.message,
         "triggered_at": now_dt.isoformat(),
         "payload": payload,
+        "source": getattr(triggered, "source", None),
+        "deadline": getattr(triggered, "deadline", None),
     }
 
 
@@ -493,6 +531,9 @@ def send_heartbeat(session_id):
     if session.end_time is not None:
         return jsonify({"error": "This learning session has already ended"}), 400
 
+    if (request.content_length or 0) > MAX_HEARTBEAT_BYTES:
+        return jsonify({"error": "Heartbeat payload too large"}), 413
+
     raw_data = request.get_json(silent=True)
     if not raw_data:
         return jsonify({"error": "Missing JSON request body"}), 400
@@ -511,20 +552,42 @@ def send_heartbeat(session_id):
     ml_mode = None
     ml_features = {}
 
-    if data.image:
-        ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
-            data.image, session_id=session.id
-        )
+    is_testing = bool(current_app.config.get("TESTING"))
+
+    if not session.is_monitored:
+        # No camera inference without a monitored (consented) session.
+        verdict, confidence = API_UNKNOWN, None
+        ml_features = {"reason": "not_monitored"}
+        ml_mode = ml_service.ml_mode
+    elif data.frames or data.image:
+        if hasattr(ml_service, "set_session_calibrating"):
+            ml_service.set_session_calibrating(session.id, bool(data.calibrating))
+        if data.frames:
+            ml_verdict, ml_conf, ml_features = ml_service.predict_frames(
+                [(f.t_ms / 1000.0, f.image) for f in data.frames], session_id=session.id
+            )
+        else:
+            ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
+                data.image, session_id=session.id
+            )
         verdict = ml_verdict
         confidence = ml_conf
         gaze_label = ml_features.get("gaze_label", gaze_label)
         engagement_score = ml_features.get("engagement_score", engagement_score)
         ml_mode = ml_features.get("ml_mode") or ml_service.ml_mode
-    elif data.features:
+    elif (data.hidden_ms or 0) >= 3000 or (data.blurred_ms or 0) >= 5000:
+        # Lightweight heartbeat while the tab is hidden / window blurred (no frames).
+        verdict, confidence = API_UNKNOWN, None
+        ml_features = {"reason": "browser_signal_only"}
+        ml_mode = ml_service.ml_mode
+    elif data.features and is_testing:
         verdict, confidence = ml_service.predict_window_features(data.features)
         ml_features = {"face_detected": data.features.get("face_detected")}
         ml_mode = ml_service.ml_mode
-    elif current_app.config.get("TESTING") and data.verdict:
+    elif data.features:
+        # A client must not be able to report its own focus state.
+        return jsonify({"error": "Precomputed features are not accepted; send webcam frames"}), 400
+    elif is_testing and data.verdict:
         # Unit tests exercise the intervention engine without ML frames
         verdict = data.verdict
         confidence = data.confidence if data.confidence is not None else (
@@ -533,8 +596,25 @@ def send_heartbeat(session_id):
         ml_features = {"reason": "test_injected"}
     else:
         return jsonify({
-            "error": "Webcam frame (image) or features required for heartbeat telemetry"
+            "error": "Webcam frames (frames or image) required for heartbeat telemetry"
         }), 400
+
+    # Browser signals override camera (PLAN 4): tab hidden ≥3 s / blur ≥5 s.
+    browser_source = None
+    if session.is_monitored:
+        if (data.hidden_ms or 0) >= 3000:
+            verdict, confidence = API_DISTRACTED, 1.0
+            browser_source = "tab"
+            ml_features = {**(ml_features or {}), "reason": "tab_hidden", "source": "tab"}
+        elif (data.blurred_ms or 0) >= 5000:
+            verdict, confidence = API_DISTRACTED, 1.0
+            browser_source = "blur"
+            ml_features = {**(ml_features or {}), "reason": "window_blur", "source": "blur"}
+
+    if engagement_score is None and confidence is not None and verdict == API_DISTRACTED:
+        engagement_score = round(1.0 - float(confidence), 4)
+    elif engagement_score is None and confidence is not None and verdict == API_FOCUSED:
+        engagement_score = round(float(confidence), 4)
 
     record_monitoring_observation(
         session.id,
@@ -563,9 +643,29 @@ def send_heartbeat(session_id):
 
         engine = SESSION_ENGINES[session.id]
         noise_monitor = SESSION_NOISE_MONITORS[session.id]
+        # Expire unanswered prompts (20 s) before deciding the next one.
+        if hasattr(engine, "tick"):
+            engine.tick()
         # Pass observation_state explicitly so UNKNOWN does not invoke focus-reset.
         is_distracted = verdict == API_DISTRACTED
         open_episode = episode if is_distracted and not just_closed else None
+        content_state = (data.content_state or "none").lower()
+        # Hold episode clock while lesson video is deliberately paused / ended,
+        # or while a prompt/break is still open.
+        episode_held = content_state in {"paused", "ended"}
+        if getattr(engine, "_pending", None) is not None:
+            episode_held = True
+        src = browser_source or (ml_features or {}).get("source") or "model6"
+
+        # When UNKNOWN briefly keeps the episode open, still pass the open
+        # event so the engine can hold without re-firing cues.
+        if (
+            verdict == API_UNKNOWN
+            and episode is not None
+            and not just_closed
+            and open_episode is None
+        ):
+            open_episode = episode
 
         triggered = engine.decide_intervention(
             distraction_event=open_episode,
@@ -573,6 +673,8 @@ def send_heartbeat(session_id):
             is_quiz_context=bool(data.is_quiz_context),
             wall_now=now_dt,
             observation_state=verdict,
+            source=src,
+            episode_clock_held=episode_held,
         )
         triggered_event_id = open_episode.id if open_episode else None
 
@@ -607,8 +709,9 @@ def send_heartbeat(session_id):
     face_out = ml_features.get("face_detected") if ml_features else None
     reason_out = (ml_features or {}).get("reason")
     if verdict == API_UNKNOWN:
+        # Keep face_detected during calibration so the UI can retry if no face.
         # no_face keeps face_detected=false; other UNKNOWN reasons stay null.
-        if face_out is not False:
+        if reason_out != "calibrating" and face_out is not False:
             face_out = None
         gaze_label = None
         engagement_score = None
@@ -712,6 +815,8 @@ def record_intervention_response(session_id):
     session = db.session.get(LearningSession, session_id)
     if not session or session.student_id != student.id:
         return jsonify({"error": "Learning session not found"}), 404
+    if session.ended_at is not None:
+        return jsonify({"error": "Session already ended"}), 409
 
     raw_data = request.get_json(silent=True)
     if not raw_data:
@@ -728,6 +833,8 @@ def record_intervention_response(session_id):
 
     now_dt = datetime.utcnow()
     log_entry.user_response = data.user_response
+    if data.self_report:
+        log_entry.self_report = str(data.self_report)[:2000]
     if data.noise_action and log_entry.intervention_type == TYPE_NOISE_NOTICE:
         log_entry.noise_action = data.noise_action
     if log_entry.triggered_at:

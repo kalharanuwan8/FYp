@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from app.services.ml_service import MLService
+from app.services.ml_service import FUSION_FEATURES_DEFAULT, MLService
 
 
 def _jpeg_b64(frame: np.ndarray) -> str:
@@ -61,6 +61,7 @@ def _reset_ml_singleton():
 
 def test_fusion_threshold_env_override(monkeypatch):
     monkeypatch.setenv("ML_FUSION_THRESHOLD", "0.80")
+    monkeypatch.setenv("ML_ALLOW_THRESHOLD_OVERRIDE", "1")
     MLService._instance = None
     svc = MLService()
     assert abs(svc.fusion_threshold - 0.80) < 1e-9
@@ -72,6 +73,7 @@ def test_fusion_threshold_flips_verdict_around_mock_prob():
     svc.fusion_model = _FakeFusion(0.70)
     # Instantaneous threshold behaviour (model5). model6 adds hysteresis separately.
     svc.fusion_kind = "model5"
+    svc.fusion_feat_names = list(FUSION_FEATURES_DEFAULT)
     svc.fusion_threshold = 0.75
     svc.eng_model = None
     gaze = [np.array([0.8, 0.05, 0.05, 0.1], dtype=np.float32)]
@@ -89,28 +91,40 @@ def test_fusion_threshold_flips_verdict_around_mock_prob():
     assert feats2["distract_prob"] == 0.7
 
 
-def test_body_no_face_distracted_does_not_append_buffer(monkeypatch):
+def test_body_no_face_distracted_is_rule_on_live_path(monkeypatch):
+    """Body visible but no face across the window -> DISTRACTED by rule (no model confidence)."""
+    from models.src.features.face_pose import FrameFeatures
+    from models.src.features.windows import WINDOW_FEATURE_NAMES
+
     MLService._instance = None
     svc = MLService()
     sid = "body-noface"
+    no_face = FrameFeatures(
+        t_sec=5.0, face_present=False, yaw=0, pitch=0, roll=0, iris_x=0.5, iris_y=0.5,
+        blink=0, jaw_open=0, hand_to_face=1, body_motion=0, nose_x=0.5, nose_y=0.4,
+        body_present=True,
+    )
+    feats = {n: 0.0 for n in WINDOW_FEATURE_NAMES}
+    feats.update(face_present_ratio=0.0, body_present_ratio=1.0, window_start_sec=0.0, window_sec=5.0)
 
-    class _EmptyCascade:
-        def detectMultiScale(self, *a, **k):
-            return np.array([], dtype=np.int32).reshape(0, 4)
+    class _Scorer:
+        def add_frame(self, *_a):
+            return no_face
 
-    svc.face_cascade = _EmptyCascade()
-    monkeypatch.setattr(svc, "extract_landmarks", lambda *_a, **_k: _person_landmarks())
+        def features(self):
+            return feats
 
-    before = len(svc._session_bufs[sid]["gaze"])
+    import threading
+
+    monkeypatch.setattr(svc, "_live_scorer_for", lambda _sid: (_Scorer(), threading.RLock()))
     frame = np.zeros((224, 224, 3), dtype=np.uint8)
     frame[:] = (40, 40, 40)
     verdict, conf, meta = svc.predict_frame_image(_jpeg_b64(frame), session_id=sid)
     assert verdict == "DISTRACTED"
-    assert conf == 0.85
+    assert conf is None
     assert meta.get("reason") == "body_no_face"
     assert meta.get("face_detected") is False
-    assert meta.get("inference_path") == "body_no_face"
-    assert len(svc._session_bufs[sid]["gaze"]) == before
+    assert meta.get("inference_path") == "rule_body_no_face"
 
 
 def test_no_face_no_landmarks_still_unknown(monkeypatch):

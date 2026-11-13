@@ -26,6 +26,26 @@ class FusionMLP(nn.Module):
         return self.net(x).squeeze(-1)
 
 
+def platt_apply_logits(z: np.ndarray, a: float, b: float) -> np.ndarray:
+    """Platt scaling on logits: sigmoid(a*z + b)."""
+    z = np.clip(np.asarray(z, dtype=np.float64), -13.8, 13.8)
+    return 1.0 / (1.0 + np.exp(-(a * z + b)))
+
+
+class PlattCalibratedProba:
+    """Wrap a sklearn-like classifier with 1-D Platt calibration (picklable)."""
+
+    def __init__(self, base, a: float, b: float):
+        self.base = base
+        self.a = float(a)
+        self.b = float(b)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        p = np.clip(np.asarray(self.base.predict_proba(X))[:, 1], 1e-6, 1 - 1e-6)
+        p1 = platt_apply_logits(np.log(p / (1.0 - p)), self.a, self.b)
+        return np.stack([1.0 - p1, p1], axis=1)
+
+
 class Model6SklearnWrapper:
     """predict_proba interface for ml_service."""
 
@@ -36,6 +56,8 @@ class Model6SklearnWrapper:
         self.scaler_scale = np.array(pack["scaler_scale"], dtype=np.float32)
         self.hidden = int(pack.get("hidden", 64))
         self._state = pack["state_dict"]
+        cal = pack.get("calibration") or None
+        self._cal = (float(cal["a"]), float(cal["b"])) if cal else None
         self._model: Optional[FusionMLP] = None
         self._device = torch.device("cpu")
 
@@ -61,7 +83,11 @@ class Model6SklearnWrapper:
         with torch.no_grad():
             t = torch.from_numpy(Xs).to(self._device)
             logits = self._model(t)
-            p1 = torch.sigmoid(logits.float()).cpu().numpy().reshape(-1)
+            if self._cal is not None:
+                z = logits.float().cpu().numpy().astype(np.float64).reshape(-1)
+                p1 = platt_apply_logits(z, *self._cal).astype(np.float32)
+            else:
+                p1 = torch.sigmoid(logits.float()).cpu().numpy().reshape(-1)
         p0 = 1.0 - p1
         return np.stack([p0, p1], axis=1)
 

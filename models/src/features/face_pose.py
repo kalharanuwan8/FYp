@@ -38,22 +38,23 @@ class FrameFeatures:
     body_motion: float
     nose_x: float
     nose_y: float
+    body_present: bool = False
 
 
 def _mat_to_ypr(mat: np.ndarray) -> Tuple[float, float, float]:
     """Extract yaw/pitch/roll (degrees) from a 4x4 facial transformation matrix."""
     r = np.asarray(mat, dtype=np.float64).reshape(4, 4)[:3, :3]
-    # MediaPipe facial transform: pitch from -r[2,1], yaw from r[2,0], roll from -r[1,0]
-    # Use a stable ZYX-style decomposition used in many MP examples.
-    sy = float(np.sqrt(r[0, 0] ** 2 + r[1, 0] ** 2))
-    singular = sy < 1e-6
-    if not singular:
-        pitch = float(np.degrees(np.arctan2(-r[2, 0], sy)))
-        yaw = float(np.degrees(np.arctan2(r[1, 0], r[0, 0])))
-        roll = float(np.degrees(np.arctan2(r[2, 1], r[2, 2])))
+    # MediaPipe face space is y-up: yaw (shake) is about y, pitch (nod) about x,
+    # roll (tilt) about z. Decompose R = Rz(roll) @ Ry(yaw) @ Rx(pitch).
+    # (v2 named these axes z/y/x → yaw/pitch/roll, i.e. "yaw" was actually tilt;
+    # confirmed on S01 distracted.mp4: head turns moved the old "pitch".)
+    cy = float(np.sqrt(r[2, 1] ** 2 + r[2, 2] ** 2))
+    yaw = float(np.degrees(np.arctan2(-r[2, 0], cy)))
+    if cy > 1e-6:
+        pitch = float(np.degrees(np.arctan2(r[2, 1], r[2, 2])))
+        roll = float(np.degrees(np.arctan2(r[1, 0], r[0, 0])))
     else:
-        pitch = float(np.degrees(np.arctan2(-r[2, 0], sy)))
-        yaw = float(np.degrees(np.arctan2(-r[0, 1], r[1, 1])))
+        pitch = float(np.degrees(np.arctan2(-r[1, 2], r[1, 1])))
         roll = 0.0
     return yaw, pitch, roll
 
@@ -158,7 +159,8 @@ class FrameFeatureExtractor:
         mp = self._mp
         rgb = frame_bgr[:, :, ::-1].copy()
         img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        self._ts_ms = max(self._ts_ms + 33, int(t_sec * 1000) + 1)
+        # VIDEO mode needs strictly increasing timestamps; use the real frame time.
+        self._ts_ms = max(self._ts_ms + 1, int(t_sec * 1000))
 
         face_res = self._face.detect_for_video(img, self._ts_ms)
         pose_res = self._pose.detect_for_video(img, self._ts_ms)
@@ -180,6 +182,7 @@ class FrameFeatureExtractor:
 
         hand_to_face = 0.0
         body_motion = 0.0
+        body_present = False
         nose_x = nose_y = 0.5
         if pose_res.pose_landmarks:
             pl = pose_res.pose_landmarks[0]
@@ -201,7 +204,11 @@ class FrameFeatureExtractor:
                     dist(rw, nose) if rw.visibility > 0.3 else 1.0,
                 )
             )
-            # Fallback head proxy if face missing but pose present
+            body_present = float(nose.visibility) > 0.5 and max(
+                float(pl[_POSE_L_SHOULDER].visibility), float(pl[_POSE_R_SHOULDER].visibility)
+            ) > 0.5
+            # Fallback head proxy if face missing but pose present. face_present
+            # stays False: it must mean the FaceLandmarker actually found a face.
             if not face_present:
                 ls, rs = pl[_POSE_L_SHOULDER], pl[_POSE_R_SHOULDER]
                 mid_x = 0.5 * (ls.x + rs.x)
@@ -209,7 +216,6 @@ class FrameFeatureExtractor:
                 sh_w = abs(rs.x - ls.x) + 1e-6
                 yaw = float(np.clip((nose.x - mid_x) / sh_w * 45.0, -60, 60))
                 pitch = float(np.clip((nose.y - mid_y) / sh_w * 45.0, -60, 60))
-                face_present = float(nose.visibility) > 0.5
 
         return FrameFeatures(
             t_sec=float(t_sec),
@@ -225,4 +231,5 @@ class FrameFeatureExtractor:
             body_motion=float(body_motion),
             nose_x=float(nose_x),
             nose_y=float(nose_y),
+            body_present=bool(body_present),
         )

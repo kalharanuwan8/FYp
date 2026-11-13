@@ -3,8 +3,13 @@ import sessionService from '../services/sessionService';
 
 /**
  * Shared monitored-session hook: camera on + JPEG heartbeats to /session/{id}/heartbeat.
- * Backend runs M1→M2→M4→M5 (or fallback) and returns the model verdict.
+ * Frames are captured at ~2 fps and sent in batches with each heartbeat; the backend
+ * computes the same MediaPipe window features used to train model6 and returns the verdict.
  */
+const CAPTURE_INTERVAL_MS = 500; // 2 fps — matches the training extraction rate
+const MAX_BUFFERED_FRAMES = 6; // backend limit per heartbeat
+const FRAME_TARGET_WIDTH = 640; // PLAN 4: higher res, aspect preserved from video
+const JPEG_QUALITY = 0.8;
 export function useMonitoringSession({
   intervalMs = 2000,
   onIntervention = null,
@@ -14,6 +19,9 @@ export function useMonitoringSession({
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
+  const captureIntervalRef = useRef(null);
+  const frameBufferRef = useRef([]);
+  const loopStartRef = useRef(0);
   const streamRef = useRef(null);
   const sessionIdRef = useRef(null);
   const quizContextRef = useRef(isQuizContext);
@@ -22,6 +30,15 @@ export function useMonitoringSession({
   const analyserRef = useRef(null);
   const inFlightRef = useRef(false);
   const onInterventionRef = useRef(onIntervention);
+  const pageVisibleRef = useRef(true);
+  const windowFocusedRef = useRef(true);
+  const hiddenSinceRef = useRef(null);
+  const blurredSinceRef = useRef(null);
+  const contentStateRef = useRef('none');
+  const calibratingRef = useRef(false);
+  const [calibrating, setCalibrating] = useState(false);
+  const [pageVisible, setPageVisible] = useState(true);
+  const [faceDetected, setFaceDetected] = useState(null);
 
   useEffect(() => {
     quizContextRef.current = isQuizContext;
@@ -190,12 +207,66 @@ export function useMonitoringSession({
     const canvas = canvasRef.current;
     if (!video || !canvas) return null;
     if (video.readyState < 2) return null;
+    const vw = video.videoWidth || FRAME_TARGET_WIDTH;
+    const vh = video.videoHeight || Math.round((FRAME_TARGET_WIDTH * 3) / 4);
+    const width = FRAME_TARGET_WIDTH;
+    const height = Math.max(1, Math.round((width * vh) / vw));
     const ctx = canvas.getContext('2d');
-    canvas.width = 224;
-    canvas.height = 224;
+    canvas.width = width;
+    canvas.height = height;
     // Draw un-mirrored for the model (CSS mirror is display-only)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.5);
+    return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+  }, []);
+
+  const browserSignalSnapshot = useCallback(() => {
+    const now = performance.now();
+    const hiddenMs =
+      !pageVisibleRef.current && hiddenSinceRef.current != null
+        ? Math.round(now - hiddenSinceRef.current)
+        : 0;
+    const blurredMs =
+      !windowFocusedRef.current && blurredSinceRef.current != null
+        ? Math.round(now - blurredSinceRef.current)
+        : 0;
+    return {
+      page_visible: pageVisibleRef.current,
+      window_focused: windowFocusedRef.current,
+      hidden_ms: hiddenMs,
+      blurred_ms: blurredMs,
+      content_state: contentStateRef.current,
+      calibrating: Boolean(calibratingRef.current),
+    };
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      const visible = document.visibilityState === 'visible';
+      pageVisibleRef.current = visible;
+      setPageVisible(visible);
+      if (!visible) {
+        if (hiddenSinceRef.current == null) hiddenSinceRef.current = performance.now();
+      } else {
+        hiddenSinceRef.current = null;
+      }
+    };
+    const onBlur = () => {
+      windowFocusedRef.current = false;
+      if (blurredSinceRef.current == null) blurredSinceRef.current = performance.now();
+    };
+    const onFocus = () => {
+      windowFocusedRef.current = true;
+      blurredSinceRef.current = null;
+    };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    onVis();
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const stopTelemetryLoop = useCallback(() => {
@@ -203,6 +274,11 @@ export function useMonitoringSession({
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+    }
+    frameBufferRef.current = [];
     inFlightRef.current = false;
   }, []);
 
@@ -210,13 +286,28 @@ export function useMonitoringSession({
     (sessionId) => {
       stopTelemetryLoop();
       sessionIdRef.current = sessionId;
+      loopStartRef.current = performance.now();
+
+      // Capture keeps running while a heartbeat is in flight, so no frames are
+      // lost; the next heartbeat carries them (bounded to the newest few).
+      captureIntervalRef.current = setInterval(() => {
+        if (!sessionIdRef.current) return;
+        const image = captureFrame();
+        if (!image) return;
+        const buf = frameBufferRef.current;
+        buf.push({ t_ms: Math.round(performance.now() - loopStartRef.current), image });
+        if (buf.length > MAX_BUFFERED_FRAMES) buf.splice(0, buf.length - MAX_BUFFERED_FRAMES);
+      }, CAPTURE_INTERVAL_MS);
 
       intervalRef.current = setInterval(async () => {
         if (!sessionIdRef.current || inFlightRef.current) return;
         // Ensure preview stays attached if the <video> remounted
         attachStreamToVideo(webcamRef.current);
-        const frameBase64 = captureFrame();
-        if (!frameBase64) return;
+        const frames = frameBufferRef.current;
+        const signals = browserSignalSnapshot();
+        // While hidden, still send a lightweight heartbeat (server uses hidden_ms).
+        if (frames.length === 0 && signals.page_visible) return;
+        frameBufferRef.current = [];
 
         inFlightRef.current = true;
         try {
@@ -225,14 +316,22 @@ export function useMonitoringSession({
           const currentNoiseDbfs = lessonAudioActiveNow ? null : captureNoiseDbfs();
           if (currentNoiseDbfs !== null) setNoiseDbfs(currentNoiseDbfs);
           const response = await sessionService.sendHeartbeat(sessionIdRef.current, {
-            image: frameBase64,
+            frames,
             is_quiz_context: Boolean(quizContextRef.current),
             noise_dbfs: currentNoiseDbfs,
             lesson_audio_active: lessonAudioActiveNow,
+            ...signals,
           });
           if (!sessionIdRef.current) return;
           if (response.verdict) setLastVerdict(response.verdict);
           if (response.ml_mode) setMlMode(response.ml_mode);
+          if (typeof response.face_detected === 'boolean') {
+            setFaceDetected(response.face_detected);
+          } else if (response.reason === 'calibrating') {
+            // keep last faceDetected during calibration heartbeats without a clear flag
+          } else {
+            setFaceDetected(null);
+          }
           if (response.verdict === 'UNKNOWN') {
             setConfidence(null);
           } else if (typeof response.confidence === 'number') {
@@ -259,7 +358,14 @@ export function useMonitoringSession({
         }
       }, intervalMs);
     },
-    [attachStreamToVideo, captureFrame, captureNoiseDbfs, intervalMs, stopTelemetryLoop]
+    [
+      attachStreamToVideo,
+      browserSignalSnapshot,
+      captureFrame,
+      captureNoiseDbfs,
+      intervalMs,
+      stopTelemetryLoop,
+    ]
   );
 
   const startMonitoredSession = useCallback(
@@ -362,6 +468,15 @@ export function useMonitoringSession({
     [activeSession]
   );
 
+  const setContentState = useCallback((state) => {
+    contentStateRef.current = state || 'none';
+  }, []);
+
+  const setCalibratingFlag = useCallback((on) => {
+    calibratingRef.current = Boolean(on);
+    setCalibrating(Boolean(on));
+  }, []);
+
   return {
     // Prefer these callback refs so stream attaches on mount
     webcamRef: setWebcamNode,
@@ -378,6 +493,11 @@ export function useMonitoringSession({
     loading,
     error,
     setError,
+    calibrating,
+    faceDetected,
+    pageVisible,
+    setContentState,
+    setCalibrating: setCalibratingFlag,
     startCamera,
     stopCamera,
     startMonitoredSession,

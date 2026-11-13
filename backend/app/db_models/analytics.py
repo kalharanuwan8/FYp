@@ -62,6 +62,7 @@ class InterventionLog(db.Model):
     user_response = db.Column(db.String(50), nullable=True)  # reengaged | ignored | ended
     # For environment_noise_notice logs: headphones | move_environment | continue_anyway
     noise_action = db.Column(db.String(50), nullable=True)
+    self_report = db.Column(db.Text, nullable=True)  # PLAN 4 optional free-text from student
     reengaged_in_seconds = db.Column(db.Float, nullable=True)
 
     session = db.relationship("LearningSession", backref="intervention_logs")

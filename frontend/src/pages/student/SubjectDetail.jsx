@@ -17,6 +17,7 @@ import {
 import { courseService } from '../../services/courseService';
 import { sessionService } from '../../services/sessionService';
 import FocusInterventionOverlay from '../../components/student/FocusInterventionOverlay';
+import CalibrationOverlay from '../../components/student/CalibrationOverlay';
 import VideoLearningPlayer from '../../components/student/VideoLearningPlayer';
 import DocumentReader from '../../components/student/DocumentReader';
 import WebcamCapture from '../../components/monitoring/WebcamCapture';
@@ -49,11 +50,15 @@ export default function SubjectDetail() {
   const [activeIntervention, setActiveIntervention] = useState(null);
   const [sessionSummary, setSessionSummary] = useState(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [calibratingOpen, setCalibratingOpen] = useState(false);
+  const [calibKey, setCalibKey] = useState(0);
+  const [lastBreakAtSec, setLastBreakAtSec] = useState(0);
   const showCam = showCameraPreview;
   const [expandedModuleId, setExpandedModuleId] = useState(null);
 
   const handleInterventionFromMl = useCallback((intervention) => {
-    setActiveIntervention(intervention);
+    // Ignore an incoming intervention while one is already open.
+    setActiveIntervention((prev) => prev || intervention);
   }, []);
 
   const {
@@ -68,6 +73,8 @@ export default function SubjectDetail() {
     startMonitoredSession,
     stopMonitoredSession,
     triggerManualIntervention,
+    setCalibrating,
+    faceDetected,
   } = useMonitoringSession({
     intervalMs: 2000,
     onIntervention: handleInterventionFromMl,
@@ -127,11 +134,12 @@ export default function SubjectDetail() {
     return () => clearInterval(idTimer);
   }, [activeSession]);
 
-  // Suggested break every N minutes
+  // Suggested break every N minutes (elapsed >= interval, not modulo)
   useEffect(() => {
-    if (!activeSession || activeIntervention) return undefined;
+    if (!activeSession || activeIntervention || calibratingOpen) return undefined;
     const interval = (breakIntervalMinutes || 18) * 60;
-    if (elapsedSec > 0 && elapsedSec % interval === 0) {
+    if (elapsedSec >= interval && elapsedSec - lastBreakAtSec >= interval) {
+      setLastBreakAtSec(elapsedSec);
       setActiveIntervention({
         intervention_id: null,
         tier: 4,
@@ -141,7 +149,14 @@ export default function SubjectDetail() {
       });
     }
     return undefined;
-  }, [elapsedSec, activeSession, activeIntervention, breakIntervalMinutes]);
+  }, [
+    elapsedSec,
+    activeSession,
+    activeIntervention,
+    breakIntervalMinutes,
+    lastBreakAtSec,
+    calibratingOpen,
+  ]);
 
   const handleEnroll = async () => {
     setActionLoading(true);
@@ -169,14 +184,27 @@ export default function SubjectDetail() {
     }
   };
 
+  const beginCalibration = useCallback(() => {
+    setCalibKey((k) => k + 1);
+    setCalibratingOpen(true);
+    setCalibrating(true);
+  }, [setCalibrating]);
+
+  const finishCalibration = useCallback(() => {
+    setCalibratingOpen(false);
+    setCalibrating(false);
+  }, [setCalibrating]);
+
   const handleStartSession = async (mod, step = null) => {
     setActionError(null);
     setSessionSummary(null);
     setActiveIntervention(null);
+    setLastBreakAtSec(0);
     const result = await startMonitoredSession(mod.id);
     if (result?.ok) {
       setSessionModule(mod);
       setSessionStep(step);
+      beginCalibration();
     } else {
       setActionError(result?.error || monitorError || 'Failed to start focus session');
     }
@@ -212,6 +240,7 @@ export default function SubjectDetail() {
   const handleStopSession = async () => {
     if (!activeSession) return;
     try {
+      finishCalibration();
       const summary = await stopMonitoredSession();
       setSessionSummary(summary);
       setSessionModule(null);
@@ -339,6 +368,13 @@ export default function SubjectDetail() {
           )}
         </div>
 
+        <CalibrationOverlay
+          key={calibKey}
+          open={calibratingOpen}
+          faceFound={faceDetected !== false}
+          onDone={finishCalibration}
+          onRetry={() => beginCalibration()}
+        />
         <FocusInterventionOverlay
           intervention={activeIntervention}
           onRespond={handleInterventionResponse}

@@ -3,14 +3,15 @@ Socket.IO telemetry path — parity with REST heartbeat interventions.
 """
 from datetime import datetime
 
-from flask import request
+from flask import current_app, request
 from flask_jwt_extended import decode_token
 from flask_socketio import emit, join_room, disconnect
 
 from app.extensions import db, socketio
-from app.db_models import LearningSession, InterventionLog, Module, Student
+from app.db_models import LearningSession, InterventionLog, Module, Student, User
 from app.services.ml_service import MLService
 from app.services.intervention_engine import InterventionEngine
+from app.schemas.session_schema import MAX_FRAMES_PER_HEARTBEAT, MAX_IMAGE_B64_CHARS
 from app.routes.session import (
     SESSION_ENGINES,
     _build_engine,
@@ -73,6 +74,12 @@ def init_telemetry_events():
             emit("connection_error", {"error": "Unauthorized"})
             disconnect()
             return False
+        user = db.session.get(User, user_id)
+        # Telemetry is student-only, matching @role_required("student") on REST.
+        if not user or str(getattr(user, "role", "")).lower() != "student":
+            emit("connection_error", {"error": "Forbidden"})
+            disconnect()
+            return False
         _SID_USERS[request.sid] = user_id
         emit("connection_ack", {"status": "connected", "user_id": user_id})
 
@@ -120,15 +127,34 @@ def init_telemetry_events():
         ml_service = MLService()
 
         ml_feats = {}
-        if data.get("image"):
+        frames = data.get("frames") or []
+        if not session.is_monitored:
+            verdict, confidence, ml_feats = "UNKNOWN", None, {"reason": "not_monitored"}
+        elif frames:
+            try:
+                frames = [
+                    (float(f["t_ms"]) / 1000.0, str(f["image"]))
+                    for f in frames[:MAX_FRAMES_PER_HEARTBEAT]
+                    if len(str(f.get("image", ""))) <= MAX_IMAGE_B64_CHARS
+                ]
+            except (KeyError, TypeError, ValueError):
+                emit("session_error", {"error": "invalid frames"})
+                return
+            verdict, confidence, ml_feats = ml_service.predict_frames(
+                frames, session_id=session_id
+            )
+        elif data.get("image"):
+            if len(str(data["image"])) > MAX_IMAGE_B64_CHARS:
+                emit("session_error", {"error": "image too large"})
+                return
             verdict, confidence, ml_feats = ml_service.predict_frame_image(
                 data["image"], session_id=session_id
             )
-        elif features:
+        elif features and current_app.config.get("TESTING"):
             verdict, confidence = ml_service.predict_window_features(features)
             ml_feats = {"face_detected": features.get("face_detected")}
         else:
-            emit("session_error", {"error": "image or features required"})
+            emit("session_error", {"error": "webcam frames required"})
             return
 
         from app.routes.session import record_monitoring_observation

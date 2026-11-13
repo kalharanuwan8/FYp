@@ -204,10 +204,9 @@ def test_predict_exception_is_unknown_not_focused():
     MLService._instance = None
     svc = MLService()
     with patch.object(svc, "_decode_frame", return_value=__import__("numpy").zeros((10, 10, 3), dtype="uint8")):
-        # Face gate runs before inference; pass a box so the exception path is reached.
-        with patch.object(svc, "_detect_face", return_value=(1, 1, 8, 8)):
-            with patch.object(svc, "_infer_frame_signals", side_effect=RuntimeError("boom")):
-                verdict, conf, meta = svc.predict_frame_image("ignored", session_id=42)
+        # Live path: the per-session scorer raising must surface as UNKNOWN.
+        with patch.object(svc, "_live_scorer_for", side_effect=RuntimeError("boom")):
+            verdict, conf, meta = svc.predict_frame_image("ignored", session_id=42)
     assert verdict == "UNKNOWN"
     assert conf is None
     assert meta.get("face_detected") is not True
@@ -481,7 +480,7 @@ def test_predict_no_face_is_unknown_with_face_detected_false():
 
 
 def test_episode_gap_breaks_continuity_for_intervention(app):
-    """DISTRACTED@0 then DISTRACTED@4 closes prior at +T_SUPPORT and opens new."""
+    """DISTRACTED@0 then DISTRACTED@6 (> EPISODE_GAP_MAX) closes prior at +T_SUPPORT and opens new."""
     with app.app_context():
         gl = GradeLevel(name="G-p2a-gap")
         db.session.add(gl)
@@ -525,7 +524,7 @@ def test_episode_gap_breaks_continuity_for_intervention(app):
         assert ev1 is not None
         assert ev1.ended_at is None
 
-        t4 = t0 + timedelta(seconds=4)
+        t4 = t0 + timedelta(seconds=6)
         db.session.add(
             MonitoringObservation(
                 session_id=sid,
@@ -542,7 +541,7 @@ def test_episode_gap_breaks_continuity_for_intervention(app):
         assert ev1.ended_at == t0 + timedelta(seconds=T_SUPPORT)
         assert ev2.started_at == t4
         assert ev2.ended_at is None
-        # New episode duration at t4+1 must not include the [3,4) unknown gap
+        # New episode duration at t4+1 must not include the [3,6) unknown gap
         assert ev2.duration_seconds(t4 + timedelta(seconds=1)) == pytest.approx(1.0)
 
 

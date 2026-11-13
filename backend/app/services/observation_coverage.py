@@ -13,12 +13,16 @@ FOCUS_METRIC_VERSION = "observed_v1"
 LEGACY_METRIC_VERSION = "legacy_wallclock_v0"
 
 # Accounting constants (seconds) — not ML window sizes.
-# T_SUPPORT: max forward coverage of one valid observation; also episode
-#            continuity limit (gap > T_SUPPORT breaks continuous distraction).
+# T_SUPPORT: max forward coverage of one valid observation.
 # T_GAP_MAX: interrupted-monitoring detector only (does not extend coverage
 #            or keep episodes continuous across unknown remainders).
 T_SUPPORT = 3.0
 T_GAP_MAX = 5.0
+# EPISODE_GAP_MAX: episode continuity limit. Two DISTRACTED observations up to
+#            this far apart stay one episode, so one skipped 2 s heartbeat
+#            (client request still in flight) does not reset escalation.
+#            Coverage accounting still credits only T_SUPPORT per observation.
+EPISODE_GAP_MAX = 5.0
 
 STATE_FOCUSED = "FOCUSED"
 STATE_DISTRACTED = "DISTRACTED"

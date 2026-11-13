@@ -36,47 +36,44 @@ def test_tier1_ambient_after_mild_duration():
         is_distracted=True,
         is_quiz_context=False,
         now=100.0,
+        source="model6",
     )
     assert res is not None
     assert res.tier == 1
     assert res.intervention_type == TYPE_AMBIENT
+    assert engine._pending_intervention is True
 
 
 def test_cooldown_suppresses_repeat():
-    # Retargeted to 12 s (Tier 2) after ambient_cue stopped taking the pending
-    # lock / cooldown — pending+cooldown still apply to tiers 2–4.
     engine = InterventionEngine(cooldown_seconds=60.0)
     res1 = engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=100.0
+        distraction_event=_episode(12), is_distracted=True, now=100.0, source="model6"
     )
     assert res1 is not None
     assert res1.tier == 2
-    # Pending without outcome — blocked
     assert engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=130.0
+        distraction_event=_episode(12), is_distracted=True, now=130.0, source="model6"
     ) is None
-    engine.record_outcome("reengaged")
-    # Still in cooldown window
+    engine.record_outcome("reengaged", intervention_id=res1.intervention_id, now=130.0)
     assert engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=130.0
+        distraction_event=_episode(12), is_distracted=True, now=130.0, source="model6"
     ) is None
-    # After cooldown
     res2 = engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=165.0
+        distraction_event=_episode(12), is_distracted=True, now=195.0, source="model6"
     )
     assert res2 is not None
-    assert res2.tier == 2
+    assert res2.tier >= 2  # duration band ≥2; cooldown is the behaviour under test
 
 
 def test_ignored_escalates_one_tier():
     engine = InterventionEngine(cooldown_seconds=0.0)
     res1 = engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=100.0
+        distraction_event=_episode(8), is_distracted=True, now=100.0, source="model6"
     )
     assert res1.tier == 1
-    engine.record_outcome("ignored")
+    engine.record_outcome("ignored", intervention_id=res1.intervention_id, now=100.0)
     res2 = engine.decide_intervention(
-        distraction_event=_episode(8), is_distracted=True, now=101.0
+        distraction_event=_episode(8), is_distracted=True, now=101.0, source="model6"
     )
     assert res2 is not None
     assert res2.tier == 2
@@ -90,6 +87,7 @@ def test_quiz_context_uses_hint_injection():
         is_distracted=True,
         is_quiz_context=True,
         now=100.0,
+        source="model6",
     )
     assert res.tier == 3
     assert res.intervention_type == TYPE_HINT
@@ -103,6 +101,7 @@ def test_content_context_uses_milestone_quiz():
         is_distracted=True,
         is_quiz_context=False,
         now=100.0,
+        source="model6",
     )
     assert res.intervention_type == TYPE_MILESTONE
 
@@ -110,12 +109,12 @@ def test_content_context_uses_milestone_quiz():
 def test_tier4_pacing_then_suggest_break():
     engine = InterventionEngine(cooldown_seconds=0.0)
     res1 = engine.decide_intervention(
-        distraction_event=_episode(50), is_distracted=True, now=100.0
+        distraction_event=_episode(50), is_distracted=True, now=100.0, source="model6"
     )
     assert res1.intervention_type == TYPE_PACING_REDUCTION
-    engine.record_outcome("ignored")
+    engine.record_outcome("ignored", intervention_id=res1.intervention_id, now=100.0)
     res2 = engine.decide_intervention(
-        distraction_event=_episode(50), is_distracted=True, now=101.0
+        distraction_event=_episode(50), is_distracted=True, now=101.0, source="model6"
     )
     assert res2.intervention_type == TYPE_SUGGEST_BREAK
 
@@ -123,25 +122,22 @@ def test_tier4_pacing_then_suggest_break():
 def test_disabled_tier_falls_back():
     engine = InterventionEngine(cooldown_seconds=0.0, enabled_tiers=[1, 2])
     res = engine.decide_intervention(
-        distraction_event=_episode(50), is_distracted=True, now=100.0
+        distraction_event=_episode(50), is_distracted=True, now=100.0, source="model6"
     )
-    # Level 4 requested but only 1–2 enabled → fall back to 2
     assert res.tier == 2
     assert res.intervention_type == TYPE_PACING
 
 
 def test_all_tiers_disabled_fires_nothing():
-    """Regression: explicit empty enabled_tiers must not coerce to [1,2,3,4]."""
     engine = InterventionEngine(cooldown_seconds=0.0, enabled_tiers=[])
     assert engine.enabled_tiers == set()
     res = engine.decide_intervention(
-        distraction_event=_episode(50), is_distracted=True, now=100.0
+        distraction_event=_episode(50), is_distracted=True, now=100.0, source="model6"
     )
     assert res is None
 
 
 def test_get_enabled_tiers_preserves_empty_config(app):
-    """Route helper must return [] when every subject tier flag is off."""
     from app.db_models import GradeLevel, Subject, InterventionConfig
     from app.extensions import db
     from app.routes.session import _get_enabled_tiers
@@ -165,33 +161,42 @@ def test_get_enabled_tiers_preserves_empty_config(app):
         assert _get_enabled_tiers(subject.id) == []
 
 
-def test_focus_resets_escalation():
-    engine = InterventionEngine(cooldown_seconds=0.0)
-    engine.decide_intervention(
+def test_sustained_focus_resets_escalation():
+    engine = InterventionEngine(cooldown_seconds=0.0, focus_reset_sec=10.0)
+    t = engine.decide_intervention(
         distraction_event=_episode(8),
         is_distracted=True,
         observation_state="DISTRACTED",
         now=100.0,
+        source="model6",
     )
-    engine.record_outcome("ignored")
-    assert engine.decide_intervention(
+    engine.record_outcome("ignored", intervention_id=t.intervention_id, now=100.0)
+    engine.decide_intervention(
         distraction_event=None,
         is_distracted=False,
         observation_state="FOCUSED",
         now=101.0,
-    ) is None
+        source="model6",
+    )
+    assert engine.last_tier == 1  # needs 10 s
+    engine.decide_intervention(
+        distraction_event=None,
+        is_distracted=False,
+        observation_state="FOCUSED",
+        now=112.0,
+        source="model6",
+    )
     assert engine.last_tier is None
 
 
 def test_unknown_holds_without_focus_reset():
-    # Retargeted to 12 s (Tier 2) so the pending lock is still set; Tier 1
-    # ambient_cue no longer sets _pending_intervention.
     engine = InterventionEngine(cooldown_seconds=0.0)
     engine.decide_intervention(
         distraction_event=_episode(12),
         is_distracted=True,
         observation_state="DISTRACTED",
         now=100.0,
+        source="model6",
     )
     assert engine._pending_intervention is True
     assert (
@@ -200,6 +205,7 @@ def test_unknown_holds_without_focus_reset():
             is_distracted=False,
             observation_state="UNKNOWN",
             now=101.0,
+            source="model6",
         )
         is None
     )

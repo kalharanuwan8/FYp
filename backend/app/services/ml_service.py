@@ -1,14 +1,20 @@
 """
-In-process ML service that runs the research pipeline from models/:
-  Model 1 Gaze + Model 2 Pose + Model 4 Engagement → Model 5 Fusion
+In-process ML service.
 
-Falls back to OpenCV Haar heuristics when checkpoints are missing.
+Live path (v3): each session gets a LiveWindowScorer (models/src/features/live.py)
+that runs the same MediaPipe feature code as model6 training, then the v3
+model6 pack (nested-LOSO) + hysteresis. Without a v3 pack the same features
+feed a transparent rule (ml_mode="rule").
+
+Legacy path: Model 1 Gaze + Model 2 Pose + Model 4 Engagement → Model 5 Fusion,
+used only when those checkpoints exist (they are not in the repo).
 """
 from __future__ import annotations
 
 import base64
 import os
 import sys
+import threading
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -33,12 +39,19 @@ HYST_EXIT_PROB = 0.4
 HYST_ENTER_SEC = 3.0
 HYST_EXIT_SEC = 2.0
 
+# Rule fallback (no v3 pack): distraction_proxy/2 >= 0.275 is the proxy >= 0.55
+# cut-off of the original label rule (models/src/features/windows.py).
+RULE_PROXY_THRESHOLD = 0.275
+# A window counts as "no face" below this face_present_ratio.
+NO_FACE_RATIO = 0.2
+BODY_PRESENT_RATIO = 0.5
+
 MODEL6_FEATURE_NAMES = [
     "gaze_dev_mean",
     "gaze_dev_std",
     "head_yaw_dev",
     "head_pitch_dev",
-    "head_roll_mean",
+    "head_roll_dev",
     "on_screen_ratio",
     "off_screen_dwell_sec",
     "glance_count",
@@ -49,6 +62,8 @@ MODEL6_FEATURE_NAMES = [
     "hand_to_face_ratio",
     "talking_score",
 ]
+# PLAN 4: face_present_ratio below this → UNKNOWN low_face (don't score as off-screen).
+LOW_FACE_RATIO = 0.6
 
 _LM_IDX = {
     "nose": 0, "l_shoulder": 11, "r_shoulder": 12,
@@ -62,12 +77,15 @@ class MLService:
     Accumulates per-session frame windows so fusion sees aggregates, not single frames.
     """
     _instance = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            instance = super(MLService, cls).__new__(cls)
-            instance._init_models()
-            cls._instance = instance
+            with cls._instance_lock:
+                if cls._instance is None:
+                    instance = super(MLService, cls).__new__(cls)
+                    instance._init_models()
+                    cls._instance = instance
         return cls._instance
 
     @staticmethod
@@ -99,10 +117,25 @@ class MLService:
         self.fusion_threshold = 0.5
         self.fusion_feat_names = list(FUSION_FEATURES_DEFAULT)
         self.fusion_kind = "model5"  # "model5" | "model6_mlp"
+        self.fusion_version = ""  # "v3_nested_loso" for packs usable on the live path
+        self.fusion_hysteresis: Optional[dict] = None
+        # v3 live path: one LiveWindowScorer + lock per session
+        self._live_available = False
+        self._live_scorers: Dict[Any, Any] = {}
+        self._session_locks: Dict[Any, threading.RLock] = {}
+        self._session_last_seen: Dict[Any, float] = {}
+        self._session_t0: Dict[Any, float] = {}
+        self._state_lock = threading.RLock()
+        self.live_window_sec = float(os.environ.get("ML_LIVE_WINDOW_SEC", "5.0"))
+        # ~15 face frames ≈ 7.5 s at 2 fps — fits the 10 s calibration screen.
+        self.live_baseline_frames = int(os.environ.get("ML_LIVE_BASELINE_FRAMES", "15"))
+        self.session_idle_sec = float(os.environ.get("ML_SESSION_IDLE_SEC", "600"))
         # Per-session hysteresis for fusion probabilities
         self._session_hyst_state: Dict[Any, str] = {}
         self._session_hyst_high_t0: Dict[Any, Optional[float]] = {}
         self._session_hyst_low_t0: Dict[Any, Optional[float]] = {}
+        self._session_hyst_last_t: Dict[Any, Optional[float]] = {}
+        self._session_no_body_t0: Dict[Any, Optional[float]] = {}
         # Shared task path only — each session gets its own VIDEO landmarker
         # so temporal tracking state never crosses sessions (Phase 2A).
         self._pose_landmarker_task_path: Optional[Path] = None
@@ -146,11 +179,20 @@ class MLService:
         self._session_hyst_state = {}
         self._session_hyst_high_t0 = {}
         self._session_hyst_low_t0 = {}
+        self._session_hyst_last_t = {}
+        self._session_no_body_t0 = {}
 
         self._load_torch_models()
         self._load_sklearn_models()
-        # Env override after checkpoint default (tests stay stable when unset).
+        # Env override of the trained threshold is an explicit experiment switch,
+        # never a silent deployment setting.
         env_thr = os.environ.get("ML_FUSION_THRESHOLD", "").strip()
+        if env_thr and os.environ.get("ML_ALLOW_THRESHOLD_OVERRIDE") != "1":
+            print(
+                "[MLService] Ignoring ML_FUSION_THRESHOLD (set "
+                "ML_ALLOW_THRESHOLD_OVERRIDE=1 to override the trained threshold)"
+            )
+            env_thr = ""
         if env_thr:
             try:
                 self.fusion_threshold = float(env_thr)
@@ -242,12 +284,18 @@ class MLService:
             "ENG_CKPT",
             str(self._ckpt("outputs", "checkpoints", "model4_engagement", "model.pkl")),
         ))
-        # Prefer model6 when a LOSO deploy pack exists; else model5.
+        # Prefer newest model6 pack (v4 → v3 → natural); else model5.
         env_fusion = os.environ.get("FUSION_CKPT", "").strip()
+        model6_v4_ckpt = self._ckpt("outputs", "checkpoints", "model6_v4", "model.pkl")
+        model6_v3_ckpt = self._ckpt("outputs", "checkpoints", "model6_v3", "model.pkl")
         model6_ckpt = self._ckpt("outputs", "checkpoints", "model6_natural", "model.pkl")
         model5_ckpt = self._ckpt("outputs", "checkpoints", "model5_fusion", "model.pkl")
         if env_fusion:
             fusion_ckpt = Path(env_fusion)
+        elif model6_v4_ckpt.exists():
+            fusion_ckpt = model6_v4_ckpt
+        elif model6_v3_ckpt.exists():
+            fusion_ckpt = model6_v3_ckpt
         elif model6_ckpt.exists():
             fusion_ckpt = model6_ckpt
         else:
@@ -274,12 +322,14 @@ class MLService:
                         pack.get("features", FUSION_FEATURES_DEFAULT)
                     )
                     self.fusion_kind = str(pack.get("kind", "model5"))
+                    self.fusion_version = str(pack.get("version", ""))
+                    self.fusion_hysteresis = pack.get("hysteresis")
                 else:
                     self.fusion_model = pack
                     self.fusion_kind = "model5"
                 print(
-                    f"[MLService] Loaded fusion model from {fusion_ckpt.name} "
-                    f"(kind={self.fusion_kind})"
+                    f"[MLService] Loaded fusion model from {fusion_ckpt} "
+                    f"(kind={self.fusion_kind}, version={self.fusion_version or 'legacy'})"
                 )
             except Exception as e:
                 print(f"[MLService] Warning: could not load fusion model: {e}")
@@ -297,6 +347,10 @@ class MLService:
             self._mp_module = mp
             self._pose_landmarker_task_path = task_path
             self._mp_available = True
+            face_task = self._ckpt("src", "features", "face_landmarker.task")
+            self._live_available = face_task.exists()
+            if not self._live_available:
+                print(f"[MLService] Warning: FaceLandmarker task missing: {face_task}")
             print(
                 "[MLService] MediaPipe PoseLandmarker ready "
                 "(per-session VIDEO instances; no shared tracker)"
@@ -357,7 +411,32 @@ class MLService:
             except Exception as e:
                 print(f"[MLService] Landmarker close warning for session {session_id}: {e}")
 
+    def _uses_live_path(self) -> bool:
+        """Shared-feature path unless the full legacy M1/M2 pipeline is present."""
+        legacy_complete = self.gaze_model is not None and self.pose_model is not None
+        return self._live_available and not legacy_complete
+
+    def _has_v3_pack(self) -> bool:
+        """True when a nested-LOSO model6 pack (MLP or logreg, v3+) is loaded."""
+        if self.fusion_model is None:
+            return False
+        if self.fusion_kind not in ("model6_mlp", "model6_logreg"):
+            return False
+        ver = self.fusion_version or ""
+        return ver.startswith("v3") or ver.startswith("v4")
+
     def _update_ml_mode(self):
+        if self._uses_live_path():
+            if self._has_v3_pack():
+                self.ml_mode = "model6"
+            else:
+                self.ml_mode = "rule"
+                print(
+                    "[MLService] WARNING: live path active but no model6 v3/v4 pack — "
+                    "ml_mode=rule (distraction_proxy). Deploy models/outputs/checkpoints/"
+                    "model6_v4/model.pkl to restore model scoring."
+                )
+            return
         has_gaze = self.gaze_model is not None
         has_pose = self.pose_model is not None
         has_eng = self.eng_model is not None
@@ -377,25 +456,71 @@ class MLService:
         self._session_hyst_state.pop(session_id, None)
         self._session_hyst_high_t0.pop(session_id, None)
         self._session_hyst_low_t0.pop(session_id, None)
+        self._session_hyst_last_t.pop(session_id, None)
+        self._session_no_body_t0.pop(session_id, None)
         self._close_session_landmarker(session_id)
+        with self._state_lock:
+            scorer = self._live_scorers.pop(session_id, None)
+            self._session_locks.pop(session_id, None)
+            self._session_last_seen.pop(session_id, None)
+            self._session_t0.pop(session_id, None)
+        if scorer is not None:
+            try:
+                scorer.close()
+            except Exception as e:
+                print(f"[MLService] Scorer close warning for session {session_id}: {e}")
 
-    def _apply_hysteresis(self, session_id: Any, dist_prob: float) -> str:
-        """Enter DISTRACTED only after sustained high prob; exit after sustained low."""
-        now = time.monotonic()
+    def shutdown(self) -> None:
+        """Release all per-session MediaPipe resources (needed for clean pytest exit)."""
+        session_ids = set(self._session_landmarkers) | set(self._live_scorers) | set(self._session_bufs)
+        for sid in list(session_ids):
+            try:
+                self.clear_session(sid)
+            except Exception as e:
+                print(f"[MLService] shutdown warning for session {sid}: {e}")
+        self._session_landmarkers.clear()
+        self._live_scorers.clear()
+
+    def _apply_hysteresis(
+        self,
+        session_id: Any,
+        dist_prob: float,
+        now: Optional[float] = None,
+        params: Optional[dict] = None,
+    ) -> str:
+        """Enter DISTRACTED only after sustained high prob; exit after sustained low.
+
+        Same state machine as models/src/model6_natural/train.replay_hysteresis.
+        ``now`` is the frame timestamp on the live path (wall clock otherwise);
+        ``params`` come from the v3 pack.
+        """
+        p = params or {}
+        enter_prob = float(p.get("enter_prob", HYST_ENTER_PROB))
+        enter_sec = float(p.get("enter_sec", HYST_ENTER_SEC))
+        exit_prob = float(p.get("exit_prob", HYST_EXIT_PROB))
+        exit_sec = float(p.get("exit_sec", HYST_EXIT_SEC))
+        now = time.monotonic() if now is None else float(now)
+        # Reset timers when the gap since the last scored window is too large
+        # (2× typical 2 s heartbeat) so stale high_t0 cannot fire later.
+        last = self._session_hyst_last_t.get(session_id)
+        if last is not None and (now - float(last)) > 4.0:
+            self._session_hyst_high_t0[session_id] = None
+            self._session_hyst_low_t0[session_id] = None
+        self._session_hyst_last_t[session_id] = now
         state = self._session_hyst_state.get(session_id, "FOCUSED")
-        if dist_prob >= HYST_ENTER_PROB:
+        if dist_prob >= enter_prob:
             if self._session_hyst_high_t0.get(session_id) is None:
                 self._session_hyst_high_t0[session_id] = now
             self._session_hyst_low_t0[session_id] = None
             held = now - float(self._session_hyst_high_t0[session_id])
-            if held >= HYST_ENTER_SEC:
+            if held >= enter_sec:
                 state = "DISTRACTED"
-        elif dist_prob < HYST_EXIT_PROB:
+        elif dist_prob < exit_prob:
             if self._session_hyst_low_t0.get(session_id) is None:
                 self._session_hyst_low_t0[session_id] = now
             self._session_hyst_high_t0[session_id] = None
             held = now - float(self._session_hyst_low_t0[session_id])
-            if held >= HYST_EXIT_SEC:
+            if held >= exit_sec:
                 state = "FOCUSED"
         else:
             # Mid band: freeze timers so brief dips do not reset enter/exit
@@ -649,72 +774,10 @@ class MLService:
             "engagement_prob_mean": eng_prob,
         }
 
-        # Live approximations of model6 window features from the heartbeat buffer.
+        # model6 features are never approximated from M1/M2 outputs: they come
+        # only from the shared MediaPipe extractor (predict_frames).
         if any(name in self.fusion_feat_names for name in MODEL6_FEATURE_NAMES):
-            # ~2 s between heartbeats when window_size≈5 at 0.5 Hz; use 2.0 s/step
-            dt = 2.0
-            on_flags = []
-            for i in range(len(pose_arr)):
-                g = gaze_arr[i] if i < len(gaze_arr) else gaze_arr[-1]
-                away_i = float(g[1] + g[2] + g[3]) / max(float(g.sum()), 1e-8)
-                on_flags.append(
-                    abs(float(pose_arr[i][0])) < 18.0
-                    and abs(float(pose_arr[i][1])) < 18.0
-                    and away_i < 0.55
-                )
-            on_flags_arr = np.array(on_flags, dtype=bool) if on_flags else np.array([True])
-            longest = cur = 0
-            for on in on_flags_arr:
-                if not on:
-                    cur += 1
-                    longest = max(longest, cur)
-                else:
-                    cur = 0
-            body_motion = 0.0
-            hand_near = 0.0
-            if lm_buf:
-                noses = []
-                hands = []
-                for lm in lm_buf:
-                    if not lm:
-                        continue
-                    noses.append((float(lm.get("nose_x", 0.5)), float(lm.get("nose_y", 0.5))))
-                    nx, ny = noses[-1]
-                    for side in ("l_wrist", "r_wrist"):
-                        wx = lm.get(f"{side}_x")
-                        wy = lm.get(f"{side}_y")
-                        if wx is None or wy is None:
-                            continue
-                        hands.append(float(np.hypot(float(wx) - nx, float(wy) - ny)))
-                if len(noses) >= 2:
-                    diffs = [
-                        float(np.hypot(noses[i][0] - noses[i - 1][0], noses[i][1] - noses[i - 1][1]))
-                        for i in range(1, len(noses))
-                    ]
-                    body_motion = float(np.mean(diffs)) if diffs else 0.0
-                if hands:
-                    hand_near = float(np.mean([1.0 if h < 0.25 else 0.0 for h in hands]))
-
-            all_vals.update(
-                {
-                    "gaze_dev_mean": float(gaze_away),
-                    "gaze_dev_std": float(np.std(gaze_arr[:, 1] + gaze_arr[:, 2] + gaze_arr[:, 3]))
-                    if len(gaze_arr) > 1
-                    else 0.0,
-                    "head_yaw_dev": float(abs(yaw_mean)),
-                    "head_pitch_dev": float(abs(pitch_mean)),
-                    "head_roll_mean": float(roll_mean),
-                    "on_screen_ratio": float(np.mean(on_flags_arr)),
-                    "off_screen_dwell_sec": float(longest * dt),
-                    "glance_count": 0.0,
-                    "blink_rate": 0.0,
-                    "perclos": 0.0,
-                    "face_present_ratio": 1.0 if face_detected else 0.0,
-                    "body_motion_energy": body_motion,
-                    "hand_to_face_ratio": hand_near,
-                    "talking_score": 0.0,
-                }
-            )
+            raise ValueError("model6 packs need LiveWindowScorer features (predict_frames)")
 
         return np.array(
             [all_vals.get(f, 0.0) for f in self.fusion_feat_names],
@@ -943,12 +1006,12 @@ class MLService:
                 "confidence": None,
             }
         if gaze_away > 0.70 or abs(yaw_mean) > 25.0 or abs(pitch_mean) > 20.0:
-            return "DISTRACTED", 0.88, {
+            return "DISTRACTED", None, {
                 **features,
                 "gaze_away_ratio": round(gaze_away, 3),
                 "reason": "heuristic_gate",
             }
-        return "FOCUSED", 0.90, {
+        return "FOCUSED", None, {
             **features,
             "gaze_away_ratio": round(gaze_away, 3),
             "reason": "heuristic_gate",
@@ -966,6 +1029,240 @@ class MLService:
         }
         return "UNKNOWN", None, meta
 
+    # ------------------------------------------------------------------
+    # v3 live path: shared MediaPipe features → model6 v3 / rule → hysteresis
+    # ------------------------------------------------------------------
+
+    def _server_elapsed(self, session_id: Any) -> float:
+        now = time.monotonic()
+        with self._state_lock:
+            t0 = self._session_t0.setdefault(session_id, now)
+        return now - t0
+
+    def _live_scorer_for(self, session_id: Any):
+        with self._state_lock:
+            scorer = self._live_scorers.get(session_id)
+            if scorer is None:
+                from models.src.features.live import LiveWindowScorer
+
+                scorer = LiveWindowScorer(
+                    window_sec=self.live_window_sec,
+                    baseline_frames=self.live_baseline_frames,
+                )
+                self._live_scorers[session_id] = scorer
+                self._session_locks[session_id] = threading.RLock()
+            self._session_last_seen[session_id] = time.monotonic()
+            return scorer, self._session_locks[session_id]
+
+    def reap_idle_sessions(self, now: Optional[float] = None) -> List[Any]:
+        """Free scorers/landmarkers of sessions that stopped sending heartbeats."""
+        now = time.monotonic() if now is None else now
+        with self._state_lock:
+            idle = [
+                sid
+                for sid, seen in self._session_last_seen.items()
+                if now - seen > self.session_idle_sec
+            ]
+        for sid in idle:
+            print(f"[MLService] Reaping idle session {sid}")
+            self.clear_session(sid)
+        return idle
+
+    def set_session_calibrating(self, session_id: Any, on: bool) -> None:
+        """Tell the live scorer that the client is in the 10 s calibration screen."""
+        if session_id is None or not self._live_available:
+            return
+        try:
+            scorer, lock = self._live_scorer_for(session_id)
+            with lock:
+                if hasattr(scorer, "set_calibrating"):
+                    scorer.set_calibrating(bool(on))
+        except Exception as e:
+            print(f"[MLService] set_session_calibrating error: {e}")
+
+    def predict_frames(
+        self,
+        frames: List[Tuple[float, str]],
+        session_id: Any = None,
+    ) -> Tuple[str, Optional[float], dict]:
+        """Score a heartbeat of timestamped frames ``[(t_sec, base64_jpeg), ...]``.
+
+        Verdict is FOCUSED, DISTRACTED, or UNKNOWN (confidence None).
+        """
+        sid = session_id if session_id is not None else "_default"
+        self.reap_idle_sessions()
+        decoded = []
+        for t_sec, image in frames:
+            img = self._decode_frame(image)
+            if img is not None and getattr(img, "size", 0) > 0:
+                decoded.append((float(t_sec), img))
+        if not decoded:
+            return self._unknown_result("no_frame_data", self.ml_mode)
+        if not self._live_available:
+            return self._unknown_result("ml_unavailable", self.ml_mode)
+        try:
+            scorer, lock = self._live_scorer_for(sid)
+            with lock:
+                last = None
+                for t_sec, img in sorted(decoded, key=lambda x: x[0]):
+                    f = scorer.add_frame(t_sec, img)
+                    if f is not None:
+                        last = f
+                if last is None:
+                    return self._unknown_result("stale_frames", self.ml_mode)
+                return self._decide_live(sid, scorer.features(), last)
+        except Exception as e:
+            print(f"[MLService] Live scoring error: {e}")
+            return self._unknown_result("inference_exception", self.ml_mode, error=str(e))
+
+    def _decide_live(self, sid: Any, feats: Optional[dict], last_frame) -> Tuple[str, Optional[float], dict]:
+        face_now = bool(getattr(last_frame, "face_present", False))
+        if feats is None:
+            return self._unknown_result(
+                "no_face" if not face_now else "warming_up",
+                self.ml_mode,
+                face_detected=face_now,
+                face_box_px=None,
+            )
+        # Calibrating: withhold verdicts until baseline is locked.
+        if feats.get("calibrating") or (
+            not feats.get("baseline_locked") and feats.get("calibrating", False)
+        ):
+            return self._unknown_result(
+                "calibrating", self.ml_mode, face_detected=face_now, face_box_px=None
+            )
+        if not feats.get("baseline_locked"):
+            return self._unknown_result(
+                "calibrating", self.ml_mode, face_detected=face_now, face_box_px=None
+            )
+
+        meta = {
+            "ml_mode": self.ml_mode,
+            "face_detected": face_now,
+            "face_box_px": None,
+            "window_features": {
+                k: round(float(feats[k]), 4)
+                for k in MODEL6_FEATURE_NAMES
+                if k in feats
+            },
+            "baseline_locked": bool(feats.get("baseline_locked")),
+            "n_frames": int(feats.get("n_frames", 0)),
+            "window_end_ms": int(
+                float(feats.get("window_end_sec", feats["window_start_sec"] + feats["window_sec"]))
+                * 1000
+            ),
+        }
+        t_now = float(feats.get("window_end_sec", feats["window_start_sec"] + feats["window_sec"]))
+        face_ratio = float(feats.get("face_present_ratio", 0.0))
+        body_ratio = float(feats.get("body_present_ratio", 0.0))
+
+        # Default hysteresis for rule / body paths
+        hyst = self.fusion_hysteresis or {
+            "enter_prob": HYST_ENTER_PROB,
+            "enter_sec": HYST_ENTER_SEC,
+            "exit_prob": HYST_EXIT_PROB,
+            "exit_sec": HYST_EXIT_SEC,
+        }
+
+        # Absent desk: no body for ≥10 s → DISTRACTED via hysteresis (source=absent).
+        if body_ratio < BODY_PRESENT_RATIO and face_ratio < NO_FACE_RATIO:
+            t0 = self._session_no_body_t0.get(sid)
+            if t0 is None:
+                self._session_no_body_t0[sid] = t_now
+                t0 = t_now
+            if (t_now - float(t0)) >= 10.0:
+                verdict = self._apply_hysteresis(sid, 0.85, now=t_now, params=hyst)
+                p = 0.85
+                eng = round(1.0 - p, 4)
+                return verdict, (p if verdict == "DISTRACTED" else 1.0 - p), {
+                    **meta,
+                    "reason": "absent",
+                    "source": "absent",
+                    "inference_path": "rule_absent",
+                    "distract_prob": p,
+                    "engagement_score": eng,
+                    "confidence": round(p if verdict == "DISTRACTED" else 1.0 - p, 4),
+                    "hysteresis_state": verdict,
+                }
+            # Still within grace: UNKNOWN, reset hysteresis timers
+            self._session_hyst_high_t0[sid] = None
+            self._session_hyst_low_t0[sid] = None
+            return self._unknown_result("no_face", self.ml_mode, face_detected=False, face_box_px=None)
+        self._session_no_body_t0[sid] = None
+
+        # Partial face dropout: do NOT hand the window to the model as off-screen.
+        if face_ratio < LOW_FACE_RATIO:
+            if body_ratio >= BODY_PRESENT_RATIO:
+                # body_no_face: p=0.7 through hysteresis (no instant DISTRACTED)
+                verdict = self._apply_hysteresis(sid, 0.7, now=t_now, params=hyst)
+                p = 0.7
+                eng = round(1.0 - p, 4)
+                return verdict, (p if verdict == "DISTRACTED" else 1.0 - p), {
+                    **meta,
+                    "reason": "body_no_face",
+                    "source": "body_no_face",
+                    "inference_path": "rule_body_no_face",
+                    "distract_prob": p,
+                    "engagement_score": eng,
+                    "confidence": round(p if verdict == "DISTRACTED" else 1.0 - p, 4),
+                    "hysteresis_state": verdict,
+                }
+            self._session_hyst_high_t0[sid] = None
+            self._session_hyst_low_t0[sid] = None
+            return self._unknown_result(
+                "low_face", self.ml_mode, face_detected=face_now, face_box_px=None
+            )
+
+        if self._has_v3_pack():
+            feat_names = list(self.fusion_feat_names) or list(MODEL6_FEATURE_NAMES)
+            # v3 packs used head_roll_mean; v4 uses head_roll_dev — alias either way.
+            feat_row = dict(feats)
+            if "head_roll_dev" in feat_row and "head_roll_mean" not in feat_row:
+                feat_row["head_roll_mean"] = feat_row["head_roll_dev"]
+            if "head_roll_mean" in feat_row and "head_roll_dev" not in feat_row:
+                feat_row["head_roll_dev"] = feat_row["head_roll_mean"]
+            X = np.array([[float(feat_row.get(n, 0.0)) for n in feat_names]], dtype=np.float32)
+            dist_prob = float(self.fusion_model.predict_proba(X)[0][1])
+            threshold = float(self.fusion_threshold)
+            hyst = self.fusion_hysteresis or hyst
+            path = "fusion"
+            source = "model6"
+        else:
+            from models.src.features.windows import distraction_proxy
+
+            dist_prob = float(np.clip(distraction_proxy(feats) / 2.0, 0.0, 1.0))
+            threshold = RULE_PROXY_THRESHOLD
+            hyst = {
+                "enter_prob": threshold,
+                "enter_sec": HYST_ENTER_SEC,
+                "exit_prob": threshold,
+                "exit_sec": HYST_EXIT_SEC,
+            }
+            path = "rule_proxy"
+            source = "rule"
+        raw = "DISTRACTED" if dist_prob >= threshold else "FOCUSED"
+        verdict = self._apply_hysteresis(sid, dist_prob, now=t_now, params=hyst)
+        conf = dist_prob if verdict == "DISTRACTED" else 1.0 - dist_prob
+        engagement = round(1.0 - dist_prob, 4)
+        # Rolling re-baseline on the live scorer when confidently focused.
+        try:
+            scorer, _lock = self._live_scorer_for(sid)
+            scorer.maybe_rebaseline(dist_prob, face_now)
+        except Exception:
+            pass
+        return verdict, float(conf), {
+            **meta,
+            "inference_path": path,
+            "source": source,
+            "fusion_kind": self.fusion_kind if path == "fusion" else None,
+            "fusion_threshold": threshold,
+            "distract_prob": round(dist_prob, 4),
+            "engagement_score": engagement,
+            "raw_fusion_verdict": raw,
+            "hysteresis_state": verdict,
+            "confidence": round(float(conf), 4),
+        }
+
     def predict_frame_image(
         self,
         image_base64: str,
@@ -976,11 +1273,15 @@ class MLService:
 
         Verdict is FOCUSED, DISTRACTED, or UNKNOWN. Confidence is None for UNKNOWN.
         """
+        sid = session_id if session_id is not None else "_default"
+        if self._uses_live_path():
+            # Single-frame (old client) heartbeat: timestamp it with server time.
+            return self.predict_frames([(self._server_elapsed(sid), image_base64)], session_id=sid)
+
         frame = self._decode_frame(image_base64)
         if frame is None or getattr(frame, "size", 0) == 0:
             return self._unknown_result("no_frame_data", self.ml_mode)
 
-        sid = session_id if session_id is not None else "_default"
         try:
             # Face gate before buffer append: no-face frames must not pollute
             # the fusion window with whole-frame gaze / centre-crop pose.
@@ -1051,55 +1352,19 @@ class MLService:
 
     def predict_window_features(self, features_dict: dict) -> Tuple[str, Optional[float]]:
         """
-        Socket / feature-only path. Uses fusion when possible, else heuristic thresholds.
-
-        Explicit face_detected=False → UNKNOWN (no fabricated distraction confidence).
-        Other weak signals remain valid DISTRACTED classifications.
+        Client-supplied feature path. Routes only accept it under TESTING
+        (otherwise a client could report itself FOCUSED). Uses the same rule
+        thresholds as before but never invents a confidence; anything it cannot
+        evaluate is UNKNOWN.
         """
-        gaze_conf = float(features_dict.get("gaze_confidence", 0.85))
-        engagement = float(features_dict.get("engagement_score", 0.80))
-        head_yaw = abs(float(features_dict.get("head_pose_yaw", 0.0)))
-        face_detected = features_dict.get("face_detected", True)
-
-        if face_detected is False:
+        try:
+            if features_dict.get("face_detected", True) is False:
+                return "UNKNOWN", None
+            gaze_conf = float(features_dict["gaze_confidence"])
+            engagement = float(features_dict["engagement_score"])
+            head_yaw = abs(float(features_dict.get("head_pose_yaw", 0.0)))
+        except (KeyError, TypeError, ValueError):
             return "UNKNOWN", None
-
         if gaze_conf < 0.40 or head_yaw > 25.0 or engagement < 0.35:
-            return "DISTRACTED", 0.88
-
-        if self.fusion_model is not None:
-            try:
-                # Minimal compatible vector using defaults for missing fusion cols
-                eng = engagement
-                p_c = gaze_conf if features_dict.get("gaze_label", "center") == "center" else 0.2
-                p_away = max(0.0, 1.0 - p_c)
-                all_vals = {
-                    "p_center_mean": p_c,
-                    "p_left_mean": p_away / 3,
-                    "p_right_mean": p_away / 3,
-                    "p_down_mean": p_away / 3,
-                    "gaze_away_ratio": p_away,
-                    "yaw_mean": head_yaw,
-                    "pitch_mean": float(features_dict.get("head_pose_pitch", 0.0)),
-                    "roll_mean": float(features_dict.get("head_pose_roll", 0.0)),
-                    "yaw_std": 0.0,
-                    "pitch_std": 0.0,
-                    "roll_std": 0.0,
-                    "engagement_prob_mean": eng,
-                }
-                feat_vec = np.array(
-                    [all_vals.get(f, 0.0) for f in self.fusion_feat_names],
-                    dtype=np.float32,
-                ).reshape(1, -1)
-                if hasattr(self.fusion_model, "predict_proba"):
-                    proba = self.fusion_model.predict_proba(feat_vec)[0]
-                    dist_prob = float(proba[1]) if len(proba) >= 2 else float(proba[0])
-                    verdict = "DISTRACTED" if dist_prob >= self.fusion_threshold else "FOCUSED"
-                    conf = dist_prob if verdict == "DISTRACTED" else (1.0 - dist_prob)
-                    return verdict, conf
-                pred = int(self.fusion_model.predict(feat_vec)[0])
-                return ("DISTRACTED" if pred == 1 else "FOCUSED"), 0.90
-            except Exception:
-                pass
-
-        return "FOCUSED", 0.92
+            return "DISTRACTED", None
+        return "FOCUSED", None

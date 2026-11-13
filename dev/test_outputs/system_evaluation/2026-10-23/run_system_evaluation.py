@@ -1058,8 +1058,11 @@ def run_api_workflows(app, fx):
                 "error": (gen.json or {}).get("error"),
                 "keys": list((gen.json or {}).keys()),
             },
+            # Pass only on success, or on a graceful "service unavailable" with a
+            # message. 400/404/500 are failures, not acceptable outcomes.
             "pass"
-            if gen.status_code in (200, 201, 503, 502, 400, 404, 500)
+            if gen.status_code in (200, 201)
+            or (gen.status_code in (502, 503) and (gen.json or {}).get("error"))
             else "fail",
             "api_samples/te03_generate_pack.json",
             "automated",

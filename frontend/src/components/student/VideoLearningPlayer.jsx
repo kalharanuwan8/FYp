@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import sessionService from '../../services/sessionService';
 import FocusInterventionOverlay from './FocusInterventionOverlay';
+import CalibrationOverlay from './CalibrationOverlay';
 import WebcamCapture from '../monitoring/WebcamCapture';
 import FocusBuddy from './FocusBuddy';
 import DemoPanel from './DemoPanel';
@@ -25,6 +26,7 @@ import { interventionShouldPauseVideo } from '../../utils/interventionPause';
 
 export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
   const videoRef = useRef(null);
+  const wasPlayingBeforePromptRef = useRef(false);
   const { showCameraPreview, updatePreferences } = usePreferences();
 
   const [sessionSummary, setSessionSummary] = useState(null);
@@ -33,19 +35,22 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [bootError, setBootError] = useState(null);
   const [triggerError, setTriggerError] = useState(null);
+  const [calibratingOpen, setCalibratingOpen] = useState(false);
+  const [calibKey, setCalibKey] = useState(0);
 
   const handleInterventionFromMl = useCallback((intervention) => {
-    setActiveIntervention(intervention);
-    if (!videoRef.current) return;
-    const factor = intervention?.payload?.pacing_factor;
-    if (typeof factor === 'number' && factor > 0) {
-      videoRef.current.playbackRate = factor;
-    }
-    // Ambient cues must not interrupt playback; other types pause the lesson.
-    if (interventionShouldPauseVideo(intervention)) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    }
+    setActiveIntervention((prev) => {
+      if (prev) return prev; // ignore while one is open
+      if (videoRef.current) {
+        wasPlayingBeforePromptRef.current = !videoRef.current.paused;
+        // Pace reduction is applied only after the child accepts (see response handler).
+        if (interventionShouldPauseVideo(intervention)) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
+      return intervention;
+    });
   }, []);
 
   const {
@@ -60,12 +65,26 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     startMonitoredSession,
     stopMonitoredSession,
     triggerManualIntervention,
+    setContentState,
+    setCalibrating,
+    faceDetected,
   } = useMonitoringSession({
     intervalMs: 2000,
     onIntervention: handleInterventionFromMl,
     // While the lesson plays out loud, the mic hears the lesson, not the room.
     lessonAudioActive: isPlaying && !isMuted,
   });
+
+  const beginCalibration = useCallback(() => {
+    setCalibKey((k) => k + 1);
+    setCalibratingOpen(true);
+    setCalibrating(true);
+  }, [setCalibrating]);
+
+  const finishCalibration = useCallback(() => {
+    setCalibratingOpen(false);
+    setCalibrating(false);
+  }, [setCalibrating]);
 
   const resolveMediaUrl = (mat) => {
     if (!mat) return '';
@@ -104,6 +123,8 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
       }
       if (!result?.ok) {
         setBootError(result?.error || monitorError || 'Failed to start monitored session.');
+      } else {
+        beginCalibration();
       }
     })();
     return () => {
@@ -143,9 +164,11 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
+      setContentState('paused');
     } else {
       videoRef.current.play();
       setIsPlaying(true);
+      setContentState('playing');
     }
   };
 
@@ -155,14 +178,35 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
     setIsMuted(!isMuted);
   };
 
+  const resumeIfWasPlaying = useCallback(() => {
+    if (!videoRef.current) return;
+    if (wasPlayingBeforePromptRef.current) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+      setContentState('playing');
+    } else {
+      setContentState('paused');
+    }
+  }, [setContentState]);
+
   const handleInterventionResponse = async (interventionId, userResponse, extra = {}) => {
-    if (!activeSession) return null;
+    if (!activeSession) {
+      // Local break (null id) — clear overlay only
+      if (!interventionId) {
+        setActiveIntervention(null);
+        resumeIfWasPlaying();
+      }
+      return null;
+    }
     if (extra.dismiss_only) {
       setActiveIntervention(null);
-      if (videoRef.current) {
-        videoRef.current.play().catch(() => {});
-        setIsPlaying(true);
-      }
+      resumeIfWasPlaying();
+      return null;
+    }
+    // Null-id local break: no backend round-trip
+    if (!interventionId) {
+      setActiveIntervention(null);
+      resumeIfWasPlaying();
       return null;
     }
     try {
@@ -176,24 +220,37 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
         setActiveIntervention(null);
         if (userResponse === 'ended') {
           handleStopSession();
-        } else if (videoRef.current) {
-          videoRef.current.play().catch(() => {});
-          setIsPlaying(true);
+        } else {
+          // Apply pace reduction only after the child accepts.
+          const factor = activeIntervention?.payload?.pacing_factor;
+          if (
+            userResponse === 'reengaged' &&
+            typeof factor === 'number' &&
+            factor > 0 &&
+            videoRef.current
+          ) {
+            videoRef.current.playbackRate = factor;
+          }
+          resumeIfWasPlaying();
         }
       }
       return res;
     } catch (err) {
       console.error('Failed to record intervention response:', err);
       setActiveIntervention(null);
+      resumeIfWasPlaying();
       return null;
     }
   };
 
   const handleStopSession = async () => {
     try {
+      finishCalibration();
       if (videoRef.current) {
         videoRef.current.pause();
+        videoRef.current.playbackRate = 1.0; // revert pace reduction at session end
         setIsPlaying(false);
+        setContentState('ended');
       }
       const summary = await stopMonitoredSession();
       if (summary) setSessionSummary(summary);
@@ -314,13 +371,23 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
             </div>
           )}
 
+          <CalibrationOverlay
+            key={calibKey}
+            open={calibratingOpen}
+            faceFound={faceDetected !== false}
+            onDone={finishCalibration}
+            onRetry={() => beginCalibration()}
+          />
+
           <FocusInterventionOverlay
             intervention={activeIntervention}
             onRespond={handleInterventionResponse}
             onPauseContent={() => {
               if (videoRef.current) {
+                wasPlayingBeforePromptRef.current = !videoRef.current.paused;
                 videoRef.current.pause();
                 setIsPlaying(false);
+                setContentState('paused');
               }
             }}
           />
@@ -352,10 +419,17 @@ export const VideoLearningPlayer = ({ material, moduleTitle, onClose }) => {
                 ref={videoRef}
                 src={videoSrc}
                 controls={false}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  setContentState('playing');
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  setContentState('paused');
+                }}
                 onEnded={() => {
                   setIsPlaying(false);
+                  setContentState('ended');
                   handleStopSession();
                 }}
                 className="max-h-[60vh] w-full object-contain"

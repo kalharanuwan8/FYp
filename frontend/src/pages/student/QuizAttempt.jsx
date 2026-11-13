@@ -41,7 +41,8 @@ export default function QuizAttempt() {
   });
 
   const onIntervention = useCallback((intervention) => {
-    setActiveIntervention(intervention);
+    // Ignore an incoming intervention while one is already open.
+    setActiveIntervention((prev) => prev || intervention);
   }, []);
 
   const {

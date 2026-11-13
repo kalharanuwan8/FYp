@@ -13,7 +13,7 @@
 |------|-------|
 | `git rev-parse HEAD` | `2974633d05e35e5e54f9cf6654809b5df13d2a9c` (`2974633` — thesis-final-v2 message) |
 | Clean `e6c7b17`? | **No.** Working tree is **dirty** (modified and untracked files including DSM-5 work). HEAD is **not** a clean `e6c7b17`. |
-| `thesis-final` tag commit | `38be54ca4b0b064c0131c7c2e8ecac34ddd72433` (`git rev-parse thesis-final^{commit}`) |
+| `thesis-final` tag commit | `e6c7b17ec6e448594c4229c751ebc7b781f86ec3` (`git rev-parse thesis-final^{commit}`; corrected 2026-11-04 — was wrongly given as `38be54c…`) |
 | `e6c7b17` object | `e6c7b17ec6e448594c4229c751ebc7b781f86ec3` |
 | Live API | `http://127.0.0.1:5000` |
 | Live fusion threshold | `ML_FUSION_THRESHOLD=0.75` when heartbeat latency servers were started; live `:5000` process used whatever was already configured (harness re-run log shows `fusion_threshold=0.480…` at MLService init) |
@@ -470,14 +470,14 @@ Raw: `evaluation/thesis_numbers/raw/part9_pytest.txt`.
 | Ref | Value |
 |-----|-------|
 | Commit message | `thesis submission build` |
-| `thesis-submission` / HEAD (authoritative) | `ef043094f500951d762852540bfd2600d2ae6779` |
+| `thesis-submission` / HEAD (authoritative) | `561ee83c618b5024eaad215d7d0bfcaff612280d` (corrected 2026-11-04 — see note) |
 | Tag `thesis-final` → commit | `e6c7b17ec6e448594c4229c751ebc7b781f86ec3` |
 | Tag `thesis-final-v2` → commit | `2974633d05e35e5e54f9cf6654809b5df13d2a9c` |
-| Tag `thesis-run5-evaluated` → commit | `a3a3c7ba9e54f92e329c7f6b2e581823111d1c3c` (git warns refname is ambiguous) |
+| Tag `thesis-run5-evaluated` → commit | `a3a3c7ba9e54f92e329c7f6b2e581823111d1c3c` (a branch of the same name points to the same commit, so git's "ambiguous refname" warning is harmless) |
 
 Excluded from commit: `*.dump` DB backups, `heartbeat_*.db`, and other unstaged REPORT7 raw logs.
 
-This Part 9.7 hash cell matches `git rev-parse thesis-submission^{commit}` = `ef043094…` (do not amend this cell again or the tip hash moves).
+**Correction (2026-11-04).** The cell originally read `ef043094…`, the hash of the commit *before* this report was amended into it. A commit cannot record its own hash, so that value was necessarily stale. `git rev-parse thesis-submission^{commit}` = `561ee83c618b5024eaad215d7d0bfcaff612280d`, which is the authoritative value.
 
 ### 9.8 DSM indicators (record-only)
 
