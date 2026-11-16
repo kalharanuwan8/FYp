@@ -3,7 +3,7 @@ import { Button, BadgeChip, XPChip, Dialog } from '../common';
 import { usePreferences } from '../../context/PreferencesContext';
 import { celebrateIfAllowed } from '../../utils/celebrate';
 
-export default function SessionSummary({ summary, onClose, onContinue }) {
+export default function SessionSummary({ summary, onClose, onContinue, closeLabel = 'Back to subject' }) {
   const { reduceMotion } = usePreferences();
   const focusMinutes =
     summary?.focus_minutes ??
@@ -61,7 +61,7 @@ export default function SessionSummary({ summary, onClose, onContinue }) {
             </Button>
           )}
           <Button variant="secondary" onClick={onClose}>
-            Back to subject
+            {closeLabel}
           </Button>
         </div>
       </div>

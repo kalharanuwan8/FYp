@@ -1,6 +1,29 @@
 import api from './api';
 
 export const sessionService = {
+  listCustomUploads: async () => {
+    const response = await api.get('/session/custom/uploads');
+    return response.data;
+  },
+
+  uploadCustomFile: async (file, title) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    const response = await api.post('/session/custom/uploads', formData);
+    return response.data;
+  },
+
+  deleteCustomUpload: async (uploadId) => {
+    const response = await api.delete(`/session/custom/uploads/${uploadId}`);
+    return response.data;
+  },
+
+  startCustomSession: async (uploadId) => {
+    const response = await api.post('/session/custom/start', { upload_id: uploadId });
+    return response.data;
+  },
+
   startSession: async (moduleId, isMonitored = true) => {
     const response = await api.post('/session/start', {
       module_id: moduleId,

@@ -3,6 +3,7 @@ App Factory. wsgi.py imports create_app() from here to actually launch
 the server (via `flask run`, gunicorn, or eventlet directly for SocketIO).
 """
 
+import logging
 import os
 import traceback
 from flask import Flask, jsonify
@@ -14,8 +15,16 @@ from app.config import config_by_name
 from app.extensions import db, migrate, jwt, socketio
 
 
+class _DropBrowserDebugProbe(logging.Filter):
+    """Chrome and Cursor probe /json/version on port 5000. That 404 is not an API error."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/json/version" not in record.getMessage()
+
+
 def create_app(env=None):
     load_dotenv()  # reads backend/.env
+    logging.getLogger("werkzeug").addFilter(_DropBrowserDebugProbe())
 
     env = env or os.environ.get("FLASK_ENV", "development")
     app = Flask(__name__)
@@ -211,6 +220,13 @@ def create_app(env=None):
                             )
                         )
                 db.session.commit()
+
+                session_cols = {c["name"] for c in insp.get_columns("sessions")}
+                if "custom_upload_id" not in session_cols:
+                    db.session.execute(
+                        text("ALTER TABLE sessions ADD COLUMN custom_upload_id INTEGER")
+                    )
+                    db.session.commit()
 
                 # Phase 2A seal for DBs that already had xp_awarded from Phase 1
                 # without sealing ended sessions. Only touch rows that never
@@ -462,6 +478,7 @@ def create_app(env=None):
     from app.routes.courses import courses_bp
     from app.routes.quizzes import quizzes_bp
     from app.routes.session import session_bp
+    from app.routes.custom_session import custom_session_bp
     from app.routes.analytics import analytics_bp
     from app.routes.student_profile import student_profile_bp
     from app.routes.behaviour import behaviour_bp
@@ -471,6 +488,7 @@ def create_app(env=None):
     app.register_blueprint(courses_bp, url_prefix="/api/courses")
     app.register_blueprint(quizzes_bp, url_prefix="/api/courses")
     app.register_blueprint(session_bp, url_prefix="/api/session")
+    app.register_blueprint(custom_session_bp, url_prefix="/api/session/custom")
     app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
     app.register_blueprint(student_profile_bp, url_prefix="/api/student")
     app.register_blueprint(behaviour_bp, url_prefix="/api/behaviour")

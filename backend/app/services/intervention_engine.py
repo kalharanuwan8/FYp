@@ -45,19 +45,20 @@ NOISE_MESSAGE = "It's quite noisy where you are — that can make it hard to con
 TIER_TIMEOUT_SEC = {1: 6.0, 2: 20.0, 3: 20.0}
 PROMPT_TIMEOUT_SEC = 20.0  # legacy default / noise
 FOCUS_RESET_SEC = 10.0
-# PLAN 7: a student-paused video gets this grace before nudges, then is capped
-# at a gentle tier (no milestone quiz / pacing change on a paused video).
-PAUSE_GRACE_SEC = 10.0
-PAUSED_MAX_TIER = 2
 # Largest heartbeat delta credited to an episode hold (≈ one dropped beat).
 HOLD_DELTA_MAX_SEC = 5.0
 DEFAULT_COOLDOWN_SEC = 20.0
+# Custom uploads have no teacher-authored quiz. The best interventions that still
+# work on any file are a gentle cue, a pause check, and a short break.
+POLICY_COURSE = "course"
+POLICY_BEST = "best"
 
 # Sources that may not escalate past tier 2
 _CAP_TIER2_SOURCES = frozenset({"rule", "body_no_face", "absent", "low_face"})
 # Sources allowed to escalate (incl. beyond tier 2 when model-backed)
 _TAB_SOURCES = frozenset({"tab", "blur"})
-_MODEL_SOURCES = frozenset({"model6", "fusion", "model", ""})
+# Live screen-gaze look-away is a first-class distraction signal (checkpoint quiz / break).
+_MODEL_SOURCES = frozenset({"model6", "fusion", "model", "gaze_screen", ""})
 
 SESSION_ENGINES: Dict[Any, "InterventionEngine"] = {}
 _SESSION_ENGINE_LOCKS: Dict[Any, threading.Lock] = {}
@@ -157,7 +158,9 @@ class InterventionEngine:
         now_fn=None,
         prompt_timeout_sec: float = PROMPT_TIMEOUT_SEC,
         focus_reset_sec: float = FOCUS_RESET_SEC,
+        policy: str = POLICY_COURSE,
     ):
+        self.policy = POLICY_BEST if policy == POLICY_BEST else POLICY_COURSE
         self.cooldown_seconds = float(cooldown_seconds)
         if enabled_tiers is None:
             self.enabled_tiers = {1, 2, 3, 4}
@@ -176,12 +179,11 @@ class InterventionEngine:
         self._ambient_episode_key: Optional[Any] = None  # retained for older tests
         self._lock = threading.RLock()
         self._timeout_callback = None  # optional: fn(pending) for DB logging
-        # PLAN 7: decision trace, honest episode clock, pause grace
+        # Decision trace and episode clock (held time is not counted).
         self.last_decision: Optional[dict] = None
         self._held_sec: float = 0.0
         self._held_episode_key: Optional[Any] = None
         self._episode_last_ts: Optional[float] = None
-        self._paused_since: Optional[float] = None
 
     @property
     def _pending_intervention(self) -> bool:
@@ -332,8 +334,8 @@ class InterventionEngine:
         """Decide whether to fire. Every return path records ``self.last_decision``.
 
         Time the open episode spends held (UNKNOWN, prompt on screen, video
-        ended, pause grace, explicit ``episode_clock_held``) is subtracted from
-        its duration, so escalation restarts at T1 when the hold ends (PLAN 7).
+        ended or paused, explicit ``episode_clock_held``) is subtracted from
+        its duration, so escalation restarts at T1 when the hold ends.
         """
         ts = now if now is not None else self._now()
         state = (observation_state or "").upper().strip()
@@ -344,14 +346,6 @@ class InterventionEngine:
 
         with self._lock:
             self.tick(ts)
-
-            # How long the video has been paused (grace for note-taking).
-            if cstate == "paused":
-                if self._paused_since is None:
-                    self._paused_since = ts
-            else:
-                self._paused_since = None
-            paused_for = 0.0 if self._paused_since is None else ts - self._paused_since
 
             # Per-episode hold accounting (heartbeat delta, one dropped beat max).
             ep_key = self._episode_key(distraction_event)
@@ -402,18 +396,10 @@ class InterventionEngine:
             if cstate == "ended":
                 hold("ended")
                 return None
-            paused_cap = None
             if cstate == "paused":
-                if preason == "intervention":
-                    hold("paused_by_intervention")
-                    return None
-                if paused_for < PAUSE_GRACE_SEC:
-                    hold(
-                        "paused_grace",
-                        pause_left_sec=round(PAUSE_GRACE_SEC - paused_for, 1),
-                    )
-                    return None
-                paused_cap = PAUSED_MAX_TIER
+                # Playback is stopped, so no new prompt until it resumes.
+                hold("paused_by_intervention" if preason == "intervention" else "paused")
+                return None
 
             if coverage_ratio_30s is not None and coverage_ratio_30s < 0.5:
                 self._skip("low_coverage", distraction_event, wall_now)
@@ -444,8 +430,6 @@ class InterventionEngine:
                 target_tier = min(4, max(target_tier, self.last_tier + 1))
 
             target_tier = self._cap_tier_for_source(target_tier, source)
-            if paused_cap is not None:
-                target_tier = min(target_tier, paused_cap)
             resolved = self._resolve_enabled_tier(target_tier)
             if resolved is None:
                 self._skip("tier_disabled", distraction_event, wall_now, level=level)
@@ -594,7 +578,10 @@ class InterventionEngine:
         return tier
 
     def _resolve_enabled_tier(self, tier: int) -> Optional[int]:
-        t = tier
+        t = int(tier)
+        # A lesson quiz is not the best prompt for an arbitrary upload.
+        if self.policy == POLICY_BEST and t >= 3:
+            t = 4
         while t >= 1:
             if t in self.enabled_tiers:
                 return t
@@ -637,7 +624,14 @@ class InterventionEngine:
         return triggered
 
     def _select_intervention(self, tier: int, is_quiz_context: bool) -> TriggeredIntervention:
-        if tier == 1:
+        if self.policy == POLICY_BEST:
+            if tier <= 1:
+                itype = TYPE_AMBIENT
+            elif tier == 2:
+                itype = TYPE_PACING
+            else:
+                itype = TYPE_SUGGEST_BREAK
+        elif tier == 1:
             itype = TYPE_AMBIENT
         elif tier == 2:
             itype = TYPE_PACING

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import bcrypt
 from app.extensions import db
 from app.db_models import User, Student, Teacher, GuardianConsent
@@ -24,6 +26,7 @@ def create_user_from_data(data, created_by_id=None):
     grade_level = payload.get("grade_level")
     guardian_name = payload.get("guardian_name")
     guardian_email = payload.get("guardian_email")
+    consent_given = bool(payload.get("consent_given")) if role == "student" else False
 
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
@@ -51,7 +54,8 @@ def create_user_from_data(data, created_by_id=None):
             student_id=new_student.id,
             guardian_name=guardian_name,
             guardian_email=str(guardian_email) if guardian_email else None,
-            consent_given=False
+            consent_given=consent_given,
+            consented_at=datetime.utcnow() if consent_given else None,
         )
         db.session.add(new_consent)
 

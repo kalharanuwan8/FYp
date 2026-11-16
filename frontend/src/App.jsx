@@ -9,7 +9,6 @@ import RoleRoute from './routes/RoleRoute';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
-import SystemLogs from './pages/admin/SystemLogs';
 import AnalyticsPage from './pages/admin/AnalyticsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 
@@ -27,6 +26,7 @@ import CourseBrowser from './pages/student/CourseBrowser';
 import SubjectDetail from './pages/student/SubjectDetail';
 import QuizAttempt from './pages/student/QuizAttempt';
 import StudentAnalytics from './pages/student/StudentAnalytics';
+import CustomSession from './pages/student/CustomSession';
 
 function CatchAllRedirect() {
   const { user, token } = useContext(AuthContext);
@@ -53,7 +53,6 @@ export function App() {
                   <Route path="/admin/dashboard" element={<AdminDashboard />} />
                   <Route path="/admin/users" element={<UserManagement />} />
                   <Route path="/admin/analytics" element={<AnalyticsPage />} />
-                  <Route path="/admin/logs" element={<SystemLogs />} />
                   <Route path="/admin/settings" element={<SettingsPage />} />
                 </Route>
               </Route>
@@ -81,6 +80,7 @@ export function App() {
                   <Route path="/student/subjects/:id" element={<SubjectDetail />} />
                   <Route path="/student/quizzes/:quizId" element={<QuizAttempt />} />
                   <Route path="/student/analytics" element={<StudentAnalytics />} />
+                  <Route path="/student/practice" element={<CustomSession />} />
                   <Route path="/student/settings" element={<SettingsPage />} />
                 </Route>
               </Route>

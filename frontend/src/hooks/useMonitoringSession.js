@@ -14,6 +14,9 @@ const CALIB_ONLY_SID = 'calib-only';
 const CAPTURE_INTERVAL_MS = 333; // PLAN 5: a frame every ~333 ms
 const MAX_BUFFERED_FRAMES = 9; // backend limit per heartbeat
 const FRAME_TARGET_WIDTH = 640; // aspect preserved from video
+// M1–M4 late fusion: one 224×224 frame per heartbeat. Unset to restore model6 capture.
+const LATE_FUSION = import.meta.env.VITE_ML_PIPELINE === 'late_fusion';
+const LATE_FRAME_SIZE = 224;
 const JPEG_QUALITY = 0.7;
 const FINISH_WAIT_MS = 3000; // max wait for an in-flight heartbeat before the finish call
 
@@ -73,6 +76,7 @@ export function useMonitoringSession({
   const pendingPhaseRef = useRef(null); // one-shot calibration_phase ('start') for next heartbeat
   const [calibrating, setCalibrating] = useState(false);
   const [gazeDebug, setGazeDebug] = useState(null);
+  const [liveFeed, setLiveFeed] = useState(null);
   const [calibrationStatus, setCalibrationStatus] = useState(null);
   const [pageVisible, setPageVisible] = useState(true);
   const [faceDetected, setFaceDetected] = useState(null);
@@ -227,12 +231,9 @@ export function useMonitoringSession({
         setCameraActive(true);
         return true;
       }
-      const videoConstraints = {
-        width: 640,
-        height: 480,
-        frameRate: 15,
-        facingMode: 'user',
-      };
+      const videoConstraints = LATE_FUSION
+        ? { width: 320, height: 240, frameRate: 15, facingMode: 'user' }
+        : { width: 640, height: 480, frameRate: 15, facingMode: 'user' };
       let stream;
       try {
         // Raw mic (no suppression / gain) so loudness reflects the room.
@@ -273,15 +274,24 @@ export function useMonitoringSession({
     const canvas = canvasRef.current;
     if (!video || !canvas) return null;
     if (video.readyState < 2) return null;
-    const vw = video.videoWidth || FRAME_TARGET_WIDTH;
-    const vh = video.videoHeight || Math.round((FRAME_TARGET_WIDTH * 3) / 4);
-    const width = FRAME_TARGET_WIDTH;
-    const height = Math.max(1, Math.round((width * vh) / vw));
+    const vw = video.videoWidth || (LATE_FUSION ? 320 : FRAME_TARGET_WIDTH);
+    const vh = video.videoHeight || Math.round((vw * 3) / 4);
     const ctx = canvas.getContext('2d');
-    canvas.width = width;
-    canvas.height = height;
-    // Draw un-mirrored for the model (CSS mirror is display-only)
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    if (LATE_FUSION) {
+      const side = Math.min(vw, vh);
+      const sx = Math.floor((vw - side) / 2);
+      const sy = Math.floor((vh - side) / 2);
+      canvas.width = LATE_FRAME_SIZE;
+      canvas.height = LATE_FRAME_SIZE;
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, LATE_FRAME_SIZE, LATE_FRAME_SIZE);
+    } else {
+      const width = FRAME_TARGET_WIDTH;
+      const height = Math.max(1, Math.round((width * vh) / vw));
+      canvas.width = width;
+      canvas.height = height;
+      // Draw un-mirrored for the model (CSS mirror is display-only)
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
     return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
   }, []);
 
@@ -412,6 +422,29 @@ export function useMonitoringSession({
           setConfidence(null);
         }
         setGazeDebug(response.gaze_debug || null);
+        const diag = response.diagnostics || {};
+        const win = diag.window_features || {};
+        const gaze = response.gaze_debug || {};
+        const num = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+        setLiveFeed({
+          verdict: response.verdict ?? null,
+          confidence: num(response.confidence),
+          ml_mode: response.ml_mode || null,
+          reason: response.reason || null,
+          gaze_label: response.gaze_label || diag.gaze_label || null,
+          gaze_probs: diag.gaze_probs || null,
+          gaze_confidence: num(diag.gaze_confidence),
+          screen_x: num(gaze.sx),
+          screen_y: num(gaze.sy),
+          on_screen: typeof gaze.on_screen === 'boolean' ? gaze.on_screen : null,
+          engagement_score: num(response.engagement_score),
+          face_detected: response.face_detected,
+          distract_prob: num(diag.distract_prob),
+          head_pose_yaw: num(diag.head_pose_yaw) ?? num(win.head_yaw_dev),
+          head_pose_pitch: num(diag.head_pose_pitch) ?? num(win.head_pitch_dev),
+          head_pose_roll: num(diag.head_pose_roll) ?? num(win.head_roll_dev) ?? num(win.head_roll_mean),
+          fusion_threshold: num(diag.fusion_threshold),
+        });
         if (response.calibration) setCalibrationStatus(response.calibration);
         if (onHeartbeatRef.current) {
           try {
@@ -479,31 +512,41 @@ export function useMonitoringSession({
       sessionIdRef.current = sessionId;
       loopStartRef.current = performance.now();
 
-      // Capture keeps running while a heartbeat is in flight, so no frames are
-      // lost; the next heartbeat carries them (bounded to the newest few).
-      captureIntervalRef.current = setInterval(() => {
-        if (!sessionIdRef.current) return;
-        const image = captureFrame();
-        if (!image) return;
-        const buf = frameBufferRef.current;
-        const frame = { t_ms: Math.round(performance.now() - loopStartRef.current), image };
-        const target = calibTargetRef.current;
-        if (target) frame.calib_target = { x: target.x, y: target.y };
-        buf.push(frame);
-        if (buf.length > MAX_BUFFERED_FRAMES) buf.splice(0, buf.length - MAX_BUFFERED_FRAMES);
-      }, CAPTURE_INTERVAL_MS);
+      // Model6 buffers frames between heartbeats. Late fusion sends one frame
+      // per heartbeat, and skips the beat if the previous request is still in flight.
+      if (!LATE_FUSION) {
+        captureIntervalRef.current = setInterval(() => {
+          if (!sessionIdRef.current) return;
+          const image = captureFrame();
+          if (!image) return;
+          const buf = frameBufferRef.current;
+          const frame = { t_ms: Math.round(performance.now() - loopStartRef.current), image };
+          const target = calibTargetRef.current;
+          if (target) frame.calib_target = { x: target.x, y: target.y };
+          buf.push(frame);
+          if (buf.length > MAX_BUFFERED_FRAMES) buf.splice(0, buf.length - MAX_BUFFERED_FRAMES);
+        }, CAPTURE_INTERVAL_MS);
+      }
 
       intervalRef.current = setInterval(async () => {
         if (!sessionIdRef.current || inFlightRef.current) return;
         // Ensure preview stays attached if the <video> remounted
         attachStreamToVideo(webcamRef.current);
-        const frames = frameBufferRef.current;
         const signals = browserSignalSnapshot();
         const phase = nextCalibrationPhase();
+        let frames;
+        if (LATE_FUSION) {
+          const image = captureFrame();
+          frames = image
+            ? [{ t_ms: Math.round(performance.now() - loopStartRef.current), image }]
+            : [];
+        } else {
+          frames = frameBufferRef.current;
+          frameBufferRef.current = [];
+        }
         // While hidden, still send a lightweight heartbeat (server uses hidden_ms).
         // A pending calibration phase is always sent, even without frames.
         if (frames.length === 0 && signals.page_visible && !phase) return;
-        frameBufferRef.current = [];
         await sendHeartbeat(frames, signals, phase);
       }, intervalMs);
     },
@@ -518,8 +561,8 @@ export function useMonitoringSession({
     ]
   );
 
-  const doStartMonitoredSession = useCallback(
-    async (moduleId) => {
+  const beginMonitored = useCallback(
+    async (requestSession) => {
       setLoading(true);
       setError(null);
       setLastVerdict('FOCUSED');
@@ -538,7 +581,7 @@ export function useMonitoringSession({
 
       try {
         calibOnlyRef.current = false;
-        const sessionData = await sessionService.startSession(moduleId, true);
+        const sessionData = await requestSession();
         setActiveSession(sessionData);
         startTelemetryLoop(sessionData.session_id);
         // Re-attach after React paints the session UI / PiP
@@ -559,6 +602,16 @@ export function useMonitoringSession({
     [attachStreamToVideo, startCamera, startTelemetryLoop, stopCamera]
   );
 
+  const doStartMonitoredSession = useCallback(
+    (moduleId) => beginMonitored(() => sessionService.startSession(moduleId, true)),
+    [beginMonitored]
+  );
+
+  const doStartCustomSession = useCallback(
+    (uploadId) => beginMonitored(() => sessionService.startCustomSession(uploadId)),
+    [beginMonitored]
+  );
+
   /**
    * StrictMode runs the player's boot effect twice; without this both runs
    * POST /session/start and one session is orphaned (PLAN 7, bug 3). A second
@@ -577,6 +630,22 @@ export function useMonitoringSession({
       }
     },
     [doStartMonitoredSession]
+  );
+
+  const startCustomSession = useCallback(
+    async (uploadId) => {
+      const key = `custom:${uploadId}`;
+      const inflight = startPromiseRef.current;
+      if (inflight && inflight.moduleId === key) return inflight.promise;
+      const promise = doStartCustomSession(uploadId);
+      startPromiseRef.current = { moduleId: key, promise };
+      try {
+        return await promise;
+      } finally {
+        if (startPromiseRef.current?.promise === promise) startPromiseRef.current = null;
+      }
+    },
+    [doStartCustomSession]
   );
 
   const stopMonitoredSession = useCallback(async () => {
@@ -643,8 +712,8 @@ export function useMonitoringSession({
 
   /**
    * Lesson media state. `reason` matters only for 'paused': 'user' (student
-   * paused — server gives a grace period, then a gentle nudge) or
-   * 'intervention' (a prompt paused it — held while the prompt is open).
+   * paused) or 'intervention' (a prompt paused it). Either way the server
+   * stops triggering new interventions until playback resumes.
    */
   const setContentState = useCallback((state, reason) => {
     const s = state || 'none';
@@ -755,11 +824,13 @@ export function useMonitoringSession({
     finishCalibration,
     calibrationStatus,
     gazeDebug,
+    liveFeed,
     startCamera,
     stopCamera,
     startCalibrationOnly,
     stopCalibrationOnly,
     startMonitoredSession,
+    startCustomSession,
     stopMonitoredSession,
     triggerManualIntervention,
     startTelemetryLoop,

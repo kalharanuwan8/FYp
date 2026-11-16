@@ -13,6 +13,16 @@ class RegisterSchema(BaseModel):
     role: str
     guardian_name: Optional[str] = None
     guardian_email: Optional[EmailStr] = None
+    grade_level: Optional[str] = None
+    consent_given: bool = False
+
+    @field_validator("grade_level")
+    @classmethod
+    def clean_grade_level(cls, v):
+        if v is None:
+            return None
+        cleaned = str(v).strip()
+        return cleaned or None
 
     @field_validator("role")
     @classmethod

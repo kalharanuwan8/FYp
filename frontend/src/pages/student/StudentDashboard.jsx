@@ -6,6 +6,7 @@ import {
   FileText,
   Play,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { courseService } from '../../services/courseService';
 import { analyticsService } from '../../services/analyticsService';
@@ -272,6 +273,19 @@ export default function StudentDashboard() {
             Start session
           </Button>
         </div>
+      </Card>
+
+      <Card className="p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="font-display font-bold text-text text-lg">Practice with your own file</h2>
+          <p className="text-sm text-text-muted mt-1">
+            Upload anything you are studying and run monitoring yourself. Prompts are chosen for you.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => navigate('/student/practice')}>
+          <Upload className="w-4 h-4" aria-hidden="true" />
+          Open practice
+        </Button>
       </Card>
 
       {/* Enrolled subjects */}

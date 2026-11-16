@@ -1,7 +1,7 @@
 import bcrypt
 import pytest
 from flask_jwt_extended import create_access_token
-from app.db_models import User, Student, Teacher, GuardianConsent
+from app.db_models import User, Student, Teacher, GuardianConsent, GradeLevel
 from app.extensions import db
 
 def test_login_schema_validation(client):
@@ -119,4 +119,69 @@ def test_register_student_success(client, app):
         consent = GuardianConsent.query.filter_by(student_id=student.id).first()
         assert consent is not None
         assert consent.consent_given is False
+        assert consent.consented_at is None
         assert consent.guardian_name == "Parent Person"
+
+
+def test_register_student_with_guardian_consent(client, app):
+    with app.app_context():
+        admin = User(email="admin3@test.com", password="hash", role="admin", first_name="Admin", last_name="User")
+        db.session.add(admin)
+        db.session.commit()
+        token = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "email": "student-consent@test.com",
+        "password": "password123",
+        "first_name": "Casey",
+        "last_name": "Student",
+        "role": "student",
+        "guardian_name": "Parent Person",
+        "guardian_email": "parent@test.com",
+        "consent_given": True,
+    }
+    res = client.post("/api/auth/register", json=payload, headers=headers)
+    assert res.status_code == 201
+
+    with app.app_context():
+        student = Student.query.join(User).filter(User.email == "student-consent@test.com").first()
+        consent = GuardianConsent.query.filter_by(student_id=student.id).first()
+        assert consent.consent_given is True
+        assert consent.consented_at is not None
+
+
+def test_register_student_saves_grade(client, app):
+    with app.app_context():
+        admin = User(email="admin4@test.com", password="hash", role="admin", first_name="Admin", last_name="User")
+        db.session.add(admin)
+        db.session.add(GradeLevel(name="Grade 6"))
+        db.session.commit()
+        token = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "email": "student-grade@test.com",
+        "password": "password123",
+        "first_name": "Nuwana",
+        "last_name": "Student",
+        "role": "student",
+        "grade_level": "Grade 6",
+        "guardian_name": "Parent Person",
+        "guardian_email": "parent@test.com",
+        "consent_given": True,
+    }
+    res = client.post("/api/auth/register", json=payload, headers=headers)
+    assert res.status_code == 201
+
+    with app.app_context():
+        student = Student.query.join(User).filter(User.email == "student-grade@test.com").first()
+        assert student.grade_level == "Grade 6"
+
+    bad = client.post(
+        "/api/auth/register",
+        json={**payload, "email": "student-bad-grade@test.com", "grade_level": "Year 99"},
+        headers=headers,
+    )
+    assert bad.status_code == 400
+    assert bad.json["error"] == "Unknown grade level"

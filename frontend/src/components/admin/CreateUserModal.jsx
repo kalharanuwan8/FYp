@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, UserPlus, AlertCircle } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import courseService from '../../services/courseService';
 
 const INITIAL_FORM_STATE = {
   role: 'student',
@@ -8,20 +9,39 @@ const INITIAL_FORM_STATE = {
   last_name: '',
   email: '',
   password: '',
+  grade_level: '',
   guardian_name: '',
   guardian_email: '',
+  consent_given: false,
 };
 
 export const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const [gradeLevels, setGradeLevels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    courseService
+      .getGradeLevels()
+      .then((levels) => {
+        if (!cancelled) setGradeLevels(levels || []);
+      })
+      .catch(() => {
+        if (!cancelled) setGradeLevels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleResetAndClose = () => {
@@ -47,6 +67,10 @@ export const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
     }
 
     if (formData.role === 'student') {
+      if (!formData.grade_level) {
+        setError('Grade is required for a student.');
+        return;
+      }
       if (!formData.guardian_name.trim() || !formData.guardian_email.trim()) {
         setError('Guardian name and guardian email are required for student registrations.');
         return;
@@ -64,8 +88,10 @@ export const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     if (formData.role === 'student') {
+      payload.grade_level = formData.grade_level;
       payload.guardian_name = formData.guardian_name.trim();
       payload.guardian_email = formData.guardian_email.trim();
+      payload.consent_given = Boolean(formData.consent_given);
     }
 
     try {
@@ -233,6 +259,25 @@ export const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
               <div className="text-[11px] font-bold text-primary">
                 Guardian Consent Information (Required for Students)
               </div>
+              <div>
+                <label className="block font-bold text-text uppercase tracking-wider mb-1">
+                  Grade *
+                </label>
+                <select
+                  name="grade_level"
+                  required={formData.role === 'student'}
+                  value={formData.grade_level}
+                  onChange={handleChange}
+                  className="w-full bg-surface border border-border focus:border-primary focus:outline-none rounded-lg p-2 text-text"
+                >
+                  <option value="">Select a grade</option>
+                  {gradeLevels.map((level) => (
+                    <option key={level.id || level.name} value={level.name}>
+                      {level.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-text uppercase tracking-wider mb-1">
@@ -263,6 +308,21 @@ export const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
                   />
                 </div>
               </div>
+              <label className="flex items-start gap-2.5 cursor-pointer text-text">
+                <input
+                  type="checkbox"
+                  name="consent_given"
+                  checked={formData.consent_given}
+                  onChange={handleChange}
+                  className="mt-0.5 w-4 h-4 cursor-pointer"
+                />
+                <span>
+                  <span className="block font-semibold">Guardian consent — OK</span>
+                  <span className="block text-text-muted mt-0.5 font-medium">
+                    Check this if the guardian has agreed to camera monitoring. The student can then start a monitored lesson.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
 

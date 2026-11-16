@@ -1,13 +1,9 @@
-"""PLAN 7: pause grace, honest episode clock, decision trace, heartbeat debug."""
+"""PLAN 7: paused video holds the clock, decision trace, heartbeat debug."""
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 
 from app.db_models import DistractionEvent
 from app.extensions import db
-from app.services.intervention_engine import (
-    PAUSE_GRACE_SEC,
-    InterventionEngine,
-)
+from app.services.intervention_engine import InterventionEngine
 from tests.test_session import _seed_student_session
 
 
@@ -44,30 +40,27 @@ def _run(engine, ep, t0, t1, step=2.0, **kw):
 
 
 # ------------------------------------------------------------------ pause
-def test_user_pause_grace_then_gentle_tier():
+def test_paused_video_never_fires():
     eng = InterventionEngine(cooldown_seconds=0.0)
     ep = _Clock(0.0)
-    fired = _run(eng, ep, 0.0, 30.0, content_state="paused", pause_reason="user")
-    assert fired, "a paused + distracted student must eventually be nudged"
-    t_first, first = fired[0]
-    assert t_first >= PAUSE_GRACE_SEC
-    assert first.tier <= 2
+    assert _run(eng, ep, 0.0, 60.0, content_state="paused", pause_reason="user") == []
+    assert eng.last_decision["why"] == "paused"
 
 
-def test_pause_grace_reason_recorded():
-    eng = InterventionEngine(cooldown_seconds=0.0)
-    ep = _Clock(0.0)
-    _step(eng, ep, 0.0, content_state="paused")
-    _step(eng, ep, 2.0, content_state="paused")
-    assert eng.last_decision["why"] == "paused_grace"
-    assert eng.last_decision["pause_left_sec"] > 0
-
-
-def test_paused_never_exceeds_tier2_even_after_long_episode():
+def test_long_episode_still_does_not_fire_while_paused():
     eng = InterventionEngine(cooldown_seconds=0.0)
     ep = _Clock(-60.0)  # already a long episode when the pause starts
-    fired = _run(eng, ep, 0.0, 20.0, content_state="paused")
-    assert fired and all(r.tier <= 2 for _, r in fired)
+    assert _run(eng, ep, 0.0, 20.0, content_state="paused") == []
+    assert eng.last_decision["why"] == "paused"
+
+
+def test_pause_time_not_counted_first_fire_is_t1_after_resume():
+    eng = InterventionEngine(cooldown_seconds=0.0)
+    ep = _Clock(0.0)
+    assert _run(eng, ep, 0.0, 30.0, content_state="paused", pause_reason="user") == []
+    fired = _run(eng, ep, 32.0, 50.0, content_state="playing")
+    assert fired, "must fire once playing again"
+    assert fired[0][1].tier == 1
 
 
 def test_ended_video_never_fires():
@@ -191,8 +184,7 @@ def test_heartbeat_returns_intervention_debug_and_fires_while_playing(client, ap
     assert "frames_debug" in r.json
 
 
-def test_heartbeat_paused_reports_grace_instead_of_silent_block(client, app):
-    """Regression for session 158: paused used to block silently forever."""
+def test_heartbeat_paused_does_not_trigger(client, app):
     sid, h = _start(client, app, "p7_pause@t.com")
     client.post(
         f"/api/session/{sid}/heartbeat",
@@ -206,7 +198,7 @@ def test_heartbeat_paused_reports_grace_instead_of_silent_block(client, app):
         headers=h,
     )
     assert r.json["intervention_triggered"] is False
-    assert r.json["intervention_debug"]["why"] == "paused_grace"
+    assert r.json["intervention_debug"]["why"] == "paused"
 
 
 def test_heartbeat_rejects_bad_pause_reason(client, app):

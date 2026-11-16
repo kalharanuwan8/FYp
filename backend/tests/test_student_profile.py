@@ -38,6 +38,7 @@ def test_student_profile_lifecycle(client, app):
     assert res_init.json["grade_level"] is None
     assert res_init.json["consent_given"] is False
     assert res_init.json["gaze_calibrated"] is False
+    assert res_init.json.get("gaze_calibration_skipped") is False
 
     # 2. Update profile with grade, guardian contact, and assent.
     # consent_given in the payload must be ignored (admin-only).
@@ -205,3 +206,30 @@ def test_gaze_calibration_start_and_persist_helper(client, app):
 
         user = db.session.get(User, st_check.user_id)
         assert _profile_payload(user, st_check)["gaze_calibrated"] is True
+
+
+def test_skip_gaze_calibration(client, app):
+    with app.app_context():
+        u = User(
+            email="skip_calib@test.com",
+            password="hashedpassword",
+            role="student",
+            first_name="Skip",
+            last_name="Calib",
+        )
+        db.session.add(u)
+        db.session.flush()
+        st = Student(user_id=u.id, grade_level="Grade 6", student_assent=True)
+        db.session.add(st)
+        db.session.commit()
+        token = create_access_token(identity=str(u.id), additional_claims={"role": "student"})
+
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.post("/api/student/gaze-calibration/skip", headers=headers)
+    assert res.status_code == 200
+    assert res.json["gaze_calibrated"] is False
+    assert res.json["gaze_calibration_skipped"] is True
+
+    again = client.get("/api/student/profile", headers=headers)
+    assert again.status_code == 200
+    assert again.json["gaze_calibration_skipped"] is True

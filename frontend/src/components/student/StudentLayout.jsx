@@ -64,30 +64,53 @@ export default function StudentLayout() {
     setFocusMode(false);
   }, [location.pathname]);
 
+  const markCalibrationSkipped = useCallback(async () => {
+    try {
+      sessionStorage.setItem(GAZE_SKIP_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    try {
+      const updated = await studentService.skipGazeCalibration();
+      setProfile(updated);
+      return updated;
+    } catch (err) {
+      console.warn('Could not persist calibration skip:', err);
+      return null;
+    }
+  }, []);
+
+  const beginGazeCalibration = useCallback(async () => {
+    if (gazeStartedRef.current && showGazeCalib) return { ok: true, alreadyOpen: true };
+    gazeStartedRef.current = true;
+    try {
+      sessionStorage.removeItem(GAZE_SKIP_KEY);
+    } catch {
+      /* ignore */
+    }
+    const result = await startCalibrationOnly();
+    if (!result?.ok) {
+      gazeStartedRef.current = false;
+      await markCalibrationSkipped();
+      return { ok: false, error: result?.error };
+    }
+    setCalibKey((k) => k + 1);
+    setShowGazeCalib(true);
+    setCalibrating(true);
+    return { ok: true };
+  }, [markCalibrationSkipped, setCalibrating, showGazeCalib, startCalibrationOnly]);
+
   const maybeStartGazeCalib = useCallback(
     async (prof) => {
       if (!prof?.onboarding_completed || prof.gaze_calibrated) return;
+      if (prof.gaze_calibration_skipped) return;
       if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(GAZE_SKIP_KEY)) {
         return;
       }
       if (gazeStartedRef.current) return;
-      gazeStartedRef.current = true;
-      const result = await startCalibrationOnly();
-      if (!result?.ok) {
-        gazeStartedRef.current = false;
-        // Missing camera must not trap the account — treat as skip for this visit.
-        try {
-          sessionStorage.setItem(GAZE_SKIP_KEY, '1');
-        } catch {
-          /* ignore */
-        }
-        return;
-      }
-      setCalibKey((k) => k + 1);
-      setShowGazeCalib(true);
-      setCalibrating(true);
+      await beginGazeCalibration();
     },
-    [setCalibrating, startCalibrationOnly]
+    [beginGazeCalibration]
   );
 
   useEffect(() => {
@@ -114,20 +137,20 @@ export default function StudentLayout() {
       if (result?.ok) {
         await refreshProfile();
       } else if (result?.skipped) {
-        try {
-          sessionStorage.setItem(GAZE_SKIP_KEY, '1');
-        } catch {
-          /* ignore */
-        }
+        await markCalibrationSkipped();
       }
     },
-    [closeGazeCalib, refreshProfile]
+    [closeGazeCalib, markCalibrationSkipped, refreshProfile]
   );
 
   const handleGazeRetry = useCallback(() => {
     setCalibKey((k) => k + 1);
     setCalibrating(true);
   }, [setCalibrating]);
+
+  const startGazeCalibration = useCallback(async () => {
+    return beginGazeCalibration();
+  }, [beginGazeCalibration]);
 
   return (
     <div className="flex min-h-screen bg-bg font-sans relative">
@@ -153,6 +176,7 @@ export default function StudentLayout() {
               refreshProgress,
               focusMode,
               setFocusMode,
+              startGazeCalibration,
             }}
           />
         </main>

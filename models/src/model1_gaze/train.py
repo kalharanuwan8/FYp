@@ -165,10 +165,13 @@ def run():
     # preserve the original behaviour):
     #   GAZE_TRAIN_CSV=data/processed/model1_gaze/train_stride4.csv
     #   GAZE_EPOCHS=15
+    #   GAZE_NUM_WORKERS=2   (fewer spawned workers if Windows reports WinError 1455)
     if os.environ.get("GAZE_TRAIN_CSV"):
         cfg = replace(cfg, data=replace(cfg.data, train_csv=Path(os.environ["GAZE_TRAIN_CSV"])))
     if os.environ.get("GAZE_EPOCHS"):
         cfg = replace(cfg, epochs=int(os.environ["GAZE_EPOCHS"]))
+    if os.environ.get("GAZE_NUM_WORKERS"):
+        cfg = replace(cfg, num_workers=int(os.environ["GAZE_NUM_WORKERS"]))
 
     ensure_dir(cfg.ckpt_dir)
     ensure_dir(cfg.log_dir)

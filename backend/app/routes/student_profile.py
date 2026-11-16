@@ -54,7 +54,7 @@ class GazeCalibrationSchema(BaseModel):
         return v_lower
 
 
-def _gaze_calibrated(student) -> bool:
+def _gaze_payload(student) -> Optional[dict]:
     payload = getattr(student, "gaze_calibration", None)
     if isinstance(payload, str):
         import json
@@ -62,11 +62,40 @@ def _gaze_calibrated(student) -> bool:
         try:
             payload = json.loads(payload)
         except (TypeError, ValueError):
-            return False
+            return None
     if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _gaze_calibrated(student) -> bool:
+    payload = _gaze_payload(student)
+    if not payload:
         return False
     mapper = payload.get("mapper") if isinstance(payload.get("mapper"), dict) else payload
     return bool(mapper and mapper.get("ok") and mapper.get("cx") and mapper.get("cy"))
+
+
+def _gaze_calibration_skipped(student) -> bool:
+    """True when the student chose Skip (or camera failed) and never completed a fit."""
+    if _gaze_calibrated(student):
+        return False
+    payload = _gaze_payload(student)
+    return bool(payload and payload.get("skipped"))
+
+
+def persist_gaze_calibration_skip(student) -> dict:
+    """Record that screen calibration was skipped. Cleared by a successful fit."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    student.gaze_calibration = {
+        "skipped": True,
+        "skipped_at": datetime.utcnow().isoformat() + "Z",
+    }
+    flag_modified(student, "gaze_calibration")
+    db.session.add(student)
+    db.session.commit()
+    return dict(student.gaze_calibration)
 
 
 def _profile_payload(user, student):
@@ -107,6 +136,7 @@ def _profile_payload(user, student):
         "ui_preferences": student.ui_preferences or {},
         "onboarding_completed": onboarding_done,
         "gaze_calibrated": _gaze_calibrated(student),
+        "gaze_calibration_skipped": _gaze_calibration_skipped(student),
     }
 
 
@@ -215,6 +245,30 @@ def update_student_profile():
     db.session.commit()
     return jsonify({
         "message": "Student profile updated successfully",
+        **_profile_payload(user, student),
+    }), 200
+
+
+@student_profile_bp.route("/gaze-calibration/skip", methods=["POST"])
+@jwt_required()
+@role_required("student")
+def skip_gaze_calibration():
+    """Mark screen calibration as skipped so Settings can show that choice."""
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user or not user.student_profile:
+        return jsonify({"error": "Student profile not found"}), 404
+
+    student = user.student_profile
+    if _gaze_calibrated(student):
+        return jsonify({
+            "message": "Screen calibration is already complete",
+            **_profile_payload(user, student),
+        }), 200
+
+    persist_gaze_calibration_skip(student)
+    return jsonify({
+        "message": "Screen calibration skipped",
         **_profile_payload(user, student),
     }), 200
 

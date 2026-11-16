@@ -91,8 +91,8 @@ class HeartbeatSchema(BaseModel):
     )
     pause_reason: Optional[Literal["user", "intervention", "ended"]] = Field(
         None,
-        description="Why the lesson is paused (PLAN 7): user pause gets a grace period; "
-        "intervention pauses are held while the prompt is open",
+        description="Why the lesson is paused: the student, or an open intervention prompt. "
+        "Either way, no new intervention is triggered until playback resumes",
     )
     calibrating: Optional[bool] = Field(
         False, description="True during the calibration screen"

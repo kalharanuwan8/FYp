@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import studentService from '../../services/studentService';
 import courseService from '../../services/courseService';
 import { usePreferences, THEME_OPTIONS } from '../../context/PreferencesContext';
@@ -31,6 +32,12 @@ function ToggleRow({ label, hint, checked, onChange }) {
 }
 
 export default function StudentSettings() {
+  const outlet = useOutletContext() || {};
+  const {
+    profile: layoutProfile,
+    startGazeCalibration,
+    refreshProfile: refreshLayoutProfile,
+  } = outlet;
   const {
     theme,
     textSize,
@@ -47,6 +54,7 @@ export default function StudentSettings() {
   const [dailyGoal, setDailyGoal] = useState(20);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [calibrating, setCalibrating] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [error, setError] = useState(null);
 
@@ -69,6 +77,45 @@ export default function StudentSettings() {
       }
     })();
   }, []);
+
+  // Keep calibration status current after Skip / finish in the layout overlay.
+  useEffect(() => {
+    if (!layoutProfile) return;
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            gaze_calibrated: layoutProfile.gaze_calibrated,
+            gaze_calibration_skipped: layoutProfile.gaze_calibration_skipped,
+          }
+        : layoutProfile
+    );
+  }, [
+    layoutProfile?.gaze_calibrated,
+    layoutProfile?.gaze_calibration_skipped,
+    layoutProfile,
+  ]);
+
+  const handleRecalibrate = async () => {
+    setError(null);
+    if (!startGazeCalibration) {
+      setError('Open Settings from the student app to run screen calibration.');
+      return;
+    }
+    setCalibrating(true);
+    try {
+      const result = await startGazeCalibration();
+      if (result && result.ok === false) {
+        setError(result.error || 'Could not start camera for calibration.');
+        const updated = (await refreshLayoutProfile?.()) || (await studentService.getProfile());
+        if (updated) setProfile(updated);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Calibration failed to start.');
+    } finally {
+      setCalibrating(false);
+    }
+  };
 
   const markSaved = () => setSavedAt(Date.now());
 
@@ -204,6 +251,35 @@ export default function StudentSettings() {
             />
           )}
         </Field>
+      </Card>
+
+      <Card className="p-5 space-y-4">
+        <h2 className="font-display font-bold text-text">Screen calibration</h2>
+        {profile?.gaze_calibrated ? (
+          <p className="text-sm text-success font-medium">
+            Screen gaze is calibrated for this account.
+          </p>
+        ) : profile?.gaze_calibration_skipped ? (
+          <p className="text-sm text-text-muted">
+            You skipped screen calibration. Looking-away detection uses a basic mode until you calibrate.
+          </p>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Screen calibration has not been completed yet.
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={calibrating}
+          onClick={handleRecalibrate}
+        >
+          {calibrating
+            ? 'Starting…'
+            : profile?.gaze_calibrated
+              ? 'Recalibrate'
+              : 'Calibrate now'}
+        </Button>
       </Card>
 
       <Card className="p-5 space-y-4">

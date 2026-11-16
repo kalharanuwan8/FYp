@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Users, 
   BarChart3, 
-  FileText, 
   Settings, 
   Plus, 
   HelpCircle, 
@@ -24,7 +23,6 @@ export const Sidebar = () => {
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },
-    { name: 'Logs', path: '/admin/logs', icon: FileText },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

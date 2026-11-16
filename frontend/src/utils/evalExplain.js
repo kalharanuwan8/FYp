@@ -50,8 +50,7 @@ export const DECISION_TEXT = {
         }`
       : 'prompt already on screen',
   cooldown: (d) => `cooldown — ${s1(d.cooldown_left_sec)}s until the next prompt is allowed`,
-  paused_grace: (d) =>
-    `video paused by student — grace ${s1(d.pause_left_sec)}s before a gentle nudge`,
+  paused: () => 'video paused — no new prompts until playback resumes',
   paused_by_intervention: () => 'video paused by a prompt — waiting for the answer',
   ended: () => 'lesson ended — no prompts',
   held: () => 'episode held',

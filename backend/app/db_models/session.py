@@ -17,6 +17,10 @@ class LearningSession(db.Model):
     start_time = db.Column("started_at", db.DateTime, default=datetime.utcnow, nullable=False)
     end_time = db.Column("ended_at", db.DateTime, nullable=True)
     is_monitored = db.Column("was_monitored", db.Boolean, default=True, nullable=False)
+    # Set when the student uploaded their own file instead of opening a course module.
+    custom_upload_id = db.Column(
+        db.Integer, db.ForeignKey("custom_uploads.id"), nullable=True
+    )
     # Atomic claim flag: only the first stop that flips this to True awards XP.
     xp_awarded = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -33,6 +37,7 @@ class LearningSession(db.Model):
 
     student = db.relationship("Student", back_populates="sessions")
     module = db.relationship("Module", backref="sessions")
+    custom_upload = db.relationship("CustomUpload", back_populates="sessions")
     observations = db.relationship(
         "MonitoringObservation",
         back_populates="session",
@@ -48,12 +53,39 @@ class LearningSession(db.Model):
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "is_monitored": self.is_monitored,
+            "custom_upload_id": self.custom_upload_id,
             "focus_metric_version": self.focus_metric_version,
             "observed_focused_seconds": self.observed_focused_seconds,
             "observed_distracted_seconds": self.observed_distracted_seconds,
             "unknown_seconds": self.unknown_seconds,
             "monitoring_coverage_pct": self.monitoring_coverage_pct,
             "focus_percentage": self.focus_percentage,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class CustomUpload(db.Model):
+    """A file the student uploaded to run a monitoring session on their own material."""
+
+    __tablename__ = "custom_uploads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False, index=True)
+    title = db.Column(db.String(150), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_url = db.Column(db.String(500), nullable=False)
+    content_kind = db.Column(db.String(16), nullable=False)  # video|image|audio|document|other
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    student = db.relationship("Student", backref="custom_uploads")
+    sessions = db.relationship("LearningSession", back_populates="custom_upload")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "original_filename": self.original_filename,
+            "content_kind": self.content_kind,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

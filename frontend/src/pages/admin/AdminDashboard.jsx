@@ -7,7 +7,6 @@ import {
   Cloud, 
   UserPlus, 
   Upload, 
-  FileText, 
   BarChart2, 
   ArrowRight,
   AlertCircle
@@ -185,10 +184,6 @@ export const AdminDashboard = () => {
         <div className="lg:col-span-2 bg-surface border border-border/80 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-text">Recent Activity</h2>
-            <Link to="/admin/logs" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
-              <span>View all logs</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
 
           <p className="text-sm text-text-muted">
@@ -219,10 +214,6 @@ export const AdminDashboard = () => {
           </div>
 
           <div className="pt-4 border-t border-border space-y-2 mt-4 text-xs font-medium text-text-muted">
-            <Link to="/admin/logs" className="flex items-center gap-2 hover:text-primary p-1.5 rounded-lg hover:bg-bg transition-colors">
-              <FileText className="w-4 h-4" />
-              <span>View Logs</span>
-            </Link>
             <Link to="/admin/analytics" className="flex items-center gap-2 hover:text-primary p-1.5 rounded-lg hover:bg-bg transition-colors">
               <BarChart2 className="w-4 h-4" />
               <span>View Analytics</span>

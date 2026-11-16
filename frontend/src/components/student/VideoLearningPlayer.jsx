@@ -43,6 +43,61 @@ function formatClock(seconds) {
   return `${minutes}:${String(remain).padStart(2, '0')}`;
 }
 
+function n1(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : '—';
+}
+
+function LiveFeedReadout({ feed, verdict, onHide }) {
+  const label = String(feed?.verdict || verdict || 'WAITING').toUpperCase();
+  const bar =
+    label === 'DISTRACTED'
+      ? 'bg-red-600'
+      : label === 'FOCUSED'
+        ? 'bg-green-600'
+        : label === 'UNKNOWN'
+          ? 'bg-amber-600'
+          : 'bg-slate-600';
+  const prob =
+    typeof feed?.distract_prob === 'number'
+      ? feed.distract_prob.toFixed(2)
+      : typeof feed?.confidence === 'number'
+        ? feed.confidence.toFixed(2)
+        : '—';
+  const probs = feed?.gaze_probs;
+  const gazeText = probs
+    ? `${feed.gaze_label || 'gaze'}  c${Number(probs.center).toFixed(2)} l${Number(probs.left).toFixed(2)} r${Number(probs.right).toFixed(2)} d${Number(probs.down).toFixed(2)}`
+    : feed?.gaze_label
+      ? feed.gaze_label
+      : feed?.on_screen === true
+        ? `on screen ${n1(feed.screen_x)}, ${n1(feed.screen_y)}`
+        : feed?.on_screen === false
+          ? `off screen ${n1(feed.screen_x)}, ${n1(feed.screen_y)}`
+          : '—';
+  return (
+    <div className="mt-1.5 space-y-1 text-[11px] leading-tight">
+      <div className={`${bar} rounded px-2 py-1 font-bold tracking-wide`}>
+        {label}  p={prob}
+        {feed?.ml_mode ? `  ${feed.ml_mode}` : ''}
+      </div>
+      <div>M1 gaze {gazeText}</div>
+      <div>
+        M2 yaw {n1(feed?.head_pose_yaw)} pitch {n1(feed?.head_pose_pitch)} roll {n1(feed?.head_pose_roll)}
+      </div>
+      <div>
+        M3 eng {typeof feed?.engagement_score === 'number' ? feed.engagement_score.toFixed(2) : '—'}
+        {feed?.face_detected === false ? '  no face' : ''}
+      </div>
+      <button
+        type="button"
+        onClick={onHide}
+        className="inline-flex items-center gap-1 min-h-7 font-semibold text-white/80 cursor-pointer"
+      >
+        <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> Hide feed
+      </button>
+    </div>
+  );
+}
+
 function LessonTimeline({ currentTime, duration, onSeek, overlay = false }) {
   const max = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const value = max > 0 ? Math.min(Math.max(0, currentTime), max) : 0;
@@ -82,8 +137,8 @@ export const VideoLearningPlayer = ({
   const videoRef = useRef(null);
   const stageRef = useRef(null);
   const wasPlayingBeforePromptRef = useRef(false);
-  // PLAN 7: who paused the video — 'user' gets a server grace period then a gentle
-  // nudge; 'intervention' is held while the prompt is open.
+  // Who paused the video. Either reason stops new interventions on the server;
+  // 'intervention' means a prompt is holding playback until the student answers.
   const pauseCauseRef = useRef(null);
   const activeInterventionRef = useRef(null);
   const controlsTimerRef = useRef(null);
@@ -105,6 +160,7 @@ export const VideoLearningPlayer = ({
   const selfTestOpenRef = useRef(false);
   const { onHeartbeat, subscribeHeartbeat } = useHeartbeatBus();
   const [fsPreview, setFsPreview] = useState(false); // camera thumbnail in fullscreen: hidden by default
+  const [liveFeedOpen, setLiveFeedOpen] = useState(true);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [simulateIgnore, setSimulateIgnore] = useState(false);
 
@@ -146,6 +202,7 @@ export const VideoLearningPlayer = ({
     mlMode,
     confidence,
     gazeDebug,
+    liveFeed,
     loading,
     error: monitorError,
     startMonitoredSession,
@@ -270,35 +327,12 @@ export const VideoLearningPlayer = ({
   const videoSrc = resolveMediaUrl(material);
 
   const bootGenRef = useRef(0);
-
-  useEffect(() => {
-    const gen = ++bootGenRef.current;
-    let cancelled = false;
-    (async () => {
-      if (!material?.module_id) {
-        setBootError('Missing module id for monitored video session.');
-        return;
-      }
-      const result = await startMonitoredSession(material.module_id);
-      // Ignore stale StrictMode / rapid remount results
-      if (cancelled || gen !== bootGenRef.current) {
-        return;
-      }
-      if (!result?.ok) {
-        setBootError(result?.error || monitorError || 'Failed to start monitored session.');
-      } else if (!gazeCalibrated) {
-        beginCalibration();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // intentionally run once per material
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [material?.module_id]);
+  const startingMonitorRef = useRef(false);
+  const [startingMonitor, setStartingMonitor] = useState(false);
 
   // Stop session only when the player truly leaves (not StrictMode soft remount)
   useEffect(() => {
+    bootGenRef.current += 1;
     return () => {
       // Defer so StrictMode's immediate remount can reuse; hard unmount still stops.
       const genAtCleanup = bootGenRef.current;
@@ -323,18 +357,59 @@ export const VideoLearningPlayer = ({
     }
   }, [activeIntervention]);
 
-  const handleTogglePlay = () => {
+  /** Camera + ML session begin on the first Play, not when the player opens. */
+  const ensureMonitoringStarted = useCallback(async () => {
+    if (activeSession || startingMonitorRef.current) return { ok: Boolean(activeSession) };
+    if (!material?.module_id) {
+      setBootError('Missing module id for monitored video session.');
+      return { ok: false };
+    }
+    startingMonitorRef.current = true;
+    setStartingMonitor(true);
+    setBootError(null);
+    const gen = ++bootGenRef.current;
+    try {
+      const result = await startMonitoredSession(material.module_id);
+      if (gen !== bootGenRef.current) return { ok: false };
+      if (!result?.ok) {
+        setBootError(result?.error || monitorError || 'Failed to start monitored session.');
+        return { ok: false };
+      }
+      if (!gazeCalibrated) {
+        beginCalibration();
+        return { ok: true, calibrating: true };
+      }
+      return { ok: true };
+    } finally {
+      startingMonitorRef.current = false;
+      setStartingMonitor(false);
+    }
+  }, [
+    activeSession,
+    beginCalibration,
+    gazeCalibrated,
+    material?.module_id,
+    monitorError,
+    startMonitoredSession,
+  ]);
+
+  const handleTogglePlay = async () => {
     if (!videoRef.current) return;
     if (isPlaying) {
       pauseCauseRef.current = 'user';
       videoRef.current.pause();
       setIsPlaying(false);
       setContentState('paused', 'user');
-    } else {
-      videoRef.current.play();
-      setIsPlaying(true);
-      setContentState('playing');
+      return;
     }
+    const started = await ensureMonitoringStarted();
+    if (!started?.ok) return;
+    // Wait for screen calibration before counting play as monitoring time.
+    if (started.calibrating || calibratingOpen) return;
+    pauseCauseRef.current = null;
+    videoRef.current.play()?.catch?.(() => {});
+    setIsPlaying(true);
+    setContentState('playing');
   };
 
   const handleToggleMute = () => {
@@ -546,39 +621,35 @@ export const VideoLearningPlayer = ({
           {!sessionSummary && (
             <div
               className={
-                previewVisible
-                  ? isFullscreen
-                    ? 'absolute top-3 left-3 z-20 bg-surface/90 border border-border rounded-xl p-1.5 shadow-lift'
-                    : 'absolute top-3 right-3 md:top-4 md:right-4 z-20 bg-surface border border-border rounded-2xl p-2 shadow-lift flex items-center gap-3 max-w-[calc(100%-1.5rem)]'
+                liveFeedOpen
+                  ? 'absolute top-3 right-3 z-30 w-56 bg-black/80 text-white border border-white/20 rounded-xl p-2 shadow-lift'
                   : 'absolute w-40 h-28 opacity-0 pointer-events-none -z-10 left-0 top-0 overflow-hidden'
               }
-              aria-hidden={!previewVisible}
+              aria-hidden={!liveFeedOpen}
             >
               <WebcamCapture
                 videoRef={webcamRef}
                 canvasRef={canvasRef}
                 cameraActive={cameraActive}
-                compact
+                className="w-full max-w-none aspect-video"
               />
-              {previewVisible && !isFullscreen && (
-                <div className="text-[11px] pr-2">
-                  <div className="flex items-center gap-1.5 font-bold text-text">
-                    <span className={`w-2 h-2 rounded-full ${cameraActive ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
-                    <span>{cameraActive ? 'Camera on' : loading ? 'Starting…' : 'Camera'}</span>
-                  </div>
-                  <span className="text-[10px] text-text-muted block mt-0.5">
-                    Preview stays on this device
-                  </span>
-                  <button
-                    type="button"
-                    onClick={toggleCameraPreview}
-                    className="mt-1 inline-flex items-center gap-1 min-h-8 font-semibold text-primary cursor-pointer"
-                  >
-                    <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> Hide preview
-                  </button>
-                </div>
+              {liveFeedOpen && (
+                <LiveFeedReadout
+                  feed={liveFeed}
+                  verdict={lastVerdict}
+                  onHide={() => setLiveFeedOpen(false)}
+                />
               )}
             </div>
+          )}
+          {!sessionSummary && !liveFeedOpen && (
+            <button
+              type="button"
+              onClick={() => setLiveFeedOpen(true)}
+              className="absolute top-3 right-3 z-30 min-h-9 px-3 rounded-lg bg-black/75 text-white text-xs font-semibold cursor-pointer"
+            >
+              Show live feed
+            </button>
           )}
 
           <ScreenCalibrationOverlay
@@ -708,14 +779,9 @@ export const VideoLearningPlayer = ({
             </div>
           )}
 
-          {loading ? (
-            <div className="flex flex-col items-center gap-3 text-text-muted py-16" role="status">
-              <RefreshCw className="w-8 h-8 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
-              <span className="text-xs font-semibold">
-                Starting camera &amp; background ML models…
-              </span>
-            </div>
-          ) : displayError && !activeSession ? (
+          {sessionSummary ? (
+            <SessionSummary summary={sessionSummary} onClose={onClose} />
+          ) : displayError && !activeSession && !startingMonitor && !loading ? (
             <div className="p-6 bg-danger/10 border border-danger rounded-2xl max-w-md text-center text-text space-y-3" role="alert">
               <AlertCircle className="w-8 h-8 text-danger mx-auto" aria-hidden="true" />
               <p className="text-sm font-semibold">{displayError}</p>
@@ -727,8 +793,6 @@ export const VideoLearningPlayer = ({
                 Close window
               </button>
             </div>
-          ) : sessionSummary ? (
-            <SessionSummary summary={sessionSummary} onClose={onClose} />
           ) : (
             <div className="relative w-full h-full flex items-center justify-center">
               <video
@@ -736,13 +800,16 @@ export const VideoLearningPlayer = ({
                 src={videoSrc}
                 controls={false}
                 onPlay={() => {
+                  if (!activeSession) return;
                   pauseCauseRef.current = null;
                   setIsPlaying(true);
                   setContentState('playing');
                 }}
                 onPause={() => {
                   setIsPlaying(false);
-                  setContentState('paused', pauseCauseRef.current || 'user');
+                  if (activeSession) {
+                    setContentState('paused', pauseCauseRef.current || 'user');
+                  }
                 }}
                 onTimeUpdate={syncTimeline}
                 onLoadedMetadata={syncTimeline}
@@ -751,11 +818,29 @@ export const VideoLearningPlayer = ({
                 onEnded={() => finishLessonRef.current()}
                 className={`w-full object-contain ${isFullscreen ? 'h-full' : 'max-h-[60vh]'}`}
               />
+              {!activeSession && !calibratingOpen && (
+                <div className="absolute inset-x-0 bottom-6 z-20 flex justify-center px-4 pointer-events-none">
+                  <p className="rounded-xl bg-black/75 text-white text-xs md:text-sm font-semibold px-4 py-2.5 text-center max-w-md">
+                    Press Play to start the video and begin monitoring
+                  </p>
+                </div>
+              )}
+              {(loading || startingMonitor) && (
+                <div
+                  className="absolute inset-0 z-25 flex flex-col items-center justify-center gap-3 bg-black/50 text-white"
+                  role="status"
+                >
+                  <RefreshCw className="w-8 h-8 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
+                  <span className="text-xs font-semibold">
+                    Starting camera &amp; monitoring…
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {!sessionSummary && activeSession && (
+        {!sessionSummary && (
           <div className="p-4 md:px-6 focus-session-chrome space-y-3 text-text text-xs">
             {triggerError && (
               <p className="text-[11px] text-warning font-medium" role="alert">{triggerError}</p>
@@ -766,15 +851,18 @@ export const VideoLearningPlayer = ({
                 <button
                   type="button"
                   onClick={handleTogglePlay}
+                  disabled={startingMonitor || loading}
                   aria-label={isPlaying ? 'Pause lesson' : 'Play lesson'}
-                  className="px-3 min-h-11 bg-primary text-on-primary rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-soft"
+                  className="px-3 min-h-11 bg-primary text-on-primary rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-soft disabled:opacity-60"
                 >
                   {isPlaying ? (
                     <Pause className="w-4 h-4" aria-hidden="true" />
                   ) : (
                     <Play className="w-4 h-4 fill-current" aria-hidden="true" />
                   )}
-                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                  <span>
+                    {startingMonitor || loading ? 'Starting…' : isPlaying ? 'Pause' : 'Play'}
+                  </span>
                 </button>
 
                 <button
@@ -819,25 +907,29 @@ export const VideoLearningPlayer = ({
                   <Maximize className="w-3.5 h-3.5" aria-hidden="true" />
                   Fullscreen
                 </button>
-                <button
-                  type="button"
-                  onClick={handleNeedBreak}
-                  className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl border border-border bg-bg text-text text-xs font-semibold cursor-pointer"
-                >
-                  <Coffee className="w-3.5 h-3.5" aria-hidden="true" />
-                  I need a break
-                </button>
-                <span className="hidden md:inline text-text-muted max-w-xs">
-                  Hiding the preview does not stop monitoring.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => finishLessonRef.current()}
-                  className="px-4 min-h-11 bg-danger/10 text-danger border border-danger/40 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
-                  <span>Complete session</span>
-                </button>
+                {activeSession && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleNeedBreak}
+                      className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl border border-border bg-bg text-text text-xs font-semibold cursor-pointer"
+                    >
+                      <Coffee className="w-3.5 h-3.5" aria-hidden="true" />
+                      I need a break
+                    </button>
+                    <span className="hidden md:inline text-text-muted max-w-xs">
+                      Hiding the preview does not stop monitoring.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => finishLessonRef.current()}
+                      className="px-4 min-h-11 bg-danger/10 text-danger border border-danger/40 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+                      <span>Complete session</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -30,6 +30,7 @@ from app.schemas.session_schema import (
 )
 from app.services.intervention_engine import (
     InterventionEngine,
+    POLICY_BEST,
     TYPE_HINT,
     TYPE_MILESTONE,
     TYPE_NOISE_NOTICE,
@@ -190,6 +191,36 @@ def _build_engine(subject_id: int) -> InterventionEngine:
         cooldown_seconds=_get_cooldown_seconds(),
         enabled_tiers=_get_enabled_tiers(subject_id),
     )
+
+
+def _engine_for_session(session: LearningSession) -> InterventionEngine:
+    """Course sessions follow the subject tier config. Custom uploads use the fixed best set."""
+    if getattr(session, "custom_upload_id", None):
+        return InterventionEngine(
+            cooldown_seconds=_get_cooldown_seconds(),
+            enabled_tiers=[1, 2, 4],
+            policy=POLICY_BEST,
+        )
+    module = db.session.get(Module, session.module_id) if session.module_id else None
+    subject_id = module.subject_id if module else None
+    if subject_id:
+        return _build_engine(subject_id)
+    return InterventionEngine(cooldown_seconds=_get_cooldown_seconds())
+
+
+def _close_open_sessions(student_id: int, now_dt: datetime) -> None:
+    """End any still-open session so a new one does not stack on it."""
+    active_sessions = LearningSession.query.filter_by(student_id=student_id, end_time=None).all()
+    ml_service = MLService()
+    for s in active_sessions:
+        s.end_time = now_dt
+        open_ev = get_open_distraction_event(s.id)
+        if open_ev:
+            open_ev.ended_at = now_dt
+        if s.id in SESSION_ENGINES:
+            del SESSION_ENGINES[s.id]
+        SESSION_NOISE_MONITORS.pop(s.id, None)
+        ml_service.clear_session(s.id)
 
 
 def get_open_distraction_event(session_id: int):
@@ -519,19 +550,8 @@ def start_session():
         if not consent or not consent.consent_given:
             return jsonify({"error": "Parental/Guardian consent required for monitored learning sessions"}), 403
 
-    active_sessions = LearningSession.query.filter_by(student_id=student.id, end_time=None).all()
     now_dt = datetime.utcnow()
-    ml_service = MLService()
-    for s in active_sessions:
-        s.end_time = now_dt
-        open_ev = get_open_distraction_event(s.id)
-        if open_ev:
-            open_ev.ended_at = now_dt
-        if s.id in SESSION_ENGINES:
-            del SESSION_ENGINES[s.id]
-        SESSION_NOISE_MONITORS.pop(s.id, None)
-        # Release per-session MediaPipe landmarker when auto-closing prior session
-        ml_service.clear_session(s.id)
+    _close_open_sessions(student.id, now_dt)
 
     new_session = LearningSession(
         student_id=student.id,
@@ -542,7 +562,7 @@ def start_session():
     db.session.add(new_session)
     db.session.commit()
 
-    SESSION_ENGINES[new_session.id] = _build_engine(module.subject_id)
+    SESSION_ENGINES[new_session.id] = _engine_for_session(new_session)
     SESSION_NOISE_MONITORS[new_session.id] = NoiseMonitor()
 
     return jsonify({
@@ -600,61 +620,91 @@ def send_heartbeat(session_id):
         ml_features = {"reason": "not_monitored"}
         ml_mode = ml_service.ml_mode
     elif data.frames or data.image or data.calibration_phase:
-        if hasattr(ml_service, "set_session_calibrating"):
-            ml_service.set_session_calibrating(
-                session.id,
-                bool(data.calibrating) or data.calibration_phase in ("start", "collect"),
-            )
-        if data.frames or data.calibration_phase:
-            frame_args = []
-            for f in data.frames or []:
-                if f.calib_target is not None:
-                    frame_args.append(
-                        (
-                            f.t_ms / 1000.0,
-                            f.image,
-                            {"x": f.calib_target.x, "y": f.calib_target.y},
-                        )
-                    )
-                else:
-                    frame_args.append((f.t_ms / 1000.0, f.image))
-            extra = {}
+        if getattr(ml_service, "pipeline", "model6") == "late_fusion":
+            # One frame per heartbeat. Screen-dot calibration belongs to model6.
+            image = None
+            if data.frames:
+                image = data.frames[-1].image
+            elif data.image:
+                image = data.image
+            if image:
+                ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
+                    image, session_id=session.id
+                )
+            else:
+                ml_verdict, ml_conf, ml_features = API_UNKNOWN, None, {
+                    "reason": "no_frame_data",
+                    "ml_mode": ml_service.ml_mode,
+                }
             if data.calibration_phase:
-                extra["calibration_phase"] = data.calibration_phase
-            if data.screen is not None:
-                extra["screen"] = data.screen.model_dump()
-            saved_fit = getattr(student, "gaze_calibration", None)
-            if isinstance(saved_fit, dict) and saved_fit.get("mapper"):
-                extra["restore_calibration"] = saved_fit
-            ml_verdict, ml_conf, ml_features = ml_service.predict_frames(
-                frame_args, session_id=session.id, **extra
-            )
-            # Persist a successful (re)calibration from a lesson onto the student.
-            if (
-                data.calibration_phase == "finish"
-                and isinstance(ml_features, dict)
-                and (ml_features.get("calibration") or {}).get("ok")
-            ):
-                try:
-                    from app.routes.student_profile import persist_student_gaze_calibration
-
-                    scorer, _lock = ml_service._live_scorer_for(session.id)
-                    persist_student_gaze_calibration(
-                        student,
-                        scorer,
-                        screen=extra.get("screen"),
-                    )
-                except Exception as persist_err:
-                    print(f"[session] persist gaze calibration failed: {persist_err}")
+                ml_features = dict(ml_features or {})
+                ml_features["calibration"] = {
+                    "ok": True,
+                    "skipped": "late_fusion",
+                    "phase": data.calibration_phase,
+                }
+            verdict = ml_verdict
+            confidence = ml_conf
+            gaze_label = ml_features.get("gaze_label", gaze_label)
+            engagement_score = ml_features.get("engagement_score", engagement_score)
+            ml_mode = ml_features.get("ml_mode") or ml_service.ml_mode
         else:
-            ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
-                data.image, session_id=session.id
-            )
-        verdict = ml_verdict
-        confidence = ml_conf
-        gaze_label = ml_features.get("gaze_label", gaze_label)
-        engagement_score = ml_features.get("engagement_score", engagement_score)
-        ml_mode = ml_features.get("ml_mode") or ml_service.ml_mode
+            if hasattr(ml_service, "set_session_calibrating"):
+                ml_service.set_session_calibrating(
+                    session.id,
+                    bool(data.calibrating) or data.calibration_phase in ("start", "collect"),
+                )
+            if data.frames or data.calibration_phase:
+                frame_args = []
+                for f in data.frames or []:
+                    if f.calib_target is not None:
+                        frame_args.append(
+                            (
+                                f.t_ms / 1000.0,
+                                f.image,
+                                {"x": f.calib_target.x, "y": f.calib_target.y},
+                            )
+                        )
+                    else:
+                        frame_args.append((f.t_ms / 1000.0, f.image))
+                extra = {}
+                if data.calibration_phase:
+                    extra["calibration_phase"] = data.calibration_phase
+                if data.screen is not None:
+                    extra["screen"] = data.screen.model_dump()
+                saved_fit = getattr(student, "gaze_calibration", None)
+                if isinstance(saved_fit, dict) and saved_fit.get("mapper"):
+                    extra["restore_calibration"] = saved_fit
+                ml_verdict, ml_conf, ml_features = ml_service.predict_frames(
+                    frame_args, session_id=session.id, **extra
+                )
+                # Persist a successful (re)calibration from a lesson onto the student.
+                if (
+                    data.calibration_phase == "finish"
+                    and isinstance(ml_features, dict)
+                    and (ml_features.get("calibration") or {}).get("ok")
+                    and not (ml_features.get("calibration") or {}).get("skipped")
+                ):
+                    try:
+                        from app.routes.student_profile import persist_student_gaze_calibration
+
+                        scorer, _lock = ml_service._live_scorer_for(session.id)
+                        persist_student_gaze_calibration(
+                            student,
+                            scorer,
+                            screen=extra.get("screen"),
+                        )
+                    except Exception as persist_err:
+                        print(f"[session] persist gaze calibration failed: {persist_err}")
+            else:
+                ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
+                    data.image, session_id=session.id
+                )
+            verdict = ml_verdict
+            confidence = ml_conf
+            gaze_label = ml_features.get("gaze_label", gaze_label)
+            engagement_score = ml_features.get("engagement_score", engagement_score)
+            ml_mode = ml_features.get("ml_mode") or ml_service.ml_mode
     elif (data.hidden_ms or 0) >= 3000 or (data.blurred_ms or 0) >= 5000:
         # Lightweight heartbeat while the tab is hidden / window blurred (no frames).
         verdict, confidence = API_UNKNOWN, None
@@ -727,21 +777,22 @@ def send_heartbeat(session_id):
     noise_monitor = None
     noise_triggered = False
     if session.is_monitored:
-        module = db.session.get(Module, session.module_id)
-        subject_id = module.subject_id if module else None
         if session.id not in SESSION_ENGINES:
-            SESSION_ENGINES[session.id] = _build_engine(subject_id) if subject_id else InterventionEngine()
+            SESSION_ENGINES[session.id] = _engine_for_session(session)
         if session.id not in SESSION_NOISE_MONITORS:
             SESSION_NOISE_MONITORS[session.id] = NoiseMonitor()
 
         engine = SESSION_ENGINES[session.id]
         _wire_timeout_callback(session.id, engine)
         noise_monitor = SESSION_NOISE_MONITORS[session.id]
+        content_state = (data.content_state or "none").lower()
         # Expire unanswered prompts before deciding the next one.
         expired = engine.tick() if hasattr(engine, "tick") else None
         # PLAN 5: unanswered T1 → force T2 immediately (no cooldown).
+        # A paused video does not start that next prompt.
         if (
-            expired
+            content_state != "paused"
+            and expired
             and expired.get("tier") == 1
             and expired.get("outcome") == "ignored"
             and not expired.get("is_noise")
@@ -760,10 +811,8 @@ def send_heartbeat(session_id):
         # Pass observation_state explicitly so UNKNOWN does not invoke focus-reset.
         is_distracted = verdict == API_DISTRACTED
         open_episode = episode if is_distracted and not just_closed else None
-        content_state = (data.content_state or "none").lower()
-        # PLAN 7: the engine owns pause/ended/pending handling (pause grace,
-        # tier cap, and held time subtracted from the episode clock). A blanket
-        # hold here silently blocked every intervention while the video was paused.
+        # Paused playback stops new interventions. The engine holds the episode
+        # clock so time spent paused does not count toward the next tier.
         episode_held = False
         src = browser_source or (ml_features or {}).get("source") or "model6"
 
@@ -808,7 +857,7 @@ def send_heartbeat(session_id):
             data.noise_dbfs,
             lesson_audio_active=bool(data.lesson_audio_active),
         )
-        if triggered is None and noise_should_fire:
+        if content_state != "paused" and triggered is None and noise_should_fire:
             triggered = engine.consider_noise(
                 noise_dbfs=data.noise_dbfs,
                 baseline_dbfs=noise_monitor.baseline_dbfs,
@@ -851,6 +900,8 @@ def send_heartbeat(session_id):
     diagnostics = {
         "inference_path": (ml_features or {}).get("inference_path"),
         "gaze_label": (ml_features or {}).get("gaze_label", gaze_label),
+        "gaze_probs": (ml_features or {}).get("gaze_probs"),
+        "gaze_confidence": (ml_features or {}).get("gaze_confidence"),
         "head_pose_yaw": (ml_features or {}).get("head_pose_yaw"),
         "head_pose_pitch": (ml_features or {}).get("head_pose_pitch"),
         "head_pose_roll": (ml_features or {}).get("head_pose_roll"),
@@ -909,6 +960,12 @@ def trigger_intervention(session_id):
         return jsonify({"error": "Cannot trigger intervention on an ended session"}), 400
     if not session.is_monitored:
         return jsonify({"error": "Session is not monitored"}), 400
+    if session.custom_upload_id:
+        return jsonify({
+            "error": "Custom sessions choose the intervention automatically",
+            "intervention_triggered": False,
+            "intervention": None,
+        }), 403
 
     raw_data = request.get_json(silent=True) or {}
     try:
@@ -916,13 +973,8 @@ def trigger_intervention(session_id):
     except ValidationError as err:
         return jsonify({"error": "Validation failed", "details": format_validation_errors(err)}), 400
 
-    module = db.session.get(Module, session.module_id)
-    subject_id = module.subject_id if module else None
-
     if session.id not in SESSION_ENGINES:
-        SESSION_ENGINES[session.id] = (
-            _build_engine(subject_id) if subject_id else InterventionEngine()
-        )
+        SESSION_ENGINES[session.id] = _engine_for_session(session)
     engine = SESSION_ENGINES[session.id]
     demo_mode = bool(current_app.config.get("DEMO_MODE"))
     use_bypass = bool(getattr(data, "force", False)) and demo_mode
@@ -1057,12 +1109,15 @@ def _active_session_payload(session: LearningSession) -> dict:
     module = session.module
     subject = getattr(module, "subject", None) if module else None
     started = session.start_time
+    upload = session.custom_upload if session.custom_upload_id else None
     return {
         "session_id": session.id,
         "module_id": session.module_id,
-        "module_title": module.title if module else None,
-        "subject_id": subject.id if subject else None,
-        "subject_title": subject.title if subject else None,
+        "module_title": upload.title if upload else (module.title if module else None),
+        "subject_id": None if upload else (subject.id if subject else None),
+        "subject_title": "Your file" if upload else (subject.title if subject else None),
+        "session_kind": "custom" if upload else "course",
+        "custom_upload_id": session.custom_upload_id,
         "start_time": started.isoformat() if started else None,
         "running_seconds": int((datetime.utcnow() - started).total_seconds()) if started else 0,
         "is_monitored": session.is_monitored,

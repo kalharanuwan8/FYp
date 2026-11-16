@@ -13,6 +13,10 @@ from __future__ import annotations
 
 import base64
 import os
+
+# Before MediaPipe loads: hide the expected TFLite feedback-manager warning.
+os.environ.setdefault("GLOG_minloglevel", "2")
+os.environ.setdefault("ABSL_MIN_LOG_LEVEL", "2")
 import sys
 import threading
 import time
@@ -111,6 +115,30 @@ class MLService:
         for p in (str(repo_root), str(self.models_dir)):
             if p not in sys.path:
                 sys.path.insert(0, p)
+
+        # ML_PIPELINE=late_fusion uses staging M1–M4 weights. Unset (or model6)
+        # keeps the MediaPipe model6 path. Missing weights fall back to model6.
+        self.pipeline = "model6"
+        requested = os.environ.get("ML_PIPELINE", "model6").strip().lower()
+        if requested == "late_fusion":
+            late_dir = self.models_dir / "outputs" / "checkpoints_late_fusion"
+            late_files = {
+                "GAZE_CKPT": late_dir / "model1_gaze" / "best.pt",
+                "POSE_CKPT": late_dir / "model2_pose" / "best.pt",
+                "ENG_CKPT": late_dir / "model4_engagement" / "model.pkl",
+                "FUSION_CKPT": late_dir / "model5_fusion" / "model.pkl",
+            }
+            missing = [name for name, path in late_files.items() if not path.exists()]
+            if missing:
+                print(
+                    "[MLService] ML_PIPELINE=late_fusion but weights missing "
+                    f"({', '.join(missing)}). Staying on model6."
+                )
+            else:
+                for name, path in late_files.items():
+                    os.environ.setdefault(name, str(path))
+                self.pipeline = "late_fusion"
+                print(f"[MLService] Pipeline late_fusion weights from {late_dir}")
 
         self.device = "cpu"
         self.ml_mode = "fallback"  # "full" | "partial" | "fallback"
@@ -212,6 +240,9 @@ class MLService:
                 print(f"[MLService] ML_FUSION_THRESHOLD override={self.fusion_threshold}")
             except ValueError:
                 print(f"[MLService] Warning: invalid ML_FUSION_THRESHOLD={env_thr!r}")
+        if self.pipeline == "late_fusion":
+            # Spec decision threshold. The pack's stored value is not used.
+            self.fusion_threshold = float(os.environ.get("ML_M4_THRESHOLD", "0.75"))
         self._init_mediapipe()
         self._update_ml_mode()
         print(
@@ -383,7 +414,18 @@ class MLService:
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             min_pose_detection_confidence=0.5,
         )
-        return mp.tasks.vision.PoseLandmarker.create_from_options(options)
+        saved = devnull = None
+        try:
+            saved = os.dup(2)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, 2)
+            return mp.tasks.vision.PoseLandmarker.create_from_options(options)
+        finally:
+            if saved is not None:
+                os.dup2(saved, 2)
+                os.close(saved)
+            if devnull is not None:
+                os.close(devnull)
 
     def _landmarker_for_session(self, session_id: Any):
         if not self._mp_available:
@@ -424,8 +466,19 @@ class MLService:
             except Exception as e:
                 print(f"[MLService] Landmarker close warning for session {session_id}: {e}")
 
+    def _late_fusion_ready(self) -> bool:
+        return (
+            self.pipeline == "late_fusion"
+            and self.gaze_model is not None
+            and self.pose_model is not None
+            and self.eng_model is not None
+            and self.fusion_model is not None
+        )
+
     def _uses_live_path(self) -> bool:
-        """Shared-feature path unless the full legacy M1/M2 pipeline is present."""
+        """Model6 path, unless late fusion is requested and all four weights loaded."""
+        if self._late_fusion_ready():
+            return False
         legacy_complete = self.gaze_model is not None and self.pose_model is not None
         return self._live_available and not legacy_complete
 
@@ -439,6 +492,14 @@ class MLService:
         return ver.startswith("v3") or ver.startswith("v4")
 
     def _update_ml_mode(self):
+        if self.pipeline == "late_fusion" and not self._late_fusion_ready():
+            print(
+                "[MLService] late_fusion weights failed to load. Staying on model6."
+            )
+            self.pipeline = "model6"
+        if self._late_fusion_ready():
+            self.ml_mode = "late_fusion"
+            return
         if self._uses_live_path():
             if self._has_v3_pack():
                 self.ml_mode = "model6"
@@ -917,7 +978,13 @@ class MLService:
                 [int(v) for v in face_box] if face_box is not None else None
             ),
             "gaze_label": gaze_label,
-            "gaze_confidence": gaze_conf,
+            "gaze_confidence": round(float(gaze_conf), 4),
+            "gaze_probs": {
+                "center": round(float(gaze_probs[0]), 4),
+                "left": round(float(gaze_probs[1]), 4),
+                "right": round(float(gaze_probs[2]), 4),
+                "down": round(float(gaze_probs[3]), 4),
+            },
             "head_pose_yaw": round(yaw, 2),
             "head_pose_pitch": round(pitch, 2),
             "head_pose_roll": round(roll, 2),

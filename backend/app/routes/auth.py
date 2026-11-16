@@ -3,8 +3,9 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 from pydantic import ValidationError
+from sqlalchemy import func
 
-from app.db_models import User, Student, Teacher, GuardianConsent
+from app.db_models import User, Student, Teacher, GuardianConsent, GradeLevel
 from app.schemas.auth_schema import LoginSchema, RegisterSchema
 from app.services.user_service import create_user_from_data
 from app.utils.decorators import role_required
@@ -90,6 +91,12 @@ def register():
     existing_user = User.query.filter_by(email=data.email).first()
     if existing_user:
         return jsonify({"error": "A user with this email already exists"}), 400
+
+    if data.role == "student" and data.grade_level:
+        grade = GradeLevel.query.filter(func.lower(GradeLevel.name) == data.grade_level.lower()).first()
+        if not grade:
+            return jsonify({"error": "Unknown grade level"}), 400
+        data.grade_level = grade.name
 
     admin_id = get_jwt_identity()
     created_by_id = int(admin_id) if str(admin_id).isdigit() else None

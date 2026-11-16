@@ -1,10 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, BookOpen, TrendingUp, Settings, LogOut, Compass } from 'lucide-react';
+import { Home, BookOpen, TrendingUp, Settings, LogOut, Compass, Upload } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const navItems = [
   { name: 'Home', path: '/student/dashboard', icon: Home, end: true },
   { name: 'My Subjects', path: '/student/courses', icon: BookOpen },
+  { name: 'Practice', path: '/student/practice', icon: Upload },
   { name: 'Progress', path: '/student/analytics', icon: TrendingUp },
   { name: 'Settings', path: '/student/settings', icon: Settings },
 ];
@@ -74,7 +75,7 @@ export default function StudentSidebar({ focusMode = false }) {
         aria-label="Student navigation"
         className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (

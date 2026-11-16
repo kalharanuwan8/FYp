@@ -2,11 +2,36 @@
 
 from __future__ import annotations
 
+import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
+
+# MediaPipe logs this on every landmarker load. It is expected for these
+# task models and does not affect inference.
+os.environ.setdefault("GLOG_minloglevel", "2")
+os.environ.setdefault("ABSL_MIN_LOG_LEVEL", "2")
+
+
+@contextmanager
+def _silence_native_stderr():
+    """Drop C++ stderr from MediaPipe while a landmarker is created."""
+    try:
+        saved = os.dup(2)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        yield
+        return
+    try:
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(devnull)
 
 # Face mesh indices (MediaPipe FaceLandmarker topology)
 _LEFT_IRIS = 468
@@ -125,25 +150,26 @@ class FrameFeatureExtractor:
         PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
         RunningMode = mp.tasks.vision.RunningMode
 
-        self._face = FaceLandmarker.create_from_options(
-            FaceLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(face_task)),
-                running_mode=RunningMode.VIDEO,
-                output_face_blendshapes=True,
-                output_facial_transformation_matrixes=True,
-                num_faces=1,
-                min_face_detection_confidence=0.4,
-                min_face_presence_confidence=0.4,
-                min_tracking_confidence=0.4,
+        with _silence_native_stderr():
+            self._face = FaceLandmarker.create_from_options(
+                FaceLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(face_task)),
+                    running_mode=RunningMode.VIDEO,
+                    output_face_blendshapes=True,
+                    output_facial_transformation_matrixes=True,
+                    num_faces=1,
+                    min_face_detection_confidence=0.4,
+                    min_face_presence_confidence=0.4,
+                    min_tracking_confidence=0.4,
+                )
             )
-        )
-        self._pose = PoseLandmarker.create_from_options(
-            PoseLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(pose_task)),
-                running_mode=RunningMode.VIDEO,
-                min_pose_detection_confidence=0.5,
+            self._pose = PoseLandmarker.create_from_options(
+                PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(pose_task)),
+                    running_mode=RunningMode.VIDEO,
+                    min_pose_detection_confidence=0.5,
+                )
             )
-        )
         self._ts_ms = 0
         self._prev_nose: Optional[Tuple[float, float]] = None
 

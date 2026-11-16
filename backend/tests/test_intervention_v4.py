@@ -8,6 +8,7 @@ import time
 from app.services.intervention_engine import (
     InterventionEngine,
     TYPE_AMBIENT,
+    TYPE_MILESTONE,
     TYPE_NOISE_NOTICE,
     TYPE_SUGGEST_BREAK,
     clear_session_engine,
@@ -138,6 +139,22 @@ def test_rule_source_capped_at_tier_2():
     # Long duration would be tier 4, but rule caps at 2
     t = eng.decide_intervention(_Ep(50), True, observation_state="DISTRACTED", source="rule")
     assert t is not None and t.tier <= 2
+
+
+def test_gaze_screen_reaches_checkpoint_quiz():
+    """Look-away (gaze_screen) may escalate to the tier-3 milestone quiz."""
+    eng = InterventionEngine(cooldown_seconds=0.0, now_fn=lambda: 0.0)
+    t = eng.decide_intervention(
+        _Ep(25),
+        True,
+        observation_state="DISTRACTED",
+        source="gaze_screen",
+        content_state="playing",
+        now=0.0,
+    )
+    assert t is not None
+    assert t.tier == 3
+    assert t.intervention_type == TYPE_MILESTONE
 
 
 def test_coverage_gate_blocks_prompts():

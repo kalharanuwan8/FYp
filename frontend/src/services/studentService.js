@@ -17,6 +17,12 @@ export const studentService = {
     return response.data;
   },
 
+  /** Persist that the student skipped screen calibration (shown in Settings). */
+  skipGazeCalibration: async () => {
+    const response = await api.post('/student/gaze-calibration/skip');
+    return response.data;
+  },
+
   getProgress: async () => {
     const response = await api.get('/student/progress');
     return response.data;
