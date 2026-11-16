@@ -11,6 +11,12 @@ export const studentService = {
     return response.data;
   },
 
+  /** Screen-gaze calibration without a learning session (frames + calibration_phase). */
+  postGazeCalibration: async (payload) => {
+    const response = await api.post('/student/gaze-calibration', payload);
+    return response.data;
+  },
+
   getProgress: async () => {
     const response = await api.get('/student/progress');
     return response.data;

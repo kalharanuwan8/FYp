@@ -39,6 +39,10 @@ class FrameFeatures:
     nose_x: float
     nose_y: float
     body_present: bool = False
+    # PLAN 8: MediaPipe eye-look blendshapes (defaults keep old callers working)
+    look_h: float = 0.0
+    look_v: float = 0.0
+    look_down: float = 0.0
 
 
 def _mat_to_ypr(mat: np.ndarray) -> Tuple[float, float, float]:
@@ -60,18 +64,23 @@ def _mat_to_ypr(mat: np.ndarray) -> Tuple[float, float, float]:
 
 
 def _iris_ratio(lms) -> Tuple[float, float]:
-    """Horizontal/vertical iris position in [0,1] averaged across eyes."""
+    """Horizontal/vertical iris position in [0,1] averaged across eyes.
+
+    PLAN 8: vertical is measured vs the **eye-corner midline** (corners don't
+    move with the lids) and normalised by eye width, so looking up/down is
+    visible. Horizontal is unchanged (outer→inner).
+    """
 
     def one(iris_i, outer_i, inner_i, top_i, bot_i):
         if max(iris_i, outer_i, inner_i, top_i, bot_i) >= len(lms):
             return 0.5, 0.5
         iris = lms[iris_i]
         outer, inner = lms[outer_i], lms[inner_i]
-        top, bot = lms[top_i], lms[bot_i]
         width = abs(inner.x - outer.x) + 1e-6
-        height = abs(bot.y - top.y) + 1e-6
         hx = (iris.x - min(outer.x, inner.x)) / width
-        vy = (iris.y - min(top.y, bot.y)) / height
+        # Corner midline: lids track the eyeball; corners stay put.
+        mid_y = 0.5 * (outer.y + inner.y)
+        vy = 0.5 + (iris.y - mid_y) / width
         return float(np.clip(hx, 0.0, 1.0)), float(np.clip(vy, 0.0, 1.0))
 
     lx, ly = one(_LEFT_IRIS, _LEFT_EYE_OUTER, _LEFT_EYE_INNER, _LEFT_EYE_TOP, _LEFT_EYE_BOT)
@@ -168,6 +177,7 @@ class FrameFeatureExtractor:
         yaw = pitch = roll = 0.0
         iris_x = iris_y = 0.5
         blink = jaw = 0.0
+        look_h = look_v = look_down = 0.0
         face_present = bool(face_res.face_landmarks)
 
         if face_present:
@@ -177,6 +187,20 @@ class FrameFeatureExtractor:
                 face_res.face_blendshapes, ("eyeBlinkLeft", "eyeBlinkRight")
             )
             jaw = _blendshape_score(face_res.face_blendshapes, ("jawOpen",))
+            # PLAN 8: eye-look blendshapes (signed; positive = look right / up)
+            out_l = _blendshape_score(face_res.face_blendshapes, ("eyeLookOutLeft",))
+            in_r = _blendshape_score(face_res.face_blendshapes, ("eyeLookInRight",))
+            in_l = _blendshape_score(face_res.face_blendshapes, ("eyeLookInLeft",))
+            out_r = _blendshape_score(face_res.face_blendshapes, ("eyeLookOutRight",))
+            look_h = 0.5 * (out_l + in_r) - 0.5 * (in_l + out_r)
+            up = _blendshape_score(
+                face_res.face_blendshapes, ("eyeLookUpLeft", "eyeLookUpRight")
+            )
+            down = _blendshape_score(
+                face_res.face_blendshapes, ("eyeLookDownLeft", "eyeLookDownRight")
+            )
+            look_v = up - down
+            look_down = down
             if face_res.facial_transformation_matrixes:
                 yaw, pitch, roll = _mat_to_ypr(face_res.facial_transformation_matrixes[0])
 
@@ -232,4 +256,7 @@ class FrameFeatureExtractor:
             nose_x=float(nose_x),
             nose_y=float(nose_y),
             body_present=bool(body_present),
+            look_h=float(look_h),
+            look_v=float(look_v),
+            look_down=float(look_down),
         )

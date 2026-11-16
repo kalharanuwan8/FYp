@@ -1,14 +1,37 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field, field_validator
 
-# ~320x240 JPEG at q≈0.6 is 10–20 KB; 200 KB of base64 leaves ample headroom.
+# 640x480 JPEG at q≈0.7 is ~30–70 KB (≈40–95 KB base64); 200 KB leaves headroom.
 MAX_IMAGE_B64_CHARS = 200_000
-MAX_FRAMES_PER_HEARTBEAT = 6
+# PLAN 5: 15 fps capture, one frame every ~333 ms, ~2 s heartbeat.
+MAX_FRAMES_PER_HEARTBEAT = 9
+
+CALIBRATION_PHASES = ("start", "collect", "finish")
+
+
+class CalibTarget(BaseModel):
+    """Normalised (0..1) screen position of the calibration dot being looked at."""
+
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+
+
+class ScreenInfo(BaseModel):
+    """Client display geometry for the screen-mapped gaze calibration."""
+
+    w: float = Field(..., gt=0, le=20000, description="screen.width (CSS px)")
+    h: float = Field(..., gt=0, le=20000, description="screen.height (CSS px)")
+    inner_w: Optional[float] = Field(None, ge=0, le=20000)
+    inner_h: Optional[float] = Field(None, ge=0, le=20000)
+    dpr: Optional[float] = Field(1.0, gt=0, le=16)
 
 
 class FrameIn(BaseModel):
     t_ms: float = Field(..., ge=0, description="Capture time, ms since the session started (client clock)")
     image: str = Field(..., max_length=MAX_IMAGE_B64_CHARS, description="Base64 JPEG frame")
+    calib_target: Optional[CalibTarget] = Field(
+        None, description="Calibration dot (normalised screen coords) shown when captured"
+    )
 
 
 class SessionStartSchema(BaseModel):
@@ -66,9 +89,30 @@ class HeartbeatSchema(BaseModel):
         "none",
         description="Lesson media state: playing|paused|ended|none",
     )
-    calibrating: Optional[bool] = Field(
-        False, description="True during the 10 s calibration screen"
+    pause_reason: Optional[Literal["user", "intervention", "ended"]] = Field(
+        None,
+        description="Why the lesson is paused (PLAN 7): user pause gets a grace period; "
+        "intervention pauses are held while the prompt is open",
     )
+    calibrating: Optional[bool] = Field(
+        False, description="True during the calibration screen"
+    )
+    screen: Optional[ScreenInfo] = Field(
+        None, description="Display geometry {w,h,inner_w,inner_h,dpr}"
+    )
+    calibration_phase: Optional[str] = Field(
+        None, description="Screen-gaze calibration phase: start | collect | finish"
+    )
+
+    @field_validator("calibration_phase")
+    @classmethod
+    def validate_calibration_phase(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v_lower = v.lower().strip()
+        if v_lower not in CALIBRATION_PHASES:
+            raise ValueError(f"calibration_phase must be one of {list(CALIBRATION_PHASES)}")
+        return v_lower
 
     @field_validator("verdict")
     @classmethod
@@ -120,3 +164,7 @@ class InterventionResponseSchema(BaseModel):
 class TriggerInterventionSchema(BaseModel):
     tier: int = Field(..., ge=1, le=4, description="Intervention tier to force (1-4)")
     is_quiz_context: Optional[bool] = Field(False)
+    force: Optional[bool] = Field(
+        False,
+        description="DEMO_MODE only: bypass pending/cooldown and fire immediately",
+    )

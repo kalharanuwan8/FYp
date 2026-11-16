@@ -58,6 +58,8 @@ class Student(db.Model):
     grade_level = db.Column(db.String, nullable=True)
     # ADHD-friendly UI prefs: theme, textSize, reduceMotion, sounds, etc.
     ui_preferences = db.Column(db.JSON, nullable=True)
+    # Screen-gaze mapper fit + centre baseline (no frames). Set by calibration.
+    gaze_calibration = db.Column(db.JSON, nullable=True)
     # Soft assent that the student understands focus buddy (guardian consent stays separate)
     student_assent = db.Column(db.Boolean, default=False)
     onboarding_completed = db.Column(db.Boolean, default=False)

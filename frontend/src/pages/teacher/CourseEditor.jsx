@@ -328,7 +328,15 @@ export const CourseEditor = () => {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {contents.map((cnt) => (
+                        {contents.map((cnt) => {
+                          const altFor = cnt.remediation_for_content_id
+                            ? contents.find((c) => c.id === cnt.remediation_for_content_id)
+                            : null;
+                          const otherWay =
+                            cnt.content_type === 'video'
+                              ? contents.find((c) => c.remediation_for_content_id === cnt.id)
+                              : null;
+                          return (
                           <div
                             key={cnt.id}
                             className="bg-bg border border-border/70 p-3 rounded-xl flex items-center justify-between gap-3 text-xs"
@@ -344,6 +352,26 @@ export const CourseEditor = () => {
                                 <span className="text-[10px] text-text-muted font-medium capitalize truncate block">
                                   {cnt.content_type} {cnt.file_url ? `• ${cnt.file_url}` : ''}
                                 </span>
+                                {altFor && (
+                                  <span className="text-[10px] text-primary font-semibold truncate block mt-0.5">
+                                    Alternate for {altFor.title}
+                                  </span>
+                                )}
+                                {otherWay && (
+                                  <span className="text-[10px] text-primary font-semibold truncate block mt-0.5">
+                                    Another way: {otherWay.title}
+                                  </span>
+                                )}
+                                {cnt.content_type === 'video' && !otherWay && (
+                                  <span className="text-[10px] text-text-muted truncate block mt-0.5">
+                                    No other version if they fail
+                                  </span>
+                                )}
+                                {cnt.content_type === 'video' && cnt.quiz_id && (
+                                  <span className="text-[10px] text-primary font-semibold truncate block mt-0.5">
+                                    Lesson quiz attached
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -366,7 +394,8 @@ export const CourseEditor = () => {
                               </button>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -402,6 +431,7 @@ export const CourseEditor = () => {
         <UploadMaterialModal
           isOpen={uploadMaterialModalOpen}
           moduleId={activeModule.id}
+          moduleContents={activeModule.contents || []}
           onClose={() => {
             setUploadMaterialModalOpen(false);
             setActiveModule(null);
@@ -414,6 +444,12 @@ export const CourseEditor = () => {
       <EditMaterialModal
         isOpen={editMaterialModalOpen}
         material={activeMaterial}
+        moduleContents={
+          activeMaterial
+            ? (subject?.modules || []).find((m) => m.id === activeMaterial.module_id)?.contents ||
+              []
+            : []
+        }
         onClose={() => {
           setEditMaterialModalOpen(false);
           setActiveMaterial(null);

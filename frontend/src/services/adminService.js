@@ -18,6 +18,11 @@ export const adminService = {
     return response.data;
   },
 
+  updateUser: async (userId, userData) => {
+    const response = await api.patch(`/admin/users/${userId}`, userData);
+    return response.data;
+  },
+
   updateUserStatus: async (userId, isActive) => {
     const response = await api.patch(`/admin/users/${userId}/status`, {
       is_active: isActive,

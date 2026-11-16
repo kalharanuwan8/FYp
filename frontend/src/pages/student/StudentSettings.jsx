@@ -149,16 +149,7 @@ export default function StudentSettings() {
                 >
                   <span
                     className="theme-swatch mt-0.5"
-                    style={{
-                      background:
-                        opt.value === 'sage'
-                          ? '#eef3ee'
-                          : opt.value === 'warm'
-                            ? '#f3efe8'
-                            : opt.value === 'pale-blue'
-                              ? '#e8eef4'
-                              : '#161c28',
-                    }}
+                    style={{ background: opt.swatch }}
                     aria-hidden="true"
                   />
                   <span>

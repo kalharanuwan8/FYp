@@ -117,6 +117,37 @@ def test_content_fallback_a_document_wins(app):
         assert offers[0]["content_id"] == doc.id
 
 
+def test_linked_alternate_preferred_over_unrelated_document(app):
+    with app.app_context():
+        gl = GradeLevel(name="G-Rem-Link")
+        db.session.add(gl)
+        db.session.flush()
+        subj = Subject(title="Subj Link", grade_level_id=gl.id)
+        db.session.add(subj)
+        db.session.flush()
+        mod = Module(subject_id=subj.id, title="Mod Link", sequence_order=1)
+        db.session.add(mod)
+        db.session.flush()
+
+        video = _make_content(mod.id, "video", "Main Vid")
+        unrelated = _make_content(
+            mod.id, "document", "Unrelated notes", file_url="/uploads/u.pdf"
+        )
+        linked = _make_content(
+            mod.id, "document", "Mind map for video", file_url="/uploads/m.pdf"
+        )
+        linked.remediation_for_content_id = video.id
+        db.session.commit()
+
+        contents = ModuleContent.query.filter_by(module_id=mod.id).all()
+        path, offers = build_offers(REASON_COMPREHENSION, contents)
+        assert path == PATH_DIFFERENT
+        assert len(offers) == 1
+        assert offers[0]["kind"] == KIND_ALTERNATIVE
+        assert offers[0]["content_id"] == linked.id
+        assert offers[0]["content_id"] != unrelated.id
+
+
 def test_content_fallback_b_approved_pack(app):
     with app.app_context():
         gl = GradeLevel(name="G-Rem-B")

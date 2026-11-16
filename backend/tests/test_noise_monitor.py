@@ -125,18 +125,18 @@ def test_consider_noise_fires_tier1_notice_without_touching_visual_state():
 def test_consider_noise_blocked_by_pending_and_cooldown():
     engine = InterventionEngine(cooldown_seconds=30.0)
     assert engine.consider_noise(now=1000.0) is not None
-    # One intervention already waiting for an outcome.
+    # One intervention already waiting for an outcome (T1 deadline is 6 s).
+    assert engine.consider_noise(now=1003.0) is None
+    engine.record_outcome("reengaged", now=1004.0)
+    # Cooldown (30 s from resolution) still applies after the outcome.
     assert engine.consider_noise(now=1010.0) is None
-    engine.record_outcome("reengaged")
-    # Cooldown still applies after the outcome.
-    assert engine.consider_noise(now=1010.0) is None
-    assert engine.consider_noise(now=1031.0) is not None
+    assert engine.consider_noise(now=1035.0) is not None
 
 
 def test_ignored_noise_cue_does_not_escalate_next_visual_intervention():
     engine = InterventionEngine(cooldown_seconds=0.0)
     assert engine.consider_noise(now=100.0) is not None
-    engine.record_outcome("ignored")
+    engine.record_outcome("ignored", now=100.5)
     res = engine.decide_intervention(
         distraction_event=_episode(8), is_distracted=True, now=101.0
     )

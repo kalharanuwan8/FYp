@@ -1,7 +1,8 @@
 """
-Adaptive Micro-Intervention Engine (PLAN 4).
+Adaptive Micro-Intervention Engine (PLAN 4 + PLAN 5).
 
-- Pending prompts time out as ignored after 20 s (breaks exempt).
+- Pending prompts time out as ignored (T1 = 6 s; T2/T3 = 20 s; breaks exempt).
+- Unanswered T1 → force T2 immediately (no cooldown).
 - Outcomes must match intervention id; noise is isolated from visual escalation.
 - Cooldown starts at resolution (answer / timeout / break end), not fire time.
 - Escalation memory resets only after sustained FOCUSED ≥ 10 s and never while pending.
@@ -40,9 +41,17 @@ MESSAGES = {
 
 NOISE_MESSAGE = "It's quite noisy where you are — that can make it hard to concentrate."
 
-PROMPT_TIMEOUT_SEC = 20.0
+# PLAN 5: per-tier prompt deadlines (breaks exempt)
+TIER_TIMEOUT_SEC = {1: 6.0, 2: 20.0, 3: 20.0}
+PROMPT_TIMEOUT_SEC = 20.0  # legacy default / noise
 FOCUS_RESET_SEC = 10.0
-DEFAULT_COOLDOWN_SEC = 30.0
+# PLAN 7: a student-paused video gets this grace before nudges, then is capped
+# at a gentle tier (no milestone quiz / pacing change on a paused video).
+PAUSE_GRACE_SEC = 10.0
+PAUSED_MAX_TIER = 2
+# Largest heartbeat delta credited to an episode hold (≈ one dropped beat).
+HOLD_DELTA_MAX_SEC = 5.0
+DEFAULT_COOLDOWN_SEC = 20.0
 
 # Sources that may not escalate past tier 2
 _CAP_TIER2_SOURCES = frozenset({"rule", "body_no_face", "absent", "low_face"})
@@ -79,8 +88,28 @@ class _Pending:
     is_noise: bool = False
 
 
-def distraction_level_from_duration(duration_seconds: float) -> int:
-    if duration_seconds < 5:
+def _t1_sec() -> float:
+    """PLAN 8: level-1 threshold from INTERVENTION_T1_SEC (default 3.0)."""
+    try:
+        from flask import current_app
+
+        return float(current_app.config.get("INTERVENTION_T1_SEC", 3.0))
+    except Exception:
+        import os
+
+        try:
+            return float(os.environ.get("INTERVENTION_T1_SEC", "3.0"))
+        except (TypeError, ValueError):
+            return 3.0
+
+
+def distraction_level_from_duration(duration_seconds: float, t1_sec: Optional[float] = None) -> int:
+    """Map episode duration to intervention tier band.
+
+    Level 1 fires at ``t1_sec`` (PLAN 8 default 3 s). T2/T3/T4 bands stay 10/20/40.
+    """
+    t1 = float(t1_sec) if t1_sec is not None else _t1_sec()
+    if duration_seconds < t1:
         return 0
     if duration_seconds < 10:
         return 1
@@ -147,6 +176,12 @@ class InterventionEngine:
         self._ambient_episode_key: Optional[Any] = None  # retained for older tests
         self._lock = threading.RLock()
         self._timeout_callback = None  # optional: fn(pending) for DB logging
+        # PLAN 7: decision trace, honest episode clock, pause grace
+        self.last_decision: Optional[dict] = None
+        self._held_sec: float = 0.0
+        self._held_episode_key: Optional[Any] = None
+        self._episode_last_ts: Optional[float] = None
+        self._paused_since: Optional[float] = None
 
     @property
     def _pending_intervention(self) -> bool:
@@ -242,9 +277,31 @@ class InterventionEngine:
         is_quiz_context: bool = False,
         now: Optional[float] = None,
         source: str = "manual",
+        bypass: bool = False,
     ) -> Optional[TriggeredIntervention]:
+        """Fire a tier immediately.
+
+        ``bypass=True`` (DEMO_MODE / T1→T2 escalation): clear any pending
+        prompt as ended (not ignored), skip cooldown and enabled-tier checks.
+        """
         ts = now if now is not None else self._now()
         with self._lock:
+            if bypass:
+                if self._pending is not None:
+                    prev_tier = self.last_tier
+                    self._resolve_locked(
+                        "ended",
+                        self._pending.id,
+                        ts,
+                        is_noise=self._pending.is_noise,
+                    )
+                    if source == "escalation":
+                        # Treat as ignored-escalation memory for later tiers
+                        self.last_outcome = "ignored"
+                        self.last_tier = prev_tier
+                self.last_resolved_at = None  # skip cooldown
+                return self._fire_locked(int(tier), is_quiz_context, ts, source=source)
+
             self.tick(ts)
             if self._pending is not None:
                 return None
@@ -269,20 +326,59 @@ class InterventionEngine:
         source: str = "model",
         coverage_ratio_30s: Optional[float] = None,
         episode_clock_held: bool = False,
+        content_state: Optional[str] = None,
+        pause_reason: Optional[str] = None,
     ) -> Optional[TriggeredIntervention]:
+        """Decide whether to fire. Every return path records ``self.last_decision``.
+
+        Time the open episode spends held (UNKNOWN, prompt on screen, video
+        ended, pause grace, explicit ``episode_clock_held``) is subtracted from
+        its duration, so escalation restarts at T1 when the hold ends (PLAN 7).
+        """
         ts = now if now is not None else self._now()
         state = (observation_state or "").upper().strip()
         if not state:
             state = "DISTRACTED" if is_distracted else "FOCUSED"
+        cstate = (content_state or "none").lower().strip()
+        preason = (pause_reason or "user").lower().strip()
 
         with self._lock:
             self.tick(ts)
 
+            # How long the video has been paused (grace for note-taking).
+            if cstate == "paused":
+                if self._paused_since is None:
+                    self._paused_since = ts
+            else:
+                self._paused_since = None
+            paused_for = 0.0 if self._paused_since is None else ts - self._paused_since
+
+            # Per-episode hold accounting (heartbeat delta, one dropped beat max).
+            ep_key = self._episode_key(distraction_event)
+            if ep_key is not None and ep_key != self._held_episode_key:
+                self._held_episode_key = ep_key
+                self._held_sec = 0.0
+                self._episode_last_ts = None
+            delta = 0.0
+            if ep_key is not None:
+                if self._episode_last_ts is not None:
+                    delta = min(max(ts - self._episode_last_ts, 0.0), HOLD_DELTA_MAX_SEC)
+                self._episode_last_ts = ts
+
+            def hold(why: str, **extra) -> None:
+                self._held_sec += delta
+                self._skip(why, distraction_event, wall_now, **extra)
+
             if state == "UNKNOWN":
                 self._focused_since = None
+                if distraction_event is not None:
+                    hold("unknown_hold")
+                else:
+                    self._skip("unknown", None, wall_now)
                 return self.hold_on_unknown()
 
             if state == "FOCUSED" or not is_distracted or distraction_event is None:
+                self._skip("focused", None, wall_now)
                 if self._pending is not None:
                     # Never reset escalation memory while a prompt is on screen
                     return None
@@ -297,24 +393,50 @@ class InterventionEngine:
             # DISTRACTED
             self._focused_since = None
 
-            if episode_clock_held:
-                return None
-
             if self._pending is not None:
+                hold("pending")
                 return None
+            if episode_clock_held:
+                hold("held")
+                return None
+            if cstate == "ended":
+                hold("ended")
+                return None
+            paused_cap = None
+            if cstate == "paused":
+                if preason == "intervention":
+                    hold("paused_by_intervention")
+                    return None
+                if paused_for < PAUSE_GRACE_SEC:
+                    hold(
+                        "paused_grace",
+                        pause_left_sec=round(PAUSE_GRACE_SEC - paused_for, 1),
+                    )
+                    return None
+                paused_cap = PAUSED_MAX_TIER
 
             if coverage_ratio_30s is not None and coverage_ratio_30s < 0.5:
+                self._skip("low_coverage", distraction_event, wall_now)
                 return None
 
             if (
                 self.last_resolved_at is not None
                 and ts - self.last_resolved_at < self.cooldown_seconds
             ):
+                self._skip(
+                    "cooldown",
+                    distraction_event,
+                    wall_now,
+                    cooldown_left_sec=round(
+                        self.cooldown_seconds - (ts - self.last_resolved_at), 1
+                    ),
+                )
                 return None
 
-            duration = distraction_event.duration_seconds(wall_now or datetime.utcnow())
+            duration = self._effective_duration(distraction_event, wall_now)
             level = distraction_level_from_duration(duration)
             if level == 0:
+                self._skip("too_short", distraction_event, wall_now, level=0)
                 return None
 
             target_tier = level
@@ -322,11 +444,73 @@ class InterventionEngine:
                 target_tier = min(4, max(target_tier, self.last_tier + 1))
 
             target_tier = self._cap_tier_for_source(target_tier, source)
+            if paused_cap is not None:
+                target_tier = min(target_tier, paused_cap)
             resolved = self._resolve_enabled_tier(target_tier)
             if resolved is None:
+                self._skip("tier_disabled", distraction_event, wall_now, level=level)
                 return None
 
-            return self._fire_locked(resolved, is_quiz_context, ts, source=source)
+            fired = self._fire_locked(resolved, is_quiz_context, ts, source=source)
+            self.last_decision = self._decision_dict(
+                "fired",
+                "fired",
+                distraction_event,
+                wall_now,
+                level=level,
+                tier=resolved,
+                intervention_type=fired.intervention_type,
+                intervention_id=fired.intervention_id,
+            )
+            return fired
+
+    # ------------------------------------------------------- decision trace
+    @staticmethod
+    def _episode_key(distraction_event) -> Optional[Any]:
+        if distraction_event is None:
+            return None
+        key = getattr(distraction_event, "id", None)
+        return key if key is not None else id(distraction_event)
+
+    def _effective_duration(self, distraction_event, wall_now: Optional[datetime]) -> float:
+        """Wall-clock episode age minus time spent held (PLAN 7, bug 2)."""
+        if distraction_event is None:
+            return 0.0
+        wall = distraction_event.duration_seconds(wall_now or datetime.utcnow())
+        return max(0.0, float(wall) - float(self._held_sec))
+
+    def _decision_dict(self, action: str, why: str, distraction_event, wall_now, **extra) -> dict:
+        d: Dict[str, Any] = {
+            "action": action,
+            "why": why,
+            "episode_sec": None,
+            "held_sec": round(float(self._held_sec), 1),
+            "level": None,
+            "tier": None,
+            "cooldown_left_sec": None,
+            "pending": None,
+        }
+        if distraction_event is not None:
+            try:
+                eff = self._effective_duration(distraction_event, wall_now)
+                d["episode_sec"] = round(eff, 1)
+                d["level"] = distraction_level_from_duration(eff)
+            except Exception:
+                pass
+        p = self._pending
+        if p is not None:
+            left = None if p.deadline is None else max(0.0, p.deadline - self._now())
+            d["pending"] = {
+                "tier": p.tier,
+                "intervention_type": p.intervention_type,
+                "left_sec": None if left is None else round(left, 1),
+            }
+        d.update(extra)
+        return d
+
+    def _skip(self, why: str, distraction_event, wall_now, **extra) -> None:
+        self.last_decision = self._decision_dict("skip", why, distraction_event, wall_now, **extra)
+        return None
 
     def consider_noise(
         self,
@@ -354,7 +538,7 @@ class InterventionEngine:
                 payload["noise_baseline_dbfs"] = baseline_dbfs
 
             iid = self._new_id()
-            deadline = ts + self.prompt_timeout_sec
+            deadline = ts + float(TIER_TIMEOUT_SEC.get(1, self.prompt_timeout_sec))
             triggered = TriggeredIntervention(
                 tier=1,
                 intervention_type=TYPE_NOISE_NOTICE,
@@ -417,6 +601,11 @@ class InterventionEngine:
             t -= 1
         return None
 
+    def _timeout_for_tier(self, tier: int) -> Optional[float]:
+        if tier not in TIER_TIMEOUT_SEC:
+            return self.prompt_timeout_sec
+        return float(TIER_TIMEOUT_SEC[tier])
+
     def _fire_locked(
         self, tier: int, is_quiz_context: bool, ts: float, source: str = "model"
     ) -> TriggeredIntervention:
@@ -426,7 +615,8 @@ class InterventionEngine:
             TYPE_SUGGEST_BREAK,
             TYPE_GAMIFIED,
         }
-        deadline = None if is_break else ts + self.prompt_timeout_sec
+        timeout = self._timeout_for_tier(tier)
+        deadline = None if is_break or timeout is None else ts + timeout
         triggered.intervention_id = iid
         triggered.source = source
         triggered.fired_at = ts

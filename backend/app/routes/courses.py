@@ -1,11 +1,26 @@
 import os
+from typing import Optional
 from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from pydantic import ValidationError
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
-from app.db_models import Subject, TeacherSubject, Module, GradeLevel, Teacher, ModuleContent, ModuleMilestoneItem, Quiz, Student, Enrollment
+from app.db_models import (
+    Subject,
+    TeacherSubject,
+    Module,
+    GradeLevel,
+    Teacher,
+    ModuleContent,
+    ModuleMilestoneItem,
+    Quiz,
+    QuizQuestion,
+    QuizQuestionOption,
+    QuizAttempt,
+    Student,
+    Enrollment,
+)
 from app.schemas.course_schema import (
     SubjectCreateSchema, 
     SubjectUpdateSchema, 
@@ -17,6 +32,7 @@ from app.schemas.course_schema import (
 )
 from app.services.storage_service import allowed_file, save_uploaded_file
 from app.services.llm_service import LLMService, LLMUnavailableError
+from app.services.grade_access import grade_level_for_student, subject_visible_to_student
 from app.utils.decorators import role_required
 from app.extensions import db
 
@@ -53,7 +69,10 @@ def is_teacher_owner_of_material(user_id: int, material_id: int) -> bool:
 @courses_bp.route("/grade-levels", methods=["GET"])
 @jwt_required()
 def list_grade_levels():
-    levels = GradeLevel.query.order_by(GradeLevel.id.asc()).all()
+    """Only "Grade 1" .. "Grade 12", ordered numerically (stray rows are hidden)."""
+    wanted = {f"Grade {i}": i for i in range(1, 13)}
+    levels = [gl for gl in GradeLevel.query.all() if gl.name in wanted]
+    levels.sort(key=lambda gl: wanted[gl.name])
     return jsonify([gl.to_dict() for gl in levels]), 200
 
 
@@ -154,7 +173,7 @@ def list_subjects():
         if not student:
             return jsonify({"subjects": [], "total": 0, "page": page, "pages": 0}), 200
 
-        grade_level = GradeLevel.query.filter_by(name=student.grade_level).first()
+        grade_level = grade_level_for_student(student)
         query = query.filter(Subject.is_archived == False)
         if grade_level:
             query = query.filter(Subject.grade_level_id == grade_level.id)
@@ -201,6 +220,11 @@ def get_subject_detail(subject_id):
             is_owner = role == "teacher" and is_teacher_owner_of_subject(user_id, subject_id)
             if not (is_admin or is_owner):
                 return jsonify({"error": f"Subject #{subject_id} is archived and unavailable"}), 404
+
+        if role == "student":
+            student = Student.query.filter_by(user_id=user_id).first()
+            if not subject_visible_to_student(student, subject):
+                return jsonify({"error": "This course is not available for your grade level"}), 403
 
         # Students must not receive milestone correct answers in subject detail.
         reveal_answers = (role == "admin") or (
@@ -387,6 +411,95 @@ def generate_material_pack():
     return jsonify(pack), 200
 
 
+def _resolve_remediation_target(
+    module_id: int, target_id: Optional[int], *, exclude_content_id: Optional[int] = None
+):
+    """Validate remediation_for_content_id: same module, must be a video, not self."""
+    if target_id is None:
+        return None, None
+    target = db.session.get(ModuleContent, target_id)
+    if not target or target.module_id != module_id:
+        return None, (
+            jsonify({"error": "remediation_for_content_id must refer to a material in this module"}),
+            400,
+        )
+    if target.content_type != "video":
+        return None, (
+            jsonify({"error": "remediation_for_content_id must refer to a video material"}),
+            400,
+        )
+    if exclude_content_id is not None and target.id == exclude_content_id:
+        return None, (
+            jsonify({"error": "A material cannot be an alternate for itself"}),
+            400,
+        )
+    return target.id, None
+
+
+def _write_lesson_quiz_questions(quiz, questions):
+    for idx, item in enumerate(questions, start=1):
+        question = QuizQuestion(
+            quiz_id=quiz.id,
+            question_text=item.question.strip(),
+            question_type="multiple_choice",
+            sequence_order=idx,
+            difficulty="medium",
+        )
+        db.session.add(question)
+        db.session.flush()
+        for opt_index, text in enumerate(item.options):
+            db.session.add(
+                QuizQuestionOption(
+                    question_id=question.id,
+                    option_text=text,
+                    is_correct=opt_index == item.correct_option,
+                )
+            )
+
+
+def _attach_lesson_quiz(module_id, video, questions):
+    """Store a comprehension quiz on the video. Separate from intervention milestones."""
+    title = f"{video.title} — lesson check"[:150]
+    if video.quiz_id:
+        taken = QuizAttempt.query.filter_by(quiz_id=video.quiz_id).first()
+        if taken:
+            return (
+                jsonify(
+                    {
+                        "error": "Students have already taken this lesson quiz, so its questions cannot be replaced."
+                    }
+                ),
+                400,
+            )
+        quiz = db.session.get(Quiz, video.quiz_id)
+        if quiz:
+            for old in list(quiz.questions):
+                db.session.delete(old)
+            db.session.flush()
+            quiz.title = title
+            linked = ModuleContent.query.filter_by(
+                module_id=module_id, content_type="quiz", quiz_id=quiz.id
+            ).first()
+            if linked:
+                linked.title = title
+            _write_lesson_quiz_questions(quiz, questions)
+            return None
+    quiz = Quiz(module_id=module_id, title=title)
+    db.session.add(quiz)
+    db.session.flush()
+    _write_lesson_quiz_questions(quiz, questions)
+    video.quiz_id = quiz.id
+    db.session.add(
+        ModuleContent(
+            module_id=module_id,
+            content_type="quiz",
+            title=title,
+            quiz_id=quiz.id,
+        )
+    )
+    return None
+
+
 @courses_bp.route("/modules/<int:module_id>/materials", methods=["POST"])
 @jwt_required()
 @role_required("teacher")
@@ -415,13 +528,18 @@ def create_material(module_id):
         if not quiz:
             return jsonify({"error": f"Quiz with id {data.quiz_id} does not exist"}), 400
 
+    rem_id, rem_err = _resolve_remediation_target(module_id, data.remediation_for_content_id)
+    if rem_err:
+        return rem_err
+
     new_content = ModuleContent(
         module_id=module_id,
         content_type=data.content_type,
         title=data.title,
         file_url=data.file_url,
         quiz_id=data.quiz_id,
-        summary=data.summary
+        summary=data.summary,
+        remediation_for_content_id=rem_id,
     )
     db.session.add(new_content)
     db.session.flush()
@@ -439,6 +557,12 @@ def create_material(module_id):
                     is_active=True,
                 )
             )
+
+    if data.content_type == "video" and data.video_quiz:
+        quiz_err = _attach_lesson_quiz(module_id, new_content, data.video_quiz)
+        if quiz_err:
+            db.session.rollback()
+            return quiz_err
 
     db.session.commit()
     return jsonify(new_content.to_dict(include_milestones=True)), 201
@@ -474,7 +598,10 @@ def _can_access_material_file(user_id: int, role: str, content: ModuleContent) -
         enrollment = Enrollment.query.filter_by(
             student_id=student.id, subject_id=module.subject_id
         ).first()
-        return enrollment is not None
+        if enrollment is None:
+            return False
+        subject = db.session.get(Subject, module.subject_id)
+        return subject_visible_to_student(student, subject)
     return False
 
 
@@ -534,8 +661,14 @@ def update_material(material_id):
 
     if next_type == "quiz" and not next_quiz_id:
         return jsonify({"error": "quiz_id is required when content_type is 'quiz'"}), 400
-    if next_type != "quiz":
+    if next_type == "video":
+        # The lesson quiz is stored on the video. Editing the file must not clear it.
+        next_quiz_id = content.quiz_id
+    elif next_type != "quiz":
         next_quiz_id = None
+
+    if data.video_quiz and next_type != "video":
+        return jsonify({"error": "video_quiz is only allowed on a video"}), 400
 
     if data.title is not None:
         content.title = data.title
@@ -545,6 +678,18 @@ def update_material(material_id):
         content.file_url = data.file_url
     if "summary" in raw_data:
         content.summary = data.summary
+    if "remediation_for_content_id" in raw_data:
+        rem_id, rem_err = _resolve_remediation_target(
+            content.module_id,
+            data.remediation_for_content_id,
+            exclude_content_id=content.id,
+        )
+        if rem_err:
+            return rem_err
+        if next_type == "quiz":
+            content.remediation_for_content_id = None
+        else:
+            content.remediation_for_content_id = rem_id
     content.quiz_id = next_quiz_id
 
     if data.milestones is not None:
@@ -564,6 +709,12 @@ def update_material(material_id):
                     is_active=True,
                 )
             )
+
+    if next_type == "video" and data.video_quiz:
+        quiz_err = _attach_lesson_quiz(content.module_id, content, data.video_quiz)
+        if quiz_err:
+            db.session.rollback()
+            return quiz_err
 
     db.session.commit()
     return jsonify(content.to_dict(include_milestones=True)), 200
@@ -598,7 +749,7 @@ def list_my_enrollments():
     enrollments = Enrollment.query.filter_by(student_id=student.id).all()
     res = []
     for e in enrollments:
-        if e.subject and not e.subject.is_archived:
+        if subject_visible_to_student(student, e.subject):
             res.append(e.subject.to_dict())
 
     return jsonify({"enrollments": res}), 200
@@ -620,11 +771,8 @@ def enroll_student_in_subject(subject_id):
     if subject.is_archived:
         return jsonify({"error": "Cannot enroll in an archived subject"}), 400
 
-    # Grade level verification
-    if student.grade_level:
-        gl = GradeLevel.query.filter_by(name=student.grade_level).first()
-        if gl and subject.grade_level_id != gl.id:
-            return jsonify({"error": "This course is not available for your grade level"}), 403
+    if not subject_visible_to_student(student, subject):
+        return jsonify({"error": "This course is not available for your grade level"}), 403
 
     existing_enrollment = Enrollment.query.filter_by(student_id=student.id, subject_id=subject_id).first()
     if existing_enrollment:

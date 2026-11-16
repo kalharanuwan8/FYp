@@ -105,13 +105,18 @@ def test_body_no_face_distracted_is_rule_on_live_path(monkeypatch):
         body_present=True,
     )
     feats = {n: 0.0 for n in WINDOW_FEATURE_NAMES}
-    feats.update(face_present_ratio=0.0, body_present_ratio=1.0, window_start_sec=0.0, window_sec=5.0)
+    feats.update(
+        face_present_ratio=0.0, body_present_ratio=1.0, window_start_sec=0.0, window_sec=5.0,
+        baseline_locked=True,
+    )
 
     class _Scorer:
         def add_frame(self, *_a):
             return no_face
 
         def features(self):
+            # advance the window end so the body_no_face hysteresis (3 s) can elapse
+            feats['window_end_sec'] = feats.get('window_end_sec', 1.5) + 3.5
             return feats
 
     import threading
@@ -119,9 +124,12 @@ def test_body_no_face_distracted_is_rule_on_live_path(monkeypatch):
     monkeypatch.setattr(svc, "_live_scorer_for", lambda _sid: (_Scorer(), threading.RLock()))
     frame = np.zeros((224, 224, 3), dtype=np.uint8)
     frame[:] = (40, 40, 40)
+    # body_no_face p=0.7 goes through hysteresis: first window FOCUSED, then DISTRACTED
+    verdict, conf, meta = svc.predict_frame_image(_jpeg_b64(frame), session_id=sid)
+    assert verdict == "FOCUSED"
     verdict, conf, meta = svc.predict_frame_image(_jpeg_b64(frame), session_id=sid)
     assert verdict == "DISTRACTED"
-    assert conf is None
+    assert conf == 0.7
     assert meta.get("reason") == "body_no_face"
     assert meta.get("face_detected") is False
     assert meta.get("inference_path") == "rule_body_no_face"

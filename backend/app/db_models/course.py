@@ -124,12 +124,21 @@ class ModuleContent(db.Model):
     file_url = db.Column(db.String(500), nullable=True)
     quiz_id = db.Column(db.Integer, db.ForeignKey("quizzes.id"), nullable=True)
     summary = db.Column(db.Text, nullable=True)
+    # Teacher-prepared alternate for a video (mind map / PDF / slides). Nullable.
+    remediation_for_content_id = db.Column(
+        db.Integer, db.ForeignKey("module_contents.id"), nullable=True
+    )
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     module = db.relationship("Module", back_populates="contents")
     quiz = db.relationship("Quiz", back_populates="module_contents")
+    remediation_for = db.relationship(
+        "ModuleContent",
+        remote_side=[id],
+        foreign_keys=[remediation_for_content_id],
+    )
     milestone_items = db.relationship(
         "ModuleMilestoneItem",
         back_populates="module_content",
@@ -146,6 +155,7 @@ class ModuleContent(db.Model):
             "file_url": self.file_url,
             "quiz_id": self.quiz_id,
             "summary": self.summary,
+            "remediation_for_content_id": self.remediation_for_content_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

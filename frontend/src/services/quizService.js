@@ -16,8 +16,8 @@ export const quizService = {
     return response.data;
   },
 
-  startAttempt: async (quizId) => {
-    const response = await api.post(`/courses/quizzes/${quizId}/attempts`);
+  startAttempt: async (quizId, body) => {
+    const response = await api.post(`/courses/quizzes/${quizId}/attempts`, body);
     return response.data;
   },
 

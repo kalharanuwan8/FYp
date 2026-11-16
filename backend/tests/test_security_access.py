@@ -58,7 +58,7 @@ def _seed_course(app):
 
         teacher = Teacher(user_id=t_user.id)
         other_teacher = Teacher(user_id=other_t.id)
-        student = Student(user_id=st_user.id)
+        student = Student(user_id=st_user.id, grade_level="G-sec")
         out_student = Student(user_id=outsider.id)
         db.session.add_all([teacher, other_teacher, student, out_student])
         db.session.flush()

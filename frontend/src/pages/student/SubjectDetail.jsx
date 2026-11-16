@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   Lightbulb,
   Lock,
   Play,
+  Square,
   Coffee,
   Eye,
   EyeOff,
@@ -17,22 +18,48 @@ import {
 import { courseService } from '../../services/courseService';
 import { sessionService } from '../../services/sessionService';
 import FocusInterventionOverlay from '../../components/student/FocusInterventionOverlay';
-import CalibrationOverlay from '../../components/student/CalibrationOverlay';
+import ScreenCalibrationOverlay from '../../components/student/ScreenCalibrationOverlay';
+import GazeSelfTest from '../../components/student/GazeSelfTest';
 import VideoLearningPlayer from '../../components/student/VideoLearningPlayer';
+import VideoLessonCheck from '../../components/student/VideoLessonCheck';
 import DocumentReader from '../../components/student/DocumentReader';
 import WebcamCapture from '../../components/monitoring/WebcamCapture';
 import FocusBuddy from '../../components/student/FocusBuddy';
 import DemoPanel from '../../components/student/DemoPanel';
 import SessionSummary from '../../components/student/SessionSummary';
 import { useMonitoringSession } from '../../hooks/useMonitoringSession';
+import { useHeartbeatBus } from '../../hooks/useHeartbeatBus';
 import { usePreferences } from '../../context/PreferencesContext';
 import { Button, Card, LoadingSpinner, ErrorBanner, ConfirmDialog } from '../../components/common';
 import { accentForId } from '../../utils/subjectAccents';
+import { buildLocalDemoIntervention } from '../../utils/demoInterventions';
+
+/** Lesson quiz stored on the video, or the quiz sitting in the same module. */
+function withLessonQuiz(item, mod) {
+  const contents = mod?.contents || [];
+  const titled = `${item?.title || ''} — lesson check`;
+  const quizzes = contents.filter((c) => c.content_type === 'quiz' && c.quiz_id);
+  const videos = contents.filter(
+    (c) =>
+      c.content_type === 'video' ||
+      (c.file_url && (String(c.file_url).endsWith('.mp4') || String(c.file_url).endsWith('.webm')))
+  );
+  const linked =
+    quizzes.find((c) => c.title === titled) ||
+    (quizzes.length === 1 ? quizzes[0] : null) ||
+    (videos.length <= 1 ? quizzes[0] : null);
+  return {
+    ...item,
+    module_id: mod?.id || item?.module_id,
+    quiz_id: item?.quiz_id || linked?.quiz_id || null,
+  };
+}
 
 export default function SubjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { setFocusMode, refreshProgress } = useOutletContext() || {};
+  const { setFocusMode, refreshProgress, profile, refreshProfile } = useOutletContext() || {};
+  const gazeCalibrated = Boolean(profile?.gaze_calibrated);
   const { showCameraPreview, breakIntervalMinutes, updatePreferences } = usePreferences();
 
   const [subject, setSubject] = useState(null);
@@ -43,6 +70,7 @@ export default function SubjectDetail() {
   const [actionError, setActionError] = useState(null);
   const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
   const [activeVideoMaterial, setActiveVideoMaterial] = useState(null);
+  const [lessonCheck, setLessonCheck] = useState(null);
   const [activeDocumentMaterial, setActiveDocumentMaterial] = useState(null);
   const [activeModuleTitle, setActiveModuleTitle] = useState('');
   const [sessionModule, setSessionModule] = useState(null);
@@ -52,13 +80,29 @@ export default function SubjectDetail() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [calibratingOpen, setCalibratingOpen] = useState(false);
   const [calibKey, setCalibKey] = useState(0);
+  const [selfTestOpen, setSelfTestOpen] = useState(false); // PLAN 8 guided gaze test
+  const selfTestOpenRef = useRef(false);
+  const { onHeartbeat, subscribeHeartbeat } = useHeartbeatBus();
   const [lastBreakAtSec, setLastBreakAtSec] = useState(0);
+  const [simulateIgnore, setSimulateIgnore] = useState(false);
   const showCam = showCameraPreview;
   const [expandedModuleId, setExpandedModuleId] = useState(null);
 
+  // A video opened before its quiz existed still needs that quiz when it ends.
+  useEffect(() => {
+    if (!activeVideoMaterial || activeVideoMaterial.quiz_id || !subject) return;
+    const mod = (subject.modules || []).find(
+      (m) => Number(m.id) === Number(activeVideoMaterial.module_id)
+    );
+    const next = withLessonQuiz(activeVideoMaterial, mod);
+    if (next.quiz_id) setActiveVideoMaterial(next);
+  }, [activeVideoMaterial, subject]);
+
+  // A newly arrived intervention REPLACES the open one (e.g. T1 banner → T2 pause).
   const handleInterventionFromMl = useCallback((intervention) => {
-    // Ignore an incoming intervention while one is already open.
-    setActiveIntervention((prev) => prev || intervention);
+    // The gaze self-test deliberately looks away; don't pop prompts over it.
+    if (selfTestOpenRef.current) return;
+    setActiveIntervention(intervention);
   }, []);
 
   const {
@@ -69,15 +113,19 @@ export default function SubjectDetail() {
     lastVerdict,
     mlMode,
     confidence,
+    gazeDebug,
     error: monitorError,
     startMonitoredSession,
     stopMonitoredSession,
     triggerManualIntervention,
     setCalibrating,
+    setCalibrationTarget,
+    finishCalibration: finishScreenCalibration,
     faceDetected,
   } = useMonitoringSession({
-    intervalMs: 2000,
+    intervalMs: 1000, // PLAN 8: consistent 1 s heartbeat during focus sessions
     onIntervention: handleInterventionFromMl,
+    onHeartbeat,
   });
 
   const getBackendOrigin = () => {
@@ -190,10 +238,22 @@ export default function SubjectDetail() {
     setCalibrating(true);
   }, [setCalibrating]);
 
-  const finishCalibration = useCallback(() => {
+  /** Close the overlay (it already flushed the 'finish' heartbeat itself). */
+  const closeCalibration = useCallback(() => {
     setCalibratingOpen(false);
     setCalibrating(false);
   }, [setCalibrating]);
+
+  useEffect(() => {
+    selfTestOpenRef.current = selfTestOpen;
+  }, [selfTestOpen]);
+
+  const openSelfTest = useCallback(() => setSelfTestOpen(true), []);
+  const closeSelfTest = useCallback(() => setSelfTestOpen(false), []);
+  const recalibrateFromSelfTest = useCallback(() => {
+    setSelfTestOpen(false);
+    beginCalibration();
+  }, [beginCalibration]);
 
   const handleStartSession = async (mod, step = null) => {
     setActionError(null);
@@ -204,11 +264,21 @@ export default function SubjectDetail() {
     if (result?.ok) {
       setSessionModule(mod);
       setSessionStep(step);
-      beginCalibration();
+      if (!gazeCalibrated) beginCalibration();
     } else {
       setActionError(result?.error || monitorError || 'Failed to start focus session');
     }
   };
+
+  const handleCalibrationDone = useCallback(
+    async (result) => {
+      closeCalibration();
+      if (result?.ok) {
+        await refreshProfile?.();
+      }
+    },
+    [closeCalibration, refreshProfile]
+  );
 
   const handleInterventionResponse = async (interventionId, userResponse, extra = {}) => {
     if (extra.dismiss_only) {
@@ -240,7 +310,7 @@ export default function SubjectDetail() {
   const handleStopSession = async () => {
     if (!activeSession) return;
     try {
-      finishCalibration();
+      closeCalibration();
       const summary = await stopMonitoredSession();
       setSessionSummary(summary);
       setSessionModule(null);
@@ -277,7 +347,7 @@ export default function SubjectDetail() {
         setSessionModule(null);
         setActiveIntervention(null);
       }
-      setActiveVideoMaterial({ ...item, module_id: mod.id });
+      setActiveVideoMaterial(withLessonQuiz(item, mod));
       setActiveModuleTitle(mod.title);
     } else if (item.content_type === 'quiz' && item.quiz_id) {
       navigate(`/student/quizzes/${item.quiz_id}`);
@@ -337,6 +407,36 @@ export default function SubjectDetail() {
   }
 
   const modules = subject.modules || [];
+  const lessonAlternate = lessonCheck
+    ? modules
+        .flatMap((mod) => mod.contents || [])
+        .find((c) => Number(c.remediation_for_content_id) === Number(lessonCheck.id)) || null
+    : null;
+  const lessonCheckNode = lessonCheck ? (
+    <VideoLessonCheck
+      material={lessonCheck}
+      alternate={lessonAlternate}
+      onClose={() => setLessonCheck(null)}
+      onStudyAgain={(item) => {
+        setLessonCheck(null);
+        const withModule = {
+          ...item,
+          module_id: item.module_id || lessonCheck?.module_id,
+        };
+        const isVideo =
+          withModule.content_type === 'video' ||
+          (withModule.file_url &&
+            (withModule.file_url.endsWith('.mp4') || withModule.file_url.endsWith('.webm')));
+        if (isVideo) {
+          setActiveDocumentMaterial(null);
+          setActiveVideoMaterial(withModule);
+        } else {
+          setActiveVideoMaterial(null);
+          setActiveDocumentMaterial(withModule);
+        }
+      }}
+    />
+  ) : null;
 
   // ——— Focus mode shell ———
   if (activeSession && sessionModule) {
@@ -368,23 +468,54 @@ export default function SubjectDetail() {
           )}
         </div>
 
-        <CalibrationOverlay
+        <ScreenCalibrationOverlay
           key={calibKey}
           open={calibratingOpen}
           faceFound={faceDetected !== false}
-          onDone={finishCalibration}
-          onRetry={() => beginCalibration()}
+          setCalibrationTarget={setCalibrationTarget}
+          finishCalibration={finishScreenCalibration}
+          onDone={handleCalibrationDone}
+          onRetry={beginCalibration}
+          onTest={openSelfTest}
         />
-        <FocusInterventionOverlay
-          intervention={activeIntervention}
-          onRespond={handleInterventionResponse}
+        <GazeSelfTest
+          open={selfTestOpen}
+          onClose={closeSelfTest}
+          onRecalibrate={recalibrateFromSelfTest}
+          subscribeHeartbeat={subscribeHeartbeat}
         />
+        {/* "Simulate ignore" (demo): prompts stay visible but can't be answered. */}
+        <div className={simulateIgnore ? 'contents pointer-events-none' : 'contents'}>
+          <FocusInterventionOverlay
+            key={
+              activeIntervention
+                ? `${activeIntervention.intervention_id ?? 'local'}-${activeIntervention.intervention_type ?? activeIntervention.tier}`
+                : 'none'
+            }
+            intervention={activeIntervention}
+            onRespond={handleInterventionResponse}
+          />
+        </div>
         <DemoPanel
           sessionId={activeSession.session_id}
           lastVerdict={lastVerdict}
           mlMode={mlMode}
           confidence={confidence}
-          onTriggerTier={(t) => triggerManualIntervention(t, false)}
+          gazeDebug={gazeDebug}
+          onSimulateIgnoreChange={setSimulateIgnore}
+          onTriggerLocal={(kind) => setActiveIntervention(buildLocalDemoIntervention(kind))}
+          onTriggerTier={async (tier, options) => {
+            try {
+              await triggerManualIntervention(tier, false, options);
+            } catch (err) {
+              console.error('Demo trigger failed:', err);
+              // Re-throw so the demo sidebar shows its error line.
+              throw new Error(
+                err.response?.data?.error || err.message || 'Failed to trigger intervention',
+                { cause: err }
+              );
+            }
+          }}
         />
 
         <header className="focus-session-chrome flex items-center justify-between gap-3 px-4 md:px-8 py-4">
@@ -470,6 +601,11 @@ export default function SubjectDetail() {
           <VideoLearningPlayer
             material={activeVideoMaterial}
             moduleTitle={activeModuleTitle}
+            gazeCalibrated={gazeCalibrated}
+            onCalibrationSaved={refreshProfile}
+            onLessonComplete={() => {
+              if (activeVideoMaterial?.quiz_id) setLessonCheck(activeVideoMaterial);
+            }}
             onClose={() => setActiveVideoMaterial(null)}
           />
         )}
@@ -480,6 +616,7 @@ export default function SubjectDetail() {
             onClose={() => setActiveDocumentMaterial(null)}
           />
         )}
+        {lessonCheckNode}
       </div>
     );
   }
@@ -507,6 +644,11 @@ export default function SubjectDetail() {
         <VideoLearningPlayer
           material={activeVideoMaterial}
           moduleTitle={activeModuleTitle}
+          gazeCalibrated={gazeCalibrated}
+          onCalibrationSaved={refreshProfile}
+          onLessonComplete={() => {
+            if (activeVideoMaterial?.quiz_id) setLessonCheck(activeVideoMaterial);
+          }}
           onClose={() => setActiveVideoMaterial(null)}
         />
       )}
@@ -517,6 +659,7 @@ export default function SubjectDetail() {
           onClose={() => setActiveDocumentMaterial(null)}
         />
       )}
+      {lessonCheckNode}
 
       <FocusInterventionOverlay
         intervention={activeIntervention}
@@ -664,16 +807,27 @@ export default function SubjectDetail() {
                           )}
                         </div>
                       ))}
-                      {isEnrolled && (
-                        <Button
-                          onClick={() => handleStartSession(mod)}
-                          disabled={Boolean(activeSession)}
-                          className="w-full sm:w-auto"
-                        >
-                          <Play className="w-4 h-4" />
-                          Start focus session
-                        </Button>
-                      )}
+                      {isEnrolled &&
+                        (activeSession &&
+                        (activeSession.module_id === mod.id || sessionModule?.id === mod.id) ? (
+                          <Button
+                            variant="danger"
+                            onClick={handleStopSession}
+                            className="w-full sm:w-auto"
+                          >
+                            <Square className="w-4 h-4 fill-current" />
+                            Stop session
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleStartSession(mod)}
+                            disabled={Boolean(activeSession)}
+                            className="w-full sm:w-auto"
+                          >
+                            <Play className="w-4 h-4" />
+                            Start focus session
+                          </Button>
+                        ))}
                     </div>
                   )}
                 </Card>

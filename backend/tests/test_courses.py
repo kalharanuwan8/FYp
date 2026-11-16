@@ -257,3 +257,135 @@ def test_material_file_upload(client, app):
     assert res.status_code == 201
     assert "file_url" in res.json
     assert res.json["file_url"].startswith("/uploads/")
+
+
+def test_video_upload_creates_lesson_quiz(client, app):
+    with app.app_context():
+        gl = GradeLevel(name="Grade Lesson Quiz")
+        db.session.add(gl)
+        db.session.flush()
+        t_user = User(
+            email="t_lesson_quiz@test.com",
+            password="hash",
+            role="teacher",
+            first_name="T",
+            last_name="Q",
+        )
+        db.session.add(t_user)
+        db.session.flush()
+        teacher = Teacher(user_id=t_user.id)
+        db.session.add(teacher)
+        db.session.flush()
+        subject = Subject(title="Lesson Quiz Course", grade_level_id=gl.id)
+        db.session.add(subject)
+        db.session.flush()
+        db.session.add(TeacherSubject(teacher_id=teacher.id, subject_id=subject.id))
+        module = Module(subject_id=subject.id, title="Mod", sequence_order=1)
+        db.session.add(module)
+        db.session.commit()
+        module_id = module.id
+        token = create_access_token(
+            identity=str(t_user.id), additional_claims={"role": "teacher"}
+        )
+
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.post(
+        f"/api/courses/modules/{module_id}/materials",
+        json={
+            "title": "Photosynthesis",
+            "content_type": "video",
+            "file_url": "/uploads/photo.mp4",
+            "video_quiz": [
+                {
+                    "question": "What do plants take in?",
+                    "options": ["Sunlight", "Rocks"],
+                    "correct_option": 0,
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201
+    assert res.json["quiz_id"]
+
+    with app.app_context():
+        from app.db_models import Quiz
+
+        video = db.session.get(ModuleContent, res.json["id"])
+        quiz = db.session.get(Quiz, video.quiz_id)
+        assert quiz.title.startswith("Photosynthesis")
+        assert len(quiz.questions) == 1
+        assert quiz.questions[0].options[0].is_correct is True
+        linked = ModuleContent.query.filter_by(content_type="quiz", quiz_id=quiz.id).first()
+        assert linked is not None
+
+
+def test_grade_change_shows_only_matching_subjects(client, app):
+    with app.app_context():
+        gl_a = GradeLevel(name="Grade Filter A")
+        gl_b = GradeLevel(name="Grade Filter B")
+        db.session.add(gl_a)
+        db.session.add(gl_b)
+        db.session.flush()
+
+        subj_a = Subject(title="Algebra Filter A", grade_level_id=gl_a.id, is_archived=False)
+        subj_b = Subject(title="Biology Filter B", grade_level_id=gl_b.id, is_archived=False)
+        db.session.add(subj_a)
+        db.session.add(subj_b)
+        db.session.flush()
+
+        st_u = User(
+            email="st_grade_filter@test.com",
+            password="hash",
+            role="student",
+            first_name="S",
+            last_name="G",
+        )
+        db.session.add(st_u)
+        db.session.flush()
+        student = Student(user_id=st_u.id, grade_level="Grade Filter A")
+        db.session.add(student)
+        db.session.flush()
+        db.session.add(Enrollment(student_id=student.id, subject_id=subj_a.id))
+        db.session.add(Enrollment(student_id=student.id, subject_id=subj_b.id))
+        db.session.commit()
+
+        subj_a_id = subj_a.id
+        subj_b_id = subj_b.id
+        token = create_access_token(
+            identity=str(st_u.id), additional_claims={"role": "student"}
+        )
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    enrolled = client.get("/api/courses/my-enrollments", headers=headers)
+    assert enrolled.status_code == 200
+    assert [s["title"] for s in enrolled.json["enrollments"]] == ["Algebra Filter A"]
+
+    catalog = client.get("/api/courses/subjects", headers=headers)
+    assert catalog.status_code == 200
+    titles = [s["title"] for s in catalog.json["subjects"]]
+    assert "Algebra Filter A" in titles
+    assert "Biology Filter B" not in titles
+
+    assert client.get(f"/api/courses/subjects/{subj_a_id}", headers=headers).status_code == 200
+    assert client.get(f"/api/courses/subjects/{subj_b_id}", headers=headers).status_code == 403
+
+    changed = client.patch(
+        "/api/student/profile",
+        json={"grade_level": "Grade Filter B"},
+        headers=headers,
+    )
+    assert changed.status_code == 200
+    assert changed.json["grade_level"] == "Grade Filter B"
+
+    enrolled_after = client.get("/api/courses/my-enrollments", headers=headers)
+    assert [s["title"] for s in enrolled_after.json["enrollments"]] == ["Biology Filter B"]
+
+    catalog_after = client.get("/api/courses/subjects", headers=headers)
+    titles_after = [s["title"] for s in catalog_after.json["subjects"]]
+    assert "Biology Filter B" in titles_after
+    assert "Algebra Filter A" not in titles_after
+
+    assert client.get(f"/api/courses/subjects/{subj_a_id}", headers=headers).status_code == 403
+    assert client.get(f"/api/courses/subjects/{subj_b_id}", headers=headers).status_code == 200

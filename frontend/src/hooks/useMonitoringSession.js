@@ -1,20 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import sessionService from '../services/sessionService';
+import studentService from '../services/studentService';
 
 /**
  * Shared monitored-session hook: camera on + JPEG heartbeats to /session/{id}/heartbeat.
- * Frames are captured at ~2 fps and sent in batches with each heartbeat; the backend
- * computes the same MediaPipe window features used to train model6 and returns the verdict.
+ * Frames are captured at ~3 fps (one every ~333 ms) and sent in batches with each
+ * heartbeat; the backend computes the MediaPipe window features and screen-gaze
+ * verdict. PLAN 5 adds the screen calibration (`calib_target` per frame,
+ * `calibration_phase` start | collect | finish) and exposes `gazeDebug`.
+ * Calibration-only mode posts to /student/gaze-calibration (no learning session).
  */
-const CAPTURE_INTERVAL_MS = 500; // 2 fps — matches the training extraction rate
-const MAX_BUFFERED_FRAMES = 6; // backend limit per heartbeat
-const FRAME_TARGET_WIDTH = 640; // PLAN 4: higher res, aspect preserved from video
-const JPEG_QUALITY = 0.8;
+const CALIB_ONLY_SID = 'calib-only';
+const CAPTURE_INTERVAL_MS = 333; // PLAN 5: a frame every ~333 ms
+const MAX_BUFFERED_FRAMES = 9; // backend limit per heartbeat
+const FRAME_TARGET_WIDTH = 640; // aspect preserved from video
+const JPEG_QUALITY = 0.7;
+const FINISH_WAIT_MS = 3000; // max wait for an in-flight heartbeat before the finish call
+
+function screenSnapshot() {
+  return {
+    w: Math.max(1, Math.round(window.screen?.width || window.innerWidth || 1)),
+    h: Math.max(1, Math.round(window.screen?.height || window.innerHeight || 1)),
+    inner_w: Math.round(window.innerWidth || 0),
+    inner_h: Math.round(window.innerHeight || 0),
+    dpr: window.devicePixelRatio || 1,
+  };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// PLAN 7 evaluation log: bounded ring buffer; thumbnails only on the newest lines.
+const EVAL_LOG_MAX = 500;
+const EVAL_THUMB_KEEP = 40;
+
 export function useMonitoringSession({
   intervalMs = 2000,
   onIntervention = null,
+  // PLAN 8: optional subscriber, called with the full heartbeat response and
+  // `{ loopStartMs }` (performance.now() origin of `frames_debug[].t`).
+  onHeartbeat = null,
   isQuizContext = false,
   lessonAudioActive = false,
+  evalCapture = false,
 } = {}) {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
@@ -30,13 +57,23 @@ export function useMonitoringSession({
   const analyserRef = useRef(null);
   const inFlightRef = useRef(false);
   const onInterventionRef = useRef(onIntervention);
+  const onHeartbeatRef = useRef(onHeartbeat);
   const pageVisibleRef = useRef(true);
   const windowFocusedRef = useRef(true);
   const hiddenSinceRef = useRef(null);
   const blurredSinceRef = useRef(null);
   const contentStateRef = useRef('none');
+  const pauseReasonRef = useRef(null); // 'user' | 'intervention' | 'ended' (PLAN 7)
+  const startPromiseRef = useRef(null); // {moduleId, promise}: de-dup StrictMode double start
+  const evalCaptureRef = useRef(evalCapture);
+  const [evalLog, setEvalLog] = useState([]);
   const calibratingRef = useRef(false);
+  const calibOnlyRef = useRef(false); // posts to /student/gaze-calibration instead of session heartbeat
+  const calibTargetRef = useRef(null); // {x, y} normalised, while a dot is being looked at
+  const pendingPhaseRef = useRef(null); // one-shot calibration_phase ('start') for next heartbeat
   const [calibrating, setCalibrating] = useState(false);
+  const [gazeDebug, setGazeDebug] = useState(null);
+  const [calibrationStatus, setCalibrationStatus] = useState(null);
   const [pageVisible, setPageVisible] = useState(true);
   const [faceDetected, setFaceDetected] = useState(null);
 
@@ -51,6 +88,35 @@ export function useMonitoringSession({
   useEffect(() => {
     onInterventionRef.current = onIntervention;
   }, [onIntervention]);
+
+  useEffect(() => {
+    onHeartbeatRef.current = onHeartbeat;
+  }, [onHeartbeat]);
+
+  useEffect(() => {
+    evalCaptureRef.current = evalCapture;
+  }, [evalCapture]);
+
+  /** Append one entry to the evaluation log (bounded; old thumbnails dropped). */
+  const pushEvalEntry = useCallback((entry) => {
+    setEvalLog((prev) => {
+      const next = prev.length >= EVAL_LOG_MAX ? prev.slice(prev.length - EVAL_LOG_MAX + 1) : prev.slice();
+      next.push({ id: `${entry.ts}-${Math.random().toString(36).slice(2, 7)}`, ...entry });
+      const cut = next.length - EVAL_THUMB_KEEP;
+      if (cut > 0 && next[cut - 1]?.thumb) {
+        for (let i = 0; i < cut; i += 1) {
+          if (next[i].thumb) next[i] = { ...next[i], thumb: undefined };
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const addEvalMark = useCallback(
+    (text = 'evaluator: distracted now') => pushEvalEntry({ kind: 'mark', ts: Date.now(), text }),
+    [pushEvalEntry]
+  );
+  const clearEvalLog = useCallback(() => setEvalLog([]), []);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
@@ -162,8 +228,8 @@ export function useMonitoringSession({
         return true;
       }
       const videoConstraints = {
-        width: 320,
-        height: 240,
+        width: 640,
+        height: 480,
         frameRate: 15,
         facingMode: 'user',
       };
@@ -235,6 +301,7 @@ export function useMonitoringSession({
       hidden_ms: hiddenMs,
       blurred_ms: blurredMs,
       content_state: contentStateRef.current,
+      pause_reason: pauseReasonRef.current,
       calibrating: Boolean(calibratingRef.current),
     };
   }, []);
@@ -282,6 +349,130 @@ export function useMonitoringSession({
     inFlightRef.current = false;
   }, []);
 
+  /** 'start' once (queued by setCalibrating(true)), then 'collect' while calibrating. */
+  const nextCalibrationPhase = useCallback(() => {
+    if (pendingPhaseRef.current) {
+      const phase = pendingPhaseRef.current;
+      pendingPhaseRef.current = null;
+      return phase;
+    }
+    return calibratingRef.current ? 'collect' : null;
+  }, []);
+
+  /**
+   * Send one heartbeat. Owns the in-flight flag, applies the response to hook state
+   * and forwards any new intervention to the consumer (which replaces the open one).
+   * Returns the response, or null on failure / no active session.
+   */
+  const sendHeartbeat = useCallback(
+    async (frames, signals, phase) => {
+      const sid = sessionIdRef.current;
+      if (!sid) return null;
+      inFlightRef.current = true;
+      try {
+        const calibOnly = calibOnlyRef.current;
+        const lessonAudioActiveNow = Boolean(lessonAudioActiveRef.current);
+        // Lesson speakers feed back into the mic — those samples are not room noise.
+        const currentNoiseDbfs =
+          calibOnly || lessonAudioActiveNow ? null : captureNoiseDbfs();
+        if (currentNoiseDbfs !== null) setNoiseDbfs(currentNoiseDbfs);
+        const payload = calibOnly
+          ? {
+              frames,
+              screen: screenSnapshot(),
+              calibrating: true,
+            }
+          : {
+              frames,
+              is_quiz_context: Boolean(quizContextRef.current),
+              noise_dbfs: currentNoiseDbfs,
+              lesson_audio_active: lessonAudioActiveNow,
+              screen: screenSnapshot(),
+              ...signals,
+            };
+        if (phase) payload.calibration_phase = phase;
+        const response = calibOnly
+          ? await studentService.postGazeCalibration(payload)
+          : await sessionService.sendHeartbeat(sid, payload);
+        if (!sessionIdRef.current) return null;
+        if (response.verdict) setLastVerdict(response.verdict);
+        if (response.ml_mode) setMlMode(response.ml_mode);
+        if (typeof response.face_detected === 'boolean') {
+          setFaceDetected(response.face_detected);
+        } else if (response.reason === 'calibrating' || calibOnly) {
+          // keep last faceDetected during calibration heartbeats without a clear flag
+        } else {
+          setFaceDetected(null);
+        }
+        if (response.verdict === 'UNKNOWN') {
+          setConfidence(null);
+        } else if (typeof response.confidence === 'number') {
+          setConfidence(response.confidence);
+        } else {
+          setConfidence(null);
+        }
+        setGazeDebug(response.gaze_debug || null);
+        if (response.calibration) setCalibrationStatus(response.calibration);
+        if (onHeartbeatRef.current) {
+          try {
+            onHeartbeatRef.current(response, { loopStartMs: loopStartRef.current });
+          } catch (cbErr) {
+            console.warn('onHeartbeat subscriber failed:', cbErr);
+          }
+        }
+        if (
+          !calibOnly &&
+          response.intervention_triggered &&
+          response.intervention &&
+          onInterventionRef.current
+        ) {
+          onInterventionRef.current(response.intervention);
+        }
+        if (!calibOnly) {
+          const resForLog = { ...response };
+          delete resForLog.calibration;
+          pushEvalEntry({
+            kind: 'beat',
+            ts: Date.now(),
+            sent: {
+              n_frames: frames.length,
+              content_state: payload.content_state,
+              pause_reason: payload.pause_reason,
+              hidden_ms: payload.hidden_ms,
+              blurred_ms: payload.blurred_ms,
+              noise_dbfs: payload.noise_dbfs,
+              phase: phase || null,
+            },
+            res: resForLog,
+            // Local-only evidence for the evaluator; never uploaded again or stored.
+            thumb:
+              evalCaptureRef.current && response.verdict === 'DISTRACTED' && frames.length
+                ? frames[frames.length - 1].image
+                : undefined,
+          });
+        }
+        return response;
+      } catch (err) {
+        console.error('Background ML telemetry error:', err);
+        if (phase === 'start') pendingPhaseRef.current = 'start'; // retry next beat
+        const status = err.response?.status;
+        const msg = err.response?.data?.error || err.message;
+        pushEvalEntry({
+          kind: 'error',
+          ts: Date.now(),
+          text: `heartbeat failed${status ? ` (${status})` : ''}: ${msg}`,
+        });
+        if (status >= 500) {
+          setError(`Monitoring server error (${status}): ${msg}`);
+        }
+        return null;
+      } finally {
+        inFlightRef.current = false;
+      }
+    },
+    [captureNoiseDbfs, pushEvalEntry]
+  );
+
   const startTelemetryLoop = useCallback(
     (sessionId) => {
       stopTelemetryLoop();
@@ -295,7 +486,10 @@ export function useMonitoringSession({
         const image = captureFrame();
         if (!image) return;
         const buf = frameBufferRef.current;
-        buf.push({ t_ms: Math.round(performance.now() - loopStartRef.current), image });
+        const frame = { t_ms: Math.round(performance.now() - loopStartRef.current), image };
+        const target = calibTargetRef.current;
+        if (target) frame.calib_target = { x: target.x, y: target.y };
+        buf.push(frame);
         if (buf.length > MAX_BUFFERED_FRAMES) buf.splice(0, buf.length - MAX_BUFFERED_FRAMES);
       }, CAPTURE_INTERVAL_MS);
 
@@ -305,75 +499,33 @@ export function useMonitoringSession({
         attachStreamToVideo(webcamRef.current);
         const frames = frameBufferRef.current;
         const signals = browserSignalSnapshot();
+        const phase = nextCalibrationPhase();
         // While hidden, still send a lightweight heartbeat (server uses hidden_ms).
-        if (frames.length === 0 && signals.page_visible) return;
+        // A pending calibration phase is always sent, even without frames.
+        if (frames.length === 0 && signals.page_visible && !phase) return;
         frameBufferRef.current = [];
-
-        inFlightRef.current = true;
-        try {
-          const lessonAudioActiveNow = Boolean(lessonAudioActiveRef.current);
-          // Lesson speakers feed back into the mic — those samples are not room noise.
-          const currentNoiseDbfs = lessonAudioActiveNow ? null : captureNoiseDbfs();
-          if (currentNoiseDbfs !== null) setNoiseDbfs(currentNoiseDbfs);
-          const response = await sessionService.sendHeartbeat(sessionIdRef.current, {
-            frames,
-            is_quiz_context: Boolean(quizContextRef.current),
-            noise_dbfs: currentNoiseDbfs,
-            lesson_audio_active: lessonAudioActiveNow,
-            ...signals,
-          });
-          if (!sessionIdRef.current) return;
-          if (response.verdict) setLastVerdict(response.verdict);
-          if (response.ml_mode) setMlMode(response.ml_mode);
-          if (typeof response.face_detected === 'boolean') {
-            setFaceDetected(response.face_detected);
-          } else if (response.reason === 'calibrating') {
-            // keep last faceDetected during calibration heartbeats without a clear flag
-          } else {
-            setFaceDetected(null);
-          }
-          if (response.verdict === 'UNKNOWN') {
-            setConfidence(null);
-          } else if (typeof response.confidence === 'number') {
-            setConfidence(response.confidence);
-          } else {
-            setConfidence(null);
-          }
-          if (
-            response.intervention_triggered &&
-            response.intervention &&
-            onInterventionRef.current
-          ) {
-            onInterventionRef.current(response.intervention);
-          }
-        } catch (err) {
-          console.error('Background ML telemetry error:', err);
-          const status = err.response?.status;
-          const msg = err.response?.data?.error || err.message;
-          if (status >= 500) {
-            setError(`Monitoring server error (${status}): ${msg}`);
-          }
-        } finally {
-          inFlightRef.current = false;
-        }
+        await sendHeartbeat(frames, signals, phase);
       }, intervalMs);
     },
     [
       attachStreamToVideo,
       browserSignalSnapshot,
       captureFrame,
-      captureNoiseDbfs,
       intervalMs,
+      nextCalibrationPhase,
+      sendHeartbeat,
       stopTelemetryLoop,
     ]
   );
 
-  const startMonitoredSession = useCallback(
+  const doStartMonitoredSession = useCallback(
     async (moduleId) => {
       setLoading(true);
       setError(null);
       setLastVerdict('FOCUSED');
       setMlMode(null);
+      setGazeDebug(null);
+      setCalibrationStatus(null);
 
       const camOk = await startCamera();
       if (!camOk) {
@@ -385,6 +537,7 @@ export function useMonitoringSession({
       }
 
       try {
+        calibOnlyRef.current = false;
         const sessionData = await sessionService.startSession(moduleId, true);
         setActiveSession(sessionData);
         startTelemetryLoop(sessionData.session_id);
@@ -404,6 +557,26 @@ export function useMonitoringSession({
       }
     },
     [attachStreamToVideo, startCamera, startTelemetryLoop, stopCamera]
+  );
+
+  /**
+   * StrictMode runs the player's boot effect twice; without this both runs
+   * POST /session/start and one session is orphaned (PLAN 7, bug 3). A second
+   * call for the same module while the first is in flight shares its result.
+   */
+  const startMonitoredSession = useCallback(
+    async (moduleId) => {
+      const inflight = startPromiseRef.current;
+      if (inflight && inflight.moduleId === moduleId) return inflight.promise;
+      const promise = doStartMonitoredSession(moduleId);
+      startPromiseRef.current = { moduleId, promise };
+      try {
+        return await promise;
+      } finally {
+        if (startPromiseRef.current?.promise === promise) startPromiseRef.current = null;
+      }
+    },
+    [doStartMonitoredSession]
   );
 
   const stopMonitoredSession = useCallback(async () => {
@@ -454,12 +627,12 @@ export function useMonitoringSession({
   }, [stopTelemetryLoop, stopNoiseMeter]);
 
   const triggerManualIntervention = useCallback(
-    async (tier, isQuiz = false) => {
+    async (tier, isQuiz = false, options = {}) => {
       const sid = activeSession?.session_id ?? sessionIdRef.current;
       if (!sid) {
         throw new Error('No active monitored session');
       }
-      const response = await sessionService.triggerIntervention(sid, tier, isQuiz);
+      const response = await sessionService.triggerIntervention(sid, tier, isQuiz, options);
       if (response.intervention_triggered && response.intervention && onInterventionRef.current) {
         onInterventionRef.current(response.intervention);
       }
@@ -468,14 +641,94 @@ export function useMonitoringSession({
     [activeSession]
   );
 
-  const setContentState = useCallback((state) => {
-    contentStateRef.current = state || 'none';
+  /**
+   * Lesson media state. `reason` matters only for 'paused': 'user' (student
+   * paused — server gives a grace period, then a gentle nudge) or
+   * 'intervention' (a prompt paused it — held while the prompt is open).
+   */
+  const setContentState = useCallback((state, reason) => {
+    const s = state || 'none';
+    contentStateRef.current = s;
+    if (s === 'paused') pauseReasonRef.current = reason === 'intervention' ? 'intervention' : 'user';
+    else if (s === 'ended') pauseReasonRef.current = 'ended';
+    else pauseReasonRef.current = null;
   }, []);
 
+  /** Turning calibration on queues a one-shot `calibration_phase: "start"`. */
   const setCalibratingFlag = useCallback((on) => {
-    calibratingRef.current = Boolean(on);
-    setCalibrating(Boolean(on));
+    const next = Boolean(on);
+    if (next && !calibratingRef.current) {
+      pendingPhaseRef.current = 'start';
+      setCalibrationStatus(null);
+    }
+    if (!next) {
+      calibTargetRef.current = null;
+      pendingPhaseRef.current = null;
+    }
+    calibratingRef.current = next;
+    setCalibrating(next);
   }, []);
+
+  /** Tag subsequent frames with a normalised {x, y} calibration dot (or null to stop). */
+  const setCalibrationTarget = useCallback((target) => {
+    calibTargetRef.current =
+      target && Number.isFinite(target.x) && Number.isFinite(target.y)
+        ? { x: target.x, y: target.y }
+        : null;
+  }, []);
+
+  /**
+   * End calibration: flush buffered frames with `calibration_phase: "finish"` and
+   * resolve with the backend `calibration` result ({ ok, ... }) or null if unreachable.
+   */
+  const finishCalibration = useCallback(async () => {
+    calibTargetRef.current = null;
+    pendingPhaseRef.current = null;
+    const wasCalibrating = calibratingRef.current;
+    calibratingRef.current = false;
+    setCalibrating(false);
+    if (!wasCalibrating || !sessionIdRef.current) return null;
+    const waitStart = Date.now();
+    while (inFlightRef.current && Date.now() - waitStart < FINISH_WAIT_MS) {
+      await sleep(50);
+    }
+    const frames = frameBufferRef.current;
+    frameBufferRef.current = [];
+    const response = await sendHeartbeat(frames, browserSignalSnapshot(), 'finish');
+    return response?.calibration ?? null;
+  }, [browserSignalSnapshot, sendHeartbeat]);
+
+  /**
+   * Camera + telemetry for account-level screen calibration (no learning session).
+   * Posts frames to /student/gaze-calibration.
+   */
+  const startCalibrationOnly = useCallback(async () => {
+    setError(null);
+    setCalibrationStatus(null);
+    const camOk = await startCamera();
+    if (!camOk) {
+      const msg =
+        'Camera is required to map your screen. Allow camera access and sit with light in front of you.';
+      setError(msg);
+      return { ok: false, error: msg };
+    }
+    calibOnlyRef.current = true;
+    sessionIdRef.current = CALIB_ONLY_SID;
+    startTelemetryLoop(CALIB_ONLY_SID);
+    requestAnimationFrame(() => attachStreamToVideo(webcamRef.current));
+    return { ok: true };
+  }, [attachStreamToVideo, startCamera, startTelemetryLoop]);
+
+  const stopCalibrationOnly = useCallback(() => {
+    stopTelemetryLoop();
+    sessionIdRef.current = null;
+    calibOnlyRef.current = false;
+    calibratingRef.current = false;
+    calibTargetRef.current = null;
+    pendingPhaseRef.current = null;
+    setCalibrating(false);
+    stopCamera();
+  }, [stopCamera, stopTelemetryLoop]);
 
   return {
     // Prefer these callback refs so stream attaches on mount
@@ -498,8 +751,14 @@ export function useMonitoringSession({
     pageVisible,
     setContentState,
     setCalibrating: setCalibratingFlag,
+    setCalibrationTarget,
+    finishCalibration,
+    calibrationStatus,
+    gazeDebug,
     startCamera,
     stopCamera,
+    startCalibrationOnly,
+    stopCalibrationOnly,
     startMonitoredSession,
     stopMonitoredSession,
     triggerManualIntervention,
@@ -507,6 +766,9 @@ export function useMonitoringSession({
     stopTelemetryLoop,
     setActiveSession,
     setLastVerdict,
+    evalLog,
+    addEvalMark,
+    clearEvalLog,
   };
 }
 

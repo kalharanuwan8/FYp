@@ -8,6 +8,7 @@ in app/__init__.py, before this class is instantiated.
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
+from sqlalchemy.pool import StaticPool
 
 load_dotenv()
 
@@ -45,6 +46,12 @@ class Config:
         os.environ.get("SEED_DEFAULT_ACCOUNTS", "true").lower() == "true"
     )
 
+    # PLAN 5: show demo sidebar + allow force-bypass on trigger-intervention
+    DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
+
+    # PLAN 8: seconds of look-away before T1 fires (single knob for timing).
+    INTERVENTION_T1_SEC = float(os.environ.get("INTERVENTION_T1_SEC", "3.0"))
+
     # Post-quiz remediation (engineering parameters, not clinical thresholds).
     # Trigger only when error_rate is strictly greater than REMEDIATION_ERROR_RATE_THRESHOLD.
     REMEDIATION_ERROR_RATE_THRESHOLD = float(
@@ -67,6 +74,11 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "TEST_DATABASE_URL", "sqlite:///:memory:"
     )
+    # One shared in-memory connection so app-context writes are visible to test_client.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "poolclass": StaticPool,
+        "connect_args": {"check_same_thread": False},
+    }
     # Keep pytest DBs empty so user-count assertions stay stable
     SEED_DEFAULT_ACCOUNTS = False
 

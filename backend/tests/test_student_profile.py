@@ -37,6 +37,7 @@ def test_student_profile_lifecycle(client, app):
     assert res_init.json["onboarding_completed"] is False
     assert res_init.json["grade_level"] is None
     assert res_init.json["consent_given"] is False
+    assert res_init.json["gaze_calibrated"] is False
 
     # 2. Update profile with grade, guardian contact, and assent.
     # consent_given in the payload must be ignored (admin-only).
@@ -125,3 +126,82 @@ def test_non_student_profile_access_blocked(client, app):
     headers = {"Authorization": f"Bearer {token}"}
     res = client.get("/api/student/profile", headers=headers)
     assert res.status_code == 403
+
+
+def test_gaze_calibration_start_and_persist_helper(client, app):
+    """Calibration-only endpoint accepts start; persist helper writes gaze_calibration."""
+    with app.app_context():
+        u = User(
+            email="student_gaze@test.com",
+            password="hashedpassword",
+            role="student",
+            first_name="Gaze",
+            last_name="Kid",
+        )
+        db.session.add(u)
+        db.session.flush()
+        st = Student(user_id=u.id, grade_level="Grade 6", student_assent=True)
+        db.session.add(st)
+        db.session.commit()
+        token = create_access_token(identity=str(u.id), additional_claims={"role": "student"})
+        student_pk = st.id
+
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.post(
+        "/api/student/gaze-calibration",
+        json={"calibration_phase": "start", "frames": []},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert "calibration" in res.json
+    assert res.json["gaze_calibrated"] is False
+    assert res.json["saved"] is False
+
+    with app.app_context():
+        from app.routes.student_profile import persist_student_gaze_calibration
+
+        class _FakeScorer:
+            def export_calibration(self):
+                return {
+                    "mapper": {
+                        "ok": True,
+                        "cx": [0.5, 0.0, 1.0, 0.0],
+                        "cy": [0.5, 0.0, 1.0, 0.0],
+                        "residual": 0.01,
+                        "n_dots": 9,
+                        "freeze_head": False,
+                        "margin": 0.03,
+                    },
+                    "yaw0": 0.0,
+                    "pitch0": 0.0,
+                    "roll0": 0.0,
+                    "iris0": [0.5, 0.5],
+                    "baseline_locked": True,
+                    "head_phase": True,
+                }
+
+        from sqlalchemy import inspect as sa_inspect, text
+        from app.routes.student_profile import _gaze_calibrated
+
+        cols = {c["name"] for c in sa_inspect(db.engine).get_columns("students")}
+        assert "gaze_calibration" in cols, cols
+        student = db.session.get(Student, student_pk)
+        saved = persist_student_gaze_calibration(
+            student, _FakeScorer(), screen={"w": 1920, "h": 1080}
+        )
+        assert saved is not None
+        assert saved["mapper"]["ok"] is True
+        assert saved["screen"]["w"] == 1920
+        row = db.session.execute(
+            text("SELECT gaze_calibration FROM students WHERE id = :id"),
+            {"id": student_pk},
+        ).fetchone()
+        assert row is not None and row[0] is not None, row
+        db.session.expire_all()
+        st_check = db.session.get(Student, student_pk)
+        assert _gaze_calibrated(st_check) is True
+        # Profile payload (same process) reflects the saved fit.
+        from app.routes.student_profile import _profile_payload
+
+        user = db.session.get(User, st_check.user_id)
+        assert _profile_payload(user, st_check)["gaze_calibrated"] is True

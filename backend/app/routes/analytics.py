@@ -15,6 +15,7 @@ from app.db_models import (
     LearningSession,
 )
 from app.services.analytics_service import AnalyticsService
+from app.services.grade_access import subject_visible_to_student
 from app.services.focus_metrics import average_coverage_pct, average_focus_percentage
 from app.services.observation_coverage import FOCUS_METRIC_VERSION
 from app.utils.decorators import role_required
@@ -178,7 +179,7 @@ def get_student_analytics():
     subject_progress = []
     for sub_id in enrolled_subject_ids:
         subject = db.session.get(Subject, sub_id)
-        if subject and not subject.is_archived:
+        if subject_visible_to_student(student, subject):
             subj_modules = Module.query.filter_by(subject_id=subject.id).all()
             subj_mod_ids = [m.id for m in subj_modules]
 

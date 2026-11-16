@@ -61,6 +61,75 @@ def test_admin_deactivate_user(client, app, admin_user):
         u = db.session.get(User, target_id)
         assert u.is_active is False
 
+def test_admin_edit_student_grants_consent(client, app, admin_user):
+    with app.app_context():
+        grade = GradeLevel.query.filter_by(name="Grade 3").first()
+        if grade is None:
+            grade = GradeLevel(name="Grade 3")
+            db.session.add(grade)
+        student_user = User(
+            email="edit.student@test.com",
+            password="hash",
+            role="student",
+            first_name="Edit",
+            last_name="Me",
+        )
+        other = User(
+            email="taken@test.com",
+            password="hash",
+            role="teacher",
+            first_name="Taken",
+            last_name="Email",
+        )
+        db.session.add_all([student_user, other])
+        db.session.flush()
+        profile = Student(user_id=student_user.id)
+        db.session.add(profile)
+        db.session.flush()
+        db.session.add(
+            GuardianConsent(
+                student_id=profile.id,
+                guardian_name="Old Parent",
+                guardian_email="old@test.com",
+                consent_given=False,
+            )
+        )
+        db.session.commit()
+        student_id = student_user.id
+        token = create_access_token(identity=str(admin_user.id), additional_claims={"role": "admin"})
+
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.patch(
+        f"/api/admin/users/{student_id}",
+        json={
+            "first_name": "Edited",
+            "grade_level": "Grade 3",
+            "guardian_name": "New Parent",
+            "guardian_email": "new.parent@test.com",
+            "consent_given": True,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert res.json["first_name"] == "Edited"
+    assert res.json["grade_level"] == "Grade 3"
+    assert res.json["guardian_name"] == "New Parent"
+    assert res.json["guardian_consent_given"] is True
+
+    with app.app_context():
+        saved = db.session.get(User, student_id)
+        assert saved.first_name == "Edited"
+        assert saved.student_profile.guardian_consent.consent_given is True
+        assert saved.student_profile.guardian_consent.consented_at is not None
+
+    clash = client.patch(
+        f"/api/admin/users/{student_id}",
+        json={"email": "taken@test.com"},
+        headers=headers,
+    )
+    assert clash.status_code == 409
+
+
 def test_admin_self_deactivation_blocked(client, app, admin_user):
     with app.app_context():
         token = create_access_token(identity=str(admin_user.id), additional_claims={"role": "admin"})

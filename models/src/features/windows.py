@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -99,12 +99,19 @@ def aggregate_window(
     pitch0: float,
     start: Optional[float] = None,
     roll0: float = 0.0,
+    on_screen_fn: Optional[Callable[[FrameFeatures, float, float], bool]] = None,
 ) -> dict:
     """Window features from per-frame features.
 
     Shared by offline extraction and the live backend scorer
     (models/src/features/live.py) so both compute the same 14 features.
+
+    ``on_screen_fn(frame, yaw0, pitch0) -> bool`` decides per face frame whether
+    the gaze is on screen. Default = ``_on_screen`` so training / thesis
+    extraction is unchanged; the live scorer passes the screen-gaze mapper.
     """
+    if on_screen_fn is None:
+        on_screen_fn = _on_screen
     face_win = [f for f in win if f.face_present]
     face_flags = np.array([f.face_present for f in win], dtype=bool)
 
@@ -116,7 +123,9 @@ def aggregate_window(
             [abs(f.iris_x - 0.5) + abs(f.iris_y - 0.5) for f in face_win], dtype=np.float64
         )
         gaze_dev = 0.5 * (yaw_devs / 45.0) + 0.5 * iris_devs
-        on_flags = np.array([_on_screen(f, yaw0, pitch0) for f in face_win], dtype=bool)
+        on_flags = np.array(
+            [bool(on_screen_fn(f, yaw0, pitch0)) for f in face_win], dtype=bool
+        )
         times = np.array([f.t_sec for f in face_win], dtype=np.float64)
     else:
         yaw_devs = pitch_devs = roll_devs = gaze_dev = np.zeros(0, dtype=np.float64)

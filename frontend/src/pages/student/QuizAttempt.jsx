@@ -4,11 +4,28 @@ import { ArrowLeft, Check, Play, Lightbulb } from 'lucide-react';
 import { quizService } from '../../services/quizService';
 import WebcamCapture from '../../components/monitoring/WebcamCapture';
 import InterventionOverlay from '../../components/intervention/InterventionOverlay';
+import DocumentReader from '../../components/student/DocumentReader';
 import { useMonitoringSession } from '../../hooks/useMonitoringSession';
 import { useIdleTracker } from '../../hooks/useIdleTracker';
 import { usePreferences } from '../../context/PreferencesContext';
 import { celebrateIfAllowed } from '../../utils/celebrate';
 import { Button, Card, LoadingSpinner, ErrorBanner, XPChip } from '../../components/common';
+
+function resolveMaterialFileUrl(materialOrOffer) {
+  if (!materialOrOffer) return null;
+  if (materialOrOffer.id || materialOrOffer.content_id) {
+    const id = materialOrOffer.id || materialOrOffer.content_id;
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    const token = localStorage.getItem('access_token') || '';
+    return `${apiBase}/courses/materials/${id}/file?token=${encodeURIComponent(token)}`;
+  }
+  const fileUrl = materialOrOffer.file_url;
+  if (!fileUrl) return null;
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+  const origin = apiBase.replace(/\/api\/?$/, '');
+  return `${origin}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+}
 
 export default function QuizAttempt() {
   const { quizId } = useParams();
@@ -30,6 +47,7 @@ export default function QuizAttempt() {
   const [remediationChoice, setRemediationChoice] = useState(null);
   const [remediationBusy, setRemediationBusy] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
+  const [alternateReader, setAlternateReader] = useState(null);
   const [revealedHints, setRevealedHints] = useState({});
   const [hintBusy, setHintBusy] = useState(false);
   const questionStartedAtRef = useRef(Date.now());
@@ -128,6 +146,20 @@ export default function QuizAttempt() {
     }
   };
 
+  const openAlternateReader = useCallback((offer) => {
+    if (!offer || !(offer.content_id || offer.file_url)) return;
+    const material = {
+      id: offer.content_id,
+      title: offer.title || 'Written version',
+      content_type: offer.content_type || 'document',
+      file_url: offer.file_url,
+    };
+    setAlternateReader({
+      material,
+      fileUrl: resolveMaterialFileUrl(offer),
+    });
+  }, []);
+
   const handleRemediationChoice = async (offer) => {
     const remediation = result?.remediation;
     if (!remediation?.event_id || !offer?.kind) return;
@@ -136,13 +168,8 @@ export default function QuizAttempt() {
       await quizService.recordRemediationChoice(remediation.event_id, offer.kind);
       setRemediationChoice(offer.kind);
       setSelectedOffer(offer);
-      if (offer.kind === 'alternative_material' && (offer.content_id || offer.file_url)) {
-        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-        const token = localStorage.getItem('access_token') || '';
-        const url = offer.content_id
-          ? `${apiBase}/courses/materials/${offer.content_id}/file?token=${encodeURIComponent(token)}`
-          : offer.file_url;
-        window.open(url, '_blank', 'noopener,noreferrer');
+      if (offer.kind === 'alternative_material') {
+        openAlternateReader(offer);
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Could not save your choice.');
@@ -557,26 +584,34 @@ export default function QuizAttempt() {
           </Card>
 
           {result.remediation && (
-            <Card className="p-6 md:p-8 space-y-4 text-left bg-learning rounded-2xl border border-border shadow-soft">
-              <h2 className="font-display text-xl font-bold text-text">
-                Let&apos;s try this another way
-              </h2>
+            <Card className="p-6 md:p-8 space-y-4 text-left bg-learning rounded-2xl border border-primary/30 shadow-soft">
+              <p className="text-sm font-semibold text-primary">A fresher way in</p>
+              <h2 className="font-display text-xl font-bold text-text">Study this again</h2>
               <p className="text-sm text-text-muted">
-                The same ideas can help more when they are shown in a different form.
+                A few ideas have not settled yet. The same lesson is ready in another form — easier
+                to look at, easier to keep.
               </p>
 
               {!remediationChoice && (
                 <div className="space-y-3">
-                  {(result.remediation.offers || []).map((offer) => {
+                  {[...(result.remediation.offers || [])]
+                    .sort((a, b) =>
+                      a.kind === 'alternative_material'
+                        ? -1
+                        : b.kind === 'alternative_material'
+                          ? 1
+                          : 0
+                    )
+                    .map((offer) => {
                     let label = 'Continue';
-                    if (offer.kind === 'alternative_material') label = 'Open the written version';
+                    if (offer.kind === 'alternative_material') label = 'Study again';
                     else if (offer.kind === 'approved_pack') label = 'Read the explanation';
                     else if (offer.kind === 'guided_rewatch') label = 'Watch in short parts';
                     return (
                       <Button
                         key={`${offer.kind}-${offer.content_id}`}
                         size="lg"
-                        variant="secondary"
+                        variant={offer.kind === 'alternative_material' ? 'primary' : 'secondary'}
                         className="w-full justify-center"
                         disabled={remediationBusy}
                         onClick={() => handleRemediationChoice(offer)}
@@ -598,19 +633,8 @@ export default function QuizAttempt() {
                         A written version of this lesson is ready for you.
                       </p>
                       {(selectedOffer.content_id || selectedOffer.file_url) && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            const apiBase =
-                              import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-                            const token = localStorage.getItem('access_token') || '';
-                            const url = selectedOffer.content_id
-                              ? `${apiBase}/courses/materials/${selectedOffer.content_id}/file?token=${encodeURIComponent(token)}`
-                              : selectedOffer.file_url;
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                        >
-                          Open the written version
+                        <Button onClick={() => openAlternateReader(selectedOffer)}>
+                          Study again
                         </Button>
                       )}
                     </>
@@ -660,6 +684,14 @@ export default function QuizAttempt() {
             </Card>
           )}
         </div>
+      )}
+
+      {alternateReader && (
+        <DocumentReader
+          material={alternateReader.material}
+          fileUrl={alternateReader.fileUrl}
+          onClose={() => setAlternateReader(null)}
+        />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ const variants = {
   ghost: 'bg-transparent text-text-muted hover:bg-primary-soft hover:text-text',
   attention: 'bg-attention text-on-primary hover:brightness-105',
   success: 'bg-success text-on-primary hover:brightness-105',
+  danger: 'bg-danger text-white hover:brightness-110 shadow-soft border border-transparent',
 };
 
 const sizes = {

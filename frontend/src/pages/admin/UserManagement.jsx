@@ -11,10 +11,12 @@ import {
   ChevronRight,
   AlertTriangle,
   X,
-  UploadCloud
+  UploadCloud,
+  Pencil
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import CreateUserModal from '../../components/admin/CreateUserModal';
+import EditUserModal from '../../components/admin/EditUserModal';
 import CsvImportModal from '../../components/admin/CsvImportModal';
 
 export const UserManagement = () => {
@@ -31,6 +33,7 @@ export const UserManagement = () => {
 
   // Modals
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [editUser, setEditUser] = useState(null);
   const [csvImportModalOpen, setCsvImportModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -266,16 +269,27 @@ export const UserManagement = () => {
                       )}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <button
-                        onClick={() => openStatusConfirm(u)}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
-                          u.is_active
-                            ? 'text-red-700 bg-red-50 border-red-200 hover:bg-red-100'
-                            : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {u.is_active ? 'Deactivate' : 'Reactivate'}
-                      </button>
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditUser(u)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border border-border text-text bg-bg hover:border-primary cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openStatusConfirm(u)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                            u.is_active
+                              ? 'text-red-700 bg-red-50 border-red-200 hover:bg-red-100'
+                              : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {u.is_active ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -314,6 +328,13 @@ export const UserManagement = () => {
       <CreateUserModal
         isOpen={createUserModalOpen}
         onClose={() => setCreateUserModalOpen(false)}
+        onSuccess={fetchUsers}
+      />
+
+      <EditUserModal
+        user={editUser}
+        isOpen={Boolean(editUser)}
+        onClose={() => setEditUser(null)}
         onSuccess={fetchUsers}
       />
 

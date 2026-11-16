@@ -22,11 +22,16 @@ def _episode(age_seconds: float):
 
 
 def test_distraction_level_bands():
-    assert distraction_level_from_duration(3) == 0
-    assert distraction_level_from_duration(5) == 1
-    assert distraction_level_from_duration(12) == 2
-    assert distraction_level_from_duration(25) == 3
-    assert distraction_level_from_duration(45) == 4
+    # PLAN 8: T1 at 3 s (was 5 s)
+    assert distraction_level_from_duration(2.9, t1_sec=3.0) == 0
+    assert distraction_level_from_duration(3.0, t1_sec=3.0) == 1
+    assert distraction_level_from_duration(5, t1_sec=3.0) == 1
+    assert distraction_level_from_duration(12, t1_sec=3.0) == 2
+    assert distraction_level_from_duration(25, t1_sec=3.0) == 3
+    assert distraction_level_from_duration(45, t1_sec=3.0) == 4
+    # Setting override moves T1
+    assert distraction_level_from_duration(5.0, t1_sec=6.0) == 0
+    assert distraction_level_from_duration(6.0, t1_sec=6.0) == 1
 
 
 def test_tier1_ambient_after_mild_duration():
@@ -45,21 +50,21 @@ def test_tier1_ambient_after_mild_duration():
 
 
 def test_cooldown_suppresses_repeat():
-    engine = InterventionEngine(cooldown_seconds=60.0)
+    engine = InterventionEngine(cooldown_seconds=20.0)
     res1 = engine.decide_intervention(
         distraction_event=_episode(12), is_distracted=True, now=100.0, source="model6"
     )
     assert res1 is not None
     assert res1.tier == 2
     assert engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=130.0, source="model6"
+        distraction_event=_episode(12), is_distracted=True, now=110.0, source="model6"
     ) is None
-    engine.record_outcome("reengaged", intervention_id=res1.intervention_id, now=130.0)
+    engine.record_outcome("reengaged", intervention_id=res1.intervention_id, now=110.0)
     assert engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=130.0, source="model6"
+        distraction_event=_episode(12), is_distracted=True, now=110.0, source="model6"
     ) is None
     res2 = engine.decide_intervention(
-        distraction_event=_episode(12), is_distracted=True, now=195.0, source="model6"
+        distraction_event=_episode(12), is_distracted=True, now=135.0, source="model6"
     )
     assert res2 is not None
     assert res2.tier >= 2  # duration band ≥2; cooldown is the behaviour under test

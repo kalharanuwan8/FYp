@@ -214,13 +214,17 @@ def start_quiz_attempt(quiz_id):
     if not enrollment:
         return jsonify({"error": "Forbidden: You are not enrolled in this course"}), 403
 
-    # Check single-attempt policy
+    # A lesson check after a video can be taken again so a demo (and a restudy
+    # pass) is not blocked by an earlier submit. The quiz list stays one attempt.
+    raw_data = request.get_json(silent=True) or {}
+    lesson_check = raw_data.get("source") == "lesson_check"
+
     existing_completed = QuizAttempt.query.filter_by(
-        quiz_id=quiz_id, 
+        quiz_id=quiz_id,
         student_id=student.id
     ).filter(QuizAttempt.completed_at.isnot(None)).first()
 
-    if existing_completed:
+    if existing_completed and not lesson_check:
         return jsonify({"error": "Forbidden: You have already completed an attempt for this quiz"}), 403
 
     new_attempt = QuizAttempt(

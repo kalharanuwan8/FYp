@@ -24,11 +24,23 @@ export const sessionService = {
     return response.data;
   },
 
-  triggerIntervention: async (sessionId, tier, isQuizContext = false) => {
-    const response = await api.post(`/session/${sessionId}/trigger-intervention`, {
+  /**
+   * Manually fire a tier (demo / practice). `options.force` bypasses pending/cooldown
+   * and is honoured by the server only when DEMO_MODE is on.
+   */
+  triggerIntervention: async (sessionId, tier, isQuizContext = false, options = {}) => {
+    const body = {
       tier,
       is_quiz_context: Boolean(isQuizContext),
-    });
+    };
+    if (options.force) body.force = true;
+    const response = await api.post(`/session/${sessionId}/trigger-intervention`, body);
+    return response.data;
+  },
+
+  /** { demo_mode: boolean } — whether the demo sidebar should be offered. */
+  getDemoConfig: async () => {
+    const response = await api.get('/session/demo-config');
     return response.data;
   },
 

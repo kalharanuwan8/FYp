@@ -38,6 +38,13 @@ HYST_ENTER_PROB = 0.6
 HYST_EXIT_PROB = 0.4
 HYST_ENTER_SEC = 3.0
 HYST_EXIT_SEC = 2.0
+# Reset enter/exit timers when consecutive scored windows are further apart
+# than this (PLAN 5: 4 -> 6 s, covers one dropped 2 s heartbeat).
+HYST_GAP_RESET_SEC = 6.0
+# Gaze-only probability when off-screen dwell >= ML_GAZE_OFFSCREEN_SEC.
+GAZE_DWELL_PROB = 0.9
+# Partial (below-dwell) gaze probability is scaled to stay under the enter prob.
+GAZE_PARTIAL_MAX_PROB = 0.59
 
 # Rule fallback (no v3 pack): distraction_proxy/2 >= 0.275 is the proxy >= 0.55
 # cut-off of the original label rule (models/src/features/windows.py).
@@ -126,7 +133,13 @@ class MLService:
         self._session_last_seen: Dict[Any, float] = {}
         self._session_t0: Dict[Any, float] = {}
         self._state_lock = threading.RLock()
-        self.live_window_sec = float(os.environ.get("ML_LIVE_WINDOW_SEC", "5.0"))
+        # PLAN 5: 3 s live window (gaze dwell rule reacts within a heartbeat).
+        self.live_window_sec = float(os.environ.get("ML_LIVE_WINDOW_SEC", "3.0"))
+        # PLAN 8: gaze dwell defaults to min(2.0, T1) so the verdict enters before T1.
+        t1 = float(os.environ.get("INTERVENTION_T1_SEC", "3.0"))
+        gaze_default = min(2.0, t1)
+        self.gaze_offscreen_sec = float(os.environ.get("ML_GAZE_OFFSCREEN_SEC", str(gaze_default)))
+        self._session_gaze_entered: Dict[Any, bool] = {}
         # ~15 face frames ≈ 7.5 s at 2 fps — fits the 10 s calibration screen.
         self.live_baseline_frames = int(os.environ.get("ML_LIVE_BASELINE_FRAMES", "15"))
         self.session_idle_sec = float(os.environ.get("ML_SESSION_IDLE_SEC", "600"))
@@ -458,6 +471,7 @@ class MLService:
         self._session_hyst_low_t0.pop(session_id, None)
         self._session_hyst_last_t.pop(session_id, None)
         self._session_no_body_t0.pop(session_id, None)
+        self._session_gaze_entered.pop(session_id, None)
         self._close_session_landmarker(session_id)
         with self._state_lock:
             scorer = self._live_scorers.pop(session_id, None)
@@ -487,12 +501,14 @@ class MLService:
         dist_prob: float,
         now: Optional[float] = None,
         params: Optional[dict] = None,
+        force_enter: bool = False,
     ) -> str:
         """Enter DISTRACTED only after sustained high prob; exit after sustained low.
 
         Same state machine as models/src/model6_natural/train.replay_hysteresis.
         ``now`` is the frame timestamp on the live path (wall clock otherwise);
-        ``params`` come from the v3 pack.
+        ``params`` come from the v3 pack. ``force_enter`` (gaze dwell rule)
+        skips the enter hold — the dwell itself already was the hold.
         """
         p = params or {}
         enter_prob = float(p.get("enter_prob", HYST_ENTER_PROB))
@@ -503,7 +519,7 @@ class MLService:
         # Reset timers when the gap since the last scored window is too large
         # (2× typical 2 s heartbeat) so stale high_t0 cannot fire later.
         last = self._session_hyst_last_t.get(session_id)
-        if last is not None and (now - float(last)) > 4.0:
+        if last is not None and (now - float(last)) > HYST_GAP_RESET_SEC:
             self._session_hyst_high_t0[session_id] = None
             self._session_hyst_low_t0[session_id] = None
         self._session_hyst_last_t[session_id] = now
@@ -513,7 +529,7 @@ class MLService:
                 self._session_hyst_high_t0[session_id] = now
             self._session_hyst_low_t0[session_id] = None
             held = now - float(self._session_hyst_high_t0[session_id])
-            if held >= enter_sec:
+            if force_enter or held >= enter_sec:
                 state = "DISTRACTED"
         elif dist_prob < exit_prob:
             if self._session_hyst_low_t0.get(session_id) is None:
@@ -1039,20 +1055,30 @@ class MLService:
             t0 = self._session_t0.setdefault(session_id, now)
         return now - t0
 
-    def _live_scorer_for(self, session_id: Any):
+    def _live_scorer_for(self, session_id: Any, restore_calibration: Optional[dict] = None):
         with self._state_lock:
             scorer = self._live_scorers.get(session_id)
+            created = False
             if scorer is None:
                 from models.src.features.live import LiveWindowScorer
 
                 scorer = LiveWindowScorer(
                     window_sec=self.live_window_sec,
                     baseline_frames=self.live_baseline_frames,
+                    screen_gaze=True,
                 )
                 self._live_scorers[session_id] = scorer
                 self._session_locks[session_id] = threading.RLock()
+                created = True
             self._session_last_seen[session_id] = time.monotonic()
-            return scorer, self._session_locks[session_id]
+            lock = self._session_locks[session_id]
+        if created and restore_calibration and hasattr(scorer, "restore_calibration"):
+            with lock:
+                try:
+                    scorer.restore_calibration(restore_calibration)
+                except Exception as e:
+                    print(f"[MLService] restore_calibration error for {session_id}: {e}")
+        return scorer, lock
 
     def reap_idle_sessions(self, now: Optional[float] = None) -> List[Any]:
         """Free scorers/landmarkers of sessions that stopped sending heartbeats."""
@@ -1082,40 +1108,161 @@ class MLService:
 
     def predict_frames(
         self,
-        frames: List[Tuple[float, str]],
+        frames: List[tuple],
         session_id: Any = None,
+        calibration_phase: Optional[str] = None,
+        screen: Optional[dict] = None,
+        restore_calibration: Optional[dict] = None,
     ) -> Tuple[str, Optional[float], dict]:
-        """Score a heartbeat of timestamped frames ``[(t_sec, base64_jpeg), ...]``.
+        """Score a heartbeat of timestamped frames.
+
+        ``frames`` = ``[(t_sec, base64_jpeg[, calib_target]), ...]`` where
+        ``calib_target`` is ``{x, y}`` / ``(x, y)`` in normalised screen coords.
+        ``calibration_phase`` ("start" | "collect" | "finish") drives the PLAN 5
+        5-point screen calibration; ``screen`` is the client display geometry.
+        ``restore_calibration`` seeds a new session scorer from a saved student fit.
 
         Verdict is FOCUSED, DISTRACTED, or UNKNOWN (confidence None).
+        The returned meta carries ``gaze_debug`` and ``calibration`` status.
         """
         sid = session_id if session_id is not None else "_default"
         self.reap_idle_sessions()
+        phase = (calibration_phase or "").lower().strip() or None
         decoded = []
-        for t_sec, image in frames:
+        for item in frames:
+            t_sec, image = item[0], item[1]
+            target = item[2] if len(item) > 2 else None
             img = self._decode_frame(image)
             if img is not None and getattr(img, "size", 0) > 0:
-                decoded.append((float(t_sec), img))
-        if not decoded:
+                decoded.append((float(t_sec), img, target))
+        if not decoded and phase not in ("start", "finish"):
             return self._unknown_result("no_frame_data", self.ml_mode)
         if not self._live_available:
             return self._unknown_result("ml_unavailable", self.ml_mode)
         try:
-            scorer, lock = self._live_scorer_for(sid)
+            # Do not restore over an in-progress (re)calibration start.
+            restore = None if phase == "start" else restore_calibration
+            scorer, lock = self._live_scorer_for(sid, restore_calibration=restore)
             with lock:
+                if screen and hasattr(scorer, "set_screen"):
+                    scorer.set_screen(screen)
+                if phase == "start" and hasattr(scorer, "start_calibration"):
+                    scorer.start_calibration()
+                    self._reset_session_hysteresis(sid)
+                elif phase == "collect" and hasattr(scorer, "set_calibrating"):
+                    scorer.set_calibrating(True)
                 last = None
-                for t_sec, img in sorted(decoded, key=lambda x: x[0]):
-                    f = scorer.add_frame(t_sec, img)
+                frames_debug: List[dict] = []
+                for t_sec, img, target in sorted(decoded, key=lambda x: x[0]):
+                    if target is not None:
+                        f = scorer.add_frame(t_sec, img, calib_target=target)
+                    else:
+                        f = scorer.add_frame(t_sec, img)
                     if f is not None:
                         last = f
-                if last is None:
-                    return self._unknown_result("stale_frames", self.ml_mode)
-                return self._decide_live(sid, scorer.features(), last)
+                        if target is None and hasattr(scorer, "frame_debug"):
+                            try:
+                                frames_debug.append(scorer.frame_debug(f))
+                            except Exception:
+                                pass
+                calib_result = None
+                if phase == "finish" and hasattr(scorer, "finish_calibration"):
+                    calib_result = scorer.finish_calibration()
+                    self._reset_session_hysteresis(sid)
+                status = (
+                    scorer.calibration_status()
+                    if hasattr(scorer, "calibration_status")
+                    else {}
+                )
+                if calib_result is not None:
+                    status.update(calib_result)
+                if phase:
+                    status["phase"] = phase
+                if not decoded:
+                    verdict, conf, meta = self._unknown_result("no_frame_data", self.ml_mode)
+                elif last is None:
+                    verdict, conf, meta = self._unknown_result("stale_frames", self.ml_mode)
+                else:
+                    verdict, conf, meta = self._decide_live(sid, scorer.features(), last)
+                meta["calibration"] = status
+                meta["frames_debug"] = frames_debug
+                return verdict, conf, meta
         except Exception as e:
             print(f"[MLService] Live scoring error: {e}")
             return self._unknown_result("inference_exception", self.ml_mode, error=str(e))
 
+    def _reset_session_hysteresis(self, sid: Any) -> None:
+        self._session_hyst_state.pop(sid, None)
+        self._session_hyst_high_t0.pop(sid, None)
+        self._session_hyst_low_t0.pop(sid, None)
+        self._session_hyst_last_t.pop(sid, None)
+        self._session_gaze_entered.pop(sid, None)
+
+    def _gaze_probability(self, gaze: Optional[dict]) -> Tuple[float, bool]:
+        """(p_gaze, dwell_trigger) from the live scorer's gaze summary.
+
+        Off-screen dwell >= ``gaze_offscreen_sec`` -> 0.9 (and bypasses the enter
+        hold). Below that, the off-ratio over the last ~3 s scales a probability
+        capped under the enter threshold so it can only help the model, not fire.
+        """
+        if not gaze or gaze.get("on_screen") is not False:
+            return 0.0, False
+        dwell = float(gaze.get("off_dwell_sec") or 0.0)
+        if dwell >= self.gaze_offscreen_sec:
+            return GAZE_DWELL_PROB, True
+        ratio = float(gaze.get("off_ratio") or 0.0)
+        return round(GAZE_PARTIAL_MAX_PROB * min(max(ratio, 0.0), 1.0), 4), False
+
+    def _gaze_exit_hold(
+        self,
+        sid: Any,
+        verdict: str,
+        gaze: Optional[dict],
+        gaze_entered_now: bool,
+        hyst: dict,
+    ) -> str:
+        """A gaze-entered DISTRACTED only exits after >= exit_sec on-screen."""
+        if gaze_entered_now and verdict == "DISTRACTED":
+            self._session_gaze_entered[sid] = True
+            return verdict
+        if verdict == "DISTRACTED":
+            return verdict
+        if self._session_gaze_entered.get(sid) and gaze is not None:
+            exit_sec = float(hyst.get("exit_sec", HYST_EXIT_SEC))
+            if float(gaze.get("on_dwell_sec") or 0.0) < exit_sec:
+                self._session_hyst_state[sid] = "DISTRACTED"
+                return "DISTRACTED"
+        self._session_gaze_entered.pop(sid, None)
+        return verdict
+
     def _decide_live(self, sid: Any, feats: Optional[dict], last_frame) -> Tuple[str, Optional[float], dict]:
+        gaze = (feats or {}).get("gaze") if feats else None
+        verdict, conf, meta = self._decide_live_core(sid, feats, last_frame, gaze)
+        if gaze is not None and "gaze_debug" not in meta:
+            p_gaze, _ = self._gaze_probability(gaze)
+            meta["gaze_debug"] = self._gaze_debug(gaze, None, p_gaze, meta.get("source"))
+        return verdict, conf, meta
+
+    @staticmethod
+    def _gaze_debug(
+        gaze: Optional[dict], p_model: Optional[float], p_gaze: float, source: Optional[str]
+    ) -> dict:
+        g = gaze or {}
+        return {
+            "sx": g.get("sx"),
+            "sy": g.get("sy"),
+            "on_screen": g.get("on_screen"),
+            "off_dwell_sec": g.get("off_dwell_sec", 0.0),
+            "p_model": None if p_model is None else round(float(p_model), 4),
+            "p_gaze": round(float(p_gaze), 4),
+            "source": source,
+            "calibrated": bool(g.get("calibrated", False)),
+            "mode": g.get("mode"),
+        }
+
+    def _decide_live_core(
+        self, sid: Any, feats: Optional[dict], last_frame, gaze: Optional[dict]
+    ) -> Tuple[str, Optional[float], dict]:
         face_now = bool(getattr(last_frame, "face_present", False))
         if feats is None:
             return self._unknown_result(
@@ -1193,20 +1340,31 @@ class MLService:
         # Partial face dropout: do NOT hand the window to the model as off-screen.
         if face_ratio < LOW_FACE_RATIO:
             if body_ratio >= BODY_PRESENT_RATIO:
-                # body_no_face: p=0.7 through hysteresis (no instant DISTRACTED)
-                verdict = self._apply_hysteresis(sid, 0.7, now=t_now, params=hyst)
-                p = 0.7
+                # body_no_face: p=0.7 through hysteresis (no instant DISTRACTED),
+                # unless the gaze dwell rule (body, no face = off-screen) fires.
+                p_gaze, gaze_trigger = self._gaze_probability(gaze)
+                p = max(0.7, p_gaze)
+                gaze_wins = gaze_trigger and p_gaze > 0.7
+                verdict = self._apply_hysteresis(
+                    sid, p, now=t_now, params=hyst, force_enter=gaze_wins
+                )
+                verdict = self._gaze_exit_hold(sid, verdict, gaze, gaze_wins, hyst)
                 eng = round(1.0 - p, 4)
-                return verdict, (p if verdict == "DISTRACTED" else 1.0 - p), {
+                src = "gaze_screen" if gaze_wins else "body_no_face"
+                out = {
                     **meta,
+                    "gaze_debug": self._gaze_debug(gaze, 0.7, p_gaze, src),
                     "reason": "body_no_face",
-                    "source": "body_no_face",
+                    "source": src,
                     "inference_path": "rule_body_no_face",
                     "distract_prob": p,
                     "engagement_score": eng,
                     "confidence": round(p if verdict == "DISTRACTED" else 1.0 - p, 4),
                     "hysteresis_state": verdict,
                 }
+                if src == "gaze_screen" and verdict == "DISTRACTED":
+                    out["distracted_since_sec"] = float(gaze.get("off_dwell_sec") or 0.0)
+                return verdict, (p if verdict == "DISTRACTED" else 1.0 - p), out
             self._session_hyst_high_t0[sid] = None
             self._session_hyst_low_t0[sid] = None
             return self._unknown_result(
@@ -1240,8 +1398,25 @@ class MLService:
             }
             path = "rule_proxy"
             source = "rule"
+        p_model = dist_prob
+        # PLAN 5: fuse the screen-gaze rule: p = max(p_model, p_gaze).
+        p_gaze, gaze_trigger = self._gaze_probability(gaze)
+        dist_prob = max(p_model, p_gaze)
+        # Only the dwell rule is "the gaze deciding"; a partial off-ratio just
+        # nudges the fused probability.
+        gaze_wins = bool(gaze_trigger and p_gaze > p_model)
+        if gaze_wins:
+            source = "gaze_screen"
         raw = "DISTRACTED" if dist_prob >= threshold else "FOCUSED"
-        verdict = self._apply_hysteresis(sid, dist_prob, now=t_now, params=hyst)
+        # A gaze-driven DISTRACTED skips the enter hold (the dwell was the hold).
+        verdict = self._apply_hysteresis(
+            sid,
+            dist_prob,
+            now=t_now,
+            params=hyst,
+            force_enter=bool(gaze_trigger and gaze_wins),
+        )
+        verdict = self._gaze_exit_hold(sid, verdict, gaze, bool(gaze_trigger and gaze_wins), hyst)
         conf = dist_prob if verdict == "DISTRACTED" else 1.0 - dist_prob
         engagement = round(1.0 - dist_prob, 4)
         # Rolling re-baseline on the live scorer when confidently focused.
@@ -1250,8 +1425,9 @@ class MLService:
             scorer.maybe_rebaseline(dist_prob, face_now)
         except Exception:
             pass
-        return verdict, float(conf), {
+        out = {
             **meta,
+            "gaze_debug": self._gaze_debug(gaze, p_model, p_gaze, source),
             "inference_path": path,
             "source": source,
             "fusion_kind": self.fusion_kind if path == "fusion" else None,
@@ -1262,6 +1438,10 @@ class MLService:
             "hysteresis_state": verdict,
             "confidence": round(float(conf), 4),
         }
+        # PLAN 8: backdate gaze episodes to when the eyes left the screen.
+        if source == "gaze_screen" and verdict == "DISTRACTED" and gaze:
+            out["distracted_since_sec"] = float(gaze.get("off_dwell_sec") or 0.0)
+        return verdict, float(conf), out
 
     def predict_frame_image(
         self,

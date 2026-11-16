@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Optional
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -60,7 +61,9 @@ API_FOCUSED = "FOCUSED"
 API_DISTRACTED = "DISTRACTED"
 
 # PLAN 4: brief UNKNOWN runs pause the episode clock but do not close it.
-UNKNOWN_HOLD_SEC = 5.0
+# PLAN 5: one-heartbeat grace (2 s heartbeats): the first UNKNOWN after a
+# DISTRACTED keeps the episode open, the next one (>3 s) closes it.
+UNKNOWN_HOLD_SEC = 3.0
 
 
 def format_validation_errors(err: ValidationError):
@@ -74,9 +77,32 @@ def format_validation_errors(err: ValidationError):
 def _get_cooldown_seconds() -> float:
     row = SystemSetting.query.filter_by(key="intervention_min_cooldown_seconds").first()
     try:
-        return float(row.value) if row else 30.0
+        return float(row.value) if row else 20.0
     except (TypeError, ValueError):
-        return 30.0
+        return 20.0
+
+
+def _wire_timeout_callback(session_id: int, engine: InterventionEngine) -> None:
+    """Persist timeout→ignored on InterventionLog when the engine expires a prompt."""
+
+    def _on_timeout(rec: dict) -> None:
+        try:
+            # Match newest open log for this session+tier with no response yet
+            q = (
+                InterventionLog.query.filter_by(session_id=session_id, tier=rec.get("tier"))
+                .filter(InterventionLog.user_response.is_(None))
+                .order_by(InterventionLog.triggered_at.desc())
+            )
+            log_entry = q.first()
+            if log_entry is None:
+                return
+            log_entry.user_response = "timeout"
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    if hasattr(engine, "set_timeout_callback"):
+        engine.set_timeout_callback(_on_timeout)
 
 
 def _get_enabled_tiers(subject_id: int):
@@ -198,7 +224,13 @@ def _last_distracted_observation_at(session_id: int, now_dt: datetime):
     )
 
 
-def upsert_distraction_episode(session_id: int, verdict: str, confidence: float, now_dt: datetime):
+def upsert_distraction_episode(
+    session_id: int,
+    verdict: str,
+    confidence: float,
+    now_dt: datetime,
+    distracted_since_sec: Optional[float] = None,
+):
     """
     Open-episode semantics:
       DISTRACTED + no open → create
@@ -211,10 +243,18 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
       UNKNOWN + no open → no-op
     Returns (open_or_closed_event, just_closed: bool)
 
+    PLAN 8: when opening a new gaze-driven episode, ``distracted_since_sec``
+    backdates ``started_at`` to when the eyes left the screen.
+
     `verdict` is the API/ML uppercase value; DB rows use lowercase enum values.
     """
     open_event = get_open_distraction_event(session_id)
     verdict_u = (verdict or "").upper().strip()
+
+    def _start_at() -> datetime:
+        if distracted_since_sec is not None and float(distracted_since_sec) > 0:
+            return now_dt - timedelta(seconds=float(distracted_since_sec))
+        return now_dt
 
     if verdict_u == API_DISTRACTED:
         if open_event:
@@ -234,7 +274,7 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
                         session_id=session_id,
                         verdict=DB_DISTRACTED,
                         confidence=confidence if confidence is not None else 0.0,
-                        started_at=now_dt,
+                        started_at=_start_at(),
                     )
                     db.session.add(event)
                     db.session.commit()
@@ -248,7 +288,7 @@ def upsert_distraction_episode(session_id: int, verdict: str, confidence: float,
             session_id=session_id,
             verdict=DB_DISTRACTED,
             confidence=confidence if confidence is not None else 0.0,
-            started_at=now_dt,
+            started_at=_start_at(),
         )
         db.session.add(event)
         db.session.commit()
@@ -559,13 +599,53 @@ def send_heartbeat(session_id):
         verdict, confidence = API_UNKNOWN, None
         ml_features = {"reason": "not_monitored"}
         ml_mode = ml_service.ml_mode
-    elif data.frames or data.image:
+    elif data.frames or data.image or data.calibration_phase:
         if hasattr(ml_service, "set_session_calibrating"):
-            ml_service.set_session_calibrating(session.id, bool(data.calibrating))
-        if data.frames:
-            ml_verdict, ml_conf, ml_features = ml_service.predict_frames(
-                [(f.t_ms / 1000.0, f.image) for f in data.frames], session_id=session.id
+            ml_service.set_session_calibrating(
+                session.id,
+                bool(data.calibrating) or data.calibration_phase in ("start", "collect"),
             )
+        if data.frames or data.calibration_phase:
+            frame_args = []
+            for f in data.frames or []:
+                if f.calib_target is not None:
+                    frame_args.append(
+                        (
+                            f.t_ms / 1000.0,
+                            f.image,
+                            {"x": f.calib_target.x, "y": f.calib_target.y},
+                        )
+                    )
+                else:
+                    frame_args.append((f.t_ms / 1000.0, f.image))
+            extra = {}
+            if data.calibration_phase:
+                extra["calibration_phase"] = data.calibration_phase
+            if data.screen is not None:
+                extra["screen"] = data.screen.model_dump()
+            saved_fit = getattr(student, "gaze_calibration", None)
+            if isinstance(saved_fit, dict) and saved_fit.get("mapper"):
+                extra["restore_calibration"] = saved_fit
+            ml_verdict, ml_conf, ml_features = ml_service.predict_frames(
+                frame_args, session_id=session.id, **extra
+            )
+            # Persist a successful (re)calibration from a lesson onto the student.
+            if (
+                data.calibration_phase == "finish"
+                and isinstance(ml_features, dict)
+                and (ml_features.get("calibration") or {}).get("ok")
+            ):
+                try:
+                    from app.routes.student_profile import persist_student_gaze_calibration
+
+                    scorer, _lock = ml_service._live_scorer_for(session.id)
+                    persist_student_gaze_calibration(
+                        student,
+                        scorer,
+                        screen=extra.get("screen"),
+                    )
+                except Exception as persist_err:
+                    print(f"[session] persist gaze calibration failed: {persist_err}")
         else:
             ml_verdict, ml_conf, ml_features = ml_service.predict_frame_image(
                 data.image, session_id=session.id
@@ -626,11 +706,24 @@ def send_heartbeat(session_id):
         reason=(ml_features or {}).get("reason"),
     )
 
+    # PLAN 8: backdate gaze-driven episodes to when the eyes left the screen.
+    backdate = None
+    if (
+        verdict == API_DISTRACTED
+        and (ml_features or {}).get("source") == "gaze_screen"
+        and (ml_features or {}).get("distracted_since_sec") is not None
+    ):
+        backdate = float(ml_features["distracted_since_sec"])
     episode, just_closed = upsert_distraction_episode(
-        session.id, verdict, confidence if confidence is not None else 0.0, now_dt
+        session.id,
+        verdict,
+        confidence if confidence is not None else 0.0,
+        now_dt,
+        distracted_since_sec=backdate,
     )
 
     intervention_data = None
+    intervention_debug = None
     noise_monitor = None
     noise_triggered = False
     if session.is_monitored:
@@ -642,19 +735,36 @@ def send_heartbeat(session_id):
             SESSION_NOISE_MONITORS[session.id] = NoiseMonitor()
 
         engine = SESSION_ENGINES[session.id]
+        _wire_timeout_callback(session.id, engine)
         noise_monitor = SESSION_NOISE_MONITORS[session.id]
-        # Expire unanswered prompts (20 s) before deciding the next one.
-        if hasattr(engine, "tick"):
-            engine.tick()
+        # Expire unanswered prompts before deciding the next one.
+        expired = engine.tick() if hasattr(engine, "tick") else None
+        # PLAN 5: unanswered T1 → force T2 immediately (no cooldown).
+        if (
+            expired
+            and expired.get("tier") == 1
+            and expired.get("outcome") == "ignored"
+            and not expired.get("is_noise")
+        ):
+            escalated = engine.force_intervention(
+                tier=2,
+                is_quiz_context=bool(data.is_quiz_context),
+                source="escalation",
+                bypass=True,
+            )
+            if escalated is not None:
+                intervention_data = _persist_triggered_intervention(
+                    session, escalated, None, now_dt
+                )
+
         # Pass observation_state explicitly so UNKNOWN does not invoke focus-reset.
         is_distracted = verdict == API_DISTRACTED
         open_episode = episode if is_distracted and not just_closed else None
         content_state = (data.content_state or "none").lower()
-        # Hold episode clock while lesson video is deliberately paused / ended,
-        # or while a prompt/break is still open.
-        episode_held = content_state in {"paused", "ended"}
-        if getattr(engine, "_pending", None) is not None:
-            episode_held = True
+        # PLAN 7: the engine owns pause/ended/pending handling (pause grace,
+        # tier cap, and held time subtracted from the episode clock). A blanket
+        # hold here silently blocked every intervention while the video was paused.
+        episode_held = False
         src = browser_source or (ml_features or {}).get("source") or "model6"
 
         # When UNKNOWN briefly keeps the episode open, still pass the open
@@ -667,15 +777,28 @@ def send_heartbeat(session_id):
         ):
             open_episode = episode
 
-        triggered = engine.decide_intervention(
-            distraction_event=open_episode,
-            is_distracted=is_distracted,
-            is_quiz_context=bool(data.is_quiz_context),
-            wall_now=now_dt,
-            observation_state=verdict,
-            source=src,
-            episode_clock_held=episode_held,
-        )
+        triggered = None
+        if intervention_data is None:
+            triggered = engine.decide_intervention(
+                distraction_event=open_episode,
+                is_distracted=is_distracted,
+                is_quiz_context=bool(data.is_quiz_context),
+                wall_now=now_dt,
+                observation_state=verdict,
+                source=src,
+                episode_clock_held=episode_held,
+                content_state=content_state,
+                pause_reason=data.pause_reason,
+            )
+            intervention_debug = getattr(engine, "last_decision", None)
+        else:
+            intervention_debug = {
+                "action": "fired",
+                "why": "escalation_t1_ignored",
+                "tier": intervention_data.get("tier"),
+                "intervention_type": intervention_data.get("intervention_type"),
+                "intervention_id": intervention_data.get("intervention_id"),
+            }
         triggered_event_id = open_episode.id if open_episode else None
 
         # Background noise is a separate, gentler signal: it never opens a
@@ -693,6 +816,13 @@ def send_heartbeat(session_id):
             if triggered is not None:
                 noise_triggered = True
                 triggered_event_id = None
+                intervention_debug = {
+                    **(intervention_debug or {}),
+                    "action": "fired",
+                    "why": "noise",
+                    "tier": 1,
+                    "intervention_type": triggered.intervention_type,
+                }
 
         if triggered:
             intervention_data = _persist_triggered_intervention(
@@ -729,6 +859,12 @@ def send_heartbeat(session_id):
         "pose_baseline_yaw": (ml_features or {}).get("pose_baseline_yaw"),
         "pose_baseline_pitch": (ml_features or {}).get("pose_baseline_pitch"),
         "fusion_threshold": (ml_features or {}).get("fusion_threshold"),
+        # PLAN 7 (evaluation terminal): what the window looked like and how it was decided.
+        "source": (ml_features or {}).get("source"),
+        "window_features": (ml_features or {}).get("window_features"),
+        "raw_fusion_verdict": (ml_features or {}).get("raw_fusion_verdict"),
+        "hysteresis_state": (ml_features or {}).get("hysteresis_state"),
+        "n_frames": (ml_features or {}).get("n_frames"),
     }
 
     return jsonify({
@@ -742,11 +878,16 @@ def send_heartbeat(session_id):
         "engagement_score": engagement_score,
         "face_detected": face_out,
         "diagnostics": diagnostics,
+        "gaze_debug": (ml_features or {}).get("gaze_debug"),
+        "calibration": (ml_features or {}).get("calibration"),
         "noise_dbfs": data.noise_dbfs,
         "noise_baseline_dbfs": noise_monitor.baseline_dbfs if noise_monitor else None,
         "noise_triggered": noise_triggered,
         "intervention_triggered": intervention_data is not None,
         "intervention": intervention_data,
+        # PLAN 7: why the engine did / didn't fire (evaluation terminal).
+        "intervention_debug": intervention_debug,
+        "frames_debug": (ml_features or {}).get("frames_debug"),
         "focus_metric_version": FOCUS_METRIC_VERSION,
     }), 200
 
@@ -783,10 +924,14 @@ def trigger_intervention(session_id):
             _build_engine(subject_id) if subject_id else InterventionEngine()
         )
     engine = SESSION_ENGINES[session.id]
+    demo_mode = bool(current_app.config.get("DEMO_MODE"))
+    use_bypass = bool(getattr(data, "force", False)) and demo_mode
 
     triggered = engine.force_intervention(
         tier=data.tier,
         is_quiz_context=bool(data.is_quiz_context),
+        source="demo" if use_bypass else "manual",
+        bypass=use_bypass,
     )
     if not triggered:
         return jsonify({
@@ -803,6 +948,13 @@ def trigger_intervention(session_id):
     }), 200
 
 
+@session_bp.route("/demo-config", methods=["GET"])
+@jwt_required()
+def demo_config():
+    """Expose DEMO_MODE so the client can show the demo sidebar."""
+    return jsonify({"demo_mode": bool(current_app.config.get("DEMO_MODE"))}), 200
+
+
 @session_bp.route("/<int:session_id>/intervention-response", methods=["POST"])
 @jwt_required()
 @role_required("student")
@@ -815,7 +967,7 @@ def record_intervention_response(session_id):
     session = db.session.get(LearningSession, session_id)
     if not session or session.student_id != student.id:
         return jsonify({"error": "Learning session not found"}), 404
-    if session.ended_at is not None:
+    if session.end_time is not None:
         return jsonify({"error": "Session already ended"}), 409
 
     raw_data = request.get_json(silent=True)
@@ -832,6 +984,24 @@ def record_intervention_response(session_id):
         return jsonify({"error": "Intervention log record not found for this session"}), 404
 
     now_dt = datetime.utcnow()
+    # Stale click on an expired prompt: update log but don't resolve a newer pending.
+    engine_ok = True
+    if session.id in SESSION_ENGINES:
+        engine_ok = SESSION_ENGINES[session.id].record_outcome(
+            data.user_response,
+            intervention_id=str(data.intervention_id) if data.intervention_id is not None else None,
+        )
+        # Engine ids are iv_* strings; DB ids are ints. Match pending by checking
+        # both the raw id and the log id stored on the triggered payload.
+        if not engine_ok and data.intervention_id is not None:
+            eng = SESSION_ENGINES[session.id]
+            pending = getattr(eng, "_pending", None)
+            if pending is not None and str(pending.id) == str(data.intervention_id):
+                engine_ok = eng.record_outcome(data.user_response, intervention_id=pending.id)
+            elif pending is None:
+                # Already timed out / replaced — accept as no-op for the engine
+                engine_ok = True
+
     log_entry.user_response = data.user_response
     if data.self_report:
         log_entry.self_report = str(data.self_report)[:2000]
@@ -854,9 +1024,6 @@ def record_intervention_response(session_id):
             if correct is not None:
                 is_correct = int(data.selected_option) == int(correct)
         mq.is_correct = is_correct
-
-    if session.id in SESSION_ENGINES:
-        SESSION_ENGINES[session.id].record_outcome(data.user_response)
 
     db.session.commit()
 

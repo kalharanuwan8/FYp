@@ -6,10 +6,10 @@ const STORAGE_KEY = 'luma_ui_preferences';
 
 /** Plain themes available in Settings. 'light' is migrated to 'sage'. */
 export const THEME_OPTIONS = [
-  { value: 'sage', label: 'Sage', hint: 'Soft green page (default)' },
-  { value: 'warm', label: 'Warm neutral', hint: 'Parchment page' },
-  { value: 'pale-blue', label: 'Pale blue', hint: 'Cool mist page' },
-  { value: 'calm-dark', label: 'Calm dark', hint: 'Low-light surfaces' },
+  { value: 'sage', label: 'Sage', hint: 'Soft green page (default)', swatch: '#eef3ee' },
+  { value: 'warm', label: 'Warm neutral', hint: 'Parchment page', swatch: '#f3efe8' },
+  { value: 'pale-blue', label: 'Pale blue', hint: 'Cool mist page', swatch: '#e8eef4' },
+  { value: 'calm-dark', label: 'Calm dark', hint: 'Low-light surfaces', swatch: '#161c28' },
 ];
 
 export const VALID_THEMES = new Set(THEME_OPTIONS.map((t) => t.value));

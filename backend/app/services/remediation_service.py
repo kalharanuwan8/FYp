@@ -97,11 +97,21 @@ def _milestone_offer_dicts(items: list[ModuleMilestoneItem]) -> list[dict]:
     return out
 
 
-def _find_alternative_material(contents: list[ModuleContent]) -> Optional[ModuleContent]:
-    for c in contents:
-        if c.content_type in ("document", "other"):
-            return c
-    return None
+def _find_alternative_material(
+    contents: list[ModuleContent],
+    for_video_id: Optional[int] = None,
+) -> Optional[ModuleContent]:
+    """Prefer teacher-linked alternate for the video; else first document/other."""
+    docs = [c for c in contents if c.content_type in ("document", "other")]
+    if for_video_id is not None:
+        linked = [
+            c
+            for c in docs
+            if getattr(c, "remediation_for_content_id", None) == for_video_id
+        ]
+        if linked:
+            return min(linked, key=lambda c: c.id)
+    return min(docs, key=lambda c: c.id) if docs else None
 
 
 def _find_approved_pack(
@@ -140,13 +150,16 @@ def build_offers(
     """
     Build student offers and the stored path.
 
-    Content priority for the different-format path: (a) document/other,
-    (b) approved pack, (c) guided re-watch.
-    attention_likely always includes guided re-watch and may also include (a)/(b).
+    Content priority for the different-format path: (a) linked document/other
+    for the module video (else first document/other), (b) approved pack,
+    (c) guided re-watch. attention_likely always includes guided re-watch and
+    may also include (a)/(b).
     """
-    alt = _find_alternative_material(contents)
-    pack = _find_approved_pack(contents)
     video = _find_video(contents)
+    alt = _find_alternative_material(
+        contents, for_video_id=video.id if video is not None else None
+    )
+    pack = _find_approved_pack(contents)
 
     def offer_alternative(c: ModuleContent) -> dict:
         return {

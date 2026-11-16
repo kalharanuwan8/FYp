@@ -109,7 +109,22 @@ def create_app(env=None):
                             f"BOOLEAN DEFAULT {bool_false}"
                         )
                     )
+                if "gaze_calibration" not in student_cols:
+                    db.session.execute(
+                        text(f"ALTER TABLE students ADD COLUMN gaze_calibration {json_type}")
+                    )
                 db.session.commit()
+
+            if "module_contents" in tables:
+                mc_cols = {c["name"] for c in insp.get_columns("module_contents")}
+                if "remediation_for_content_id" not in mc_cols:
+                    db.session.execute(
+                        text(
+                            "ALTER TABLE module_contents "
+                            "ADD COLUMN remediation_for_content_id INTEGER"
+                        )
+                    )
+                    db.session.commit()
 
             if "intervention_logs" in tables:
                 cols = {c["name"] for c in insp.get_columns("intervention_logs")}
@@ -127,6 +142,13 @@ def create_app(env=None):
                             "ALTER TABLE intervention_logs "
                             "ADD COLUMN noise_action VARCHAR(50)"
                         )
+                    )
+                    db.session.commit()
+                if "self_report" not in cols:
+                    # PLAN 4 model column that was never migrated: without it every
+                    # InterventionLog INSERT/SELECT fails (heartbeat + /stop 500).
+                    db.session.execute(
+                        text("ALTER TABLE intervention_logs ADD COLUMN self_report TEXT")
                     )
                     db.session.commit()
             if "milestone_questions" in tables:
@@ -404,13 +426,17 @@ def create_app(env=None):
 
         # Seed default system settings if missing
         defaults = {
-            "intervention_min_cooldown_seconds": "30",
+            "intervention_min_cooldown_seconds": "20",
             "intervention_max_cooldown_seconds": "120",
             "data_retention_days": "90",
         }
         for k, v in defaults.items():
             if not db.session.get(SystemSetting, k):
                 db.session.add(SystemSetting(key=k, value=v))
+        # PLAN 5: migrate legacy 30 s cooldown → 20 s
+        cooldown_row = db.session.get(SystemSetting, "intervention_min_cooldown_seconds")
+        if cooldown_row is not None and str(cooldown_row.value).strip() == "30":
+            cooldown_row.value = "20"
         db.session.commit()
 
         # Demo accounts + grade levels (idempotent; skips existing emails)

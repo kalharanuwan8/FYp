@@ -1,9 +1,20 @@
 import os
+from datetime import datetime
+
+import bcrypt
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
-from app.db_models import User, Student, Subject, GradeLevel, SystemSetting, LearningSession
+from app.db_models import (
+    User,
+    Student,
+    GuardianConsent,
+    Subject,
+    GradeLevel,
+    SystemSetting,
+    LearningSession,
+)
 from app.schemas.settings_schema import KNOWN_SETTINGS
 from app.services.csv_importer import parse_and_validate_csv
 from app.services.user_service import create_user_from_data
@@ -11,6 +22,29 @@ from app.utils.decorators import role_required
 from app.extensions import db
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def _user_admin_dict(user):
+    """List/edit payload, including the student fields an admin can change."""
+    payload = user.to_dict()
+    profile = user.student_profile if user.role == "student" else None
+    if profile is None:
+        return payload
+    consent = profile.guardian_consent
+    payload["pseudonym_id"] = profile.pseudonym_id
+    payload["grade_level"] = profile.grade_level
+    payload["guardian_name"] = consent.guardian_name if consent else None
+    payload["guardian_email"] = consent.guardian_email if consent else None
+    payload["guardian_consent_given"] = bool(consent.consent_given) if consent else False
+    return payload
+
+
+def _clean_email(value):
+    email = str(value or "").strip()
+    if not email or " " in email or "@" not in email or email.startswith("@") or email.endswith("@"):
+        return None
+    return email
+
 
 @admin_bp.route("/users", methods=["GET"])
 @jwt_required()
@@ -47,14 +81,7 @@ def list_users():
     query = query.order_by(User.id.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    users_list = []
-    for user in pagination.items:
-        u_dict = user.to_dict()
-        if user.role == "student" and user.student_profile:
-            u_dict["pseudonym_id"] = user.student_profile.pseudonym_id
-            if user.student_profile.guardian_consent:
-                u_dict["guardian_consent_given"] = user.student_profile.guardian_consent.consent_given
-        users_list.append(u_dict)
+    users_list = [_user_admin_dict(user) for user in pagination.items]
 
     return jsonify({
         "users": users_list,
@@ -87,7 +114,106 @@ def update_user_status(user_id):
     target_user.is_active = is_active
     db.session.commit()
 
-    return jsonify(target_user.to_dict()), 200
+    return jsonify(_user_admin_dict(target_user)), 200
+
+
+@admin_bp.route("/users/<int:user_id>", methods=["PATCH"])
+@jwt_required()
+@role_required("admin")
+def update_user(user_id):
+    """Edit a user's name, email, optional password, and student consent details."""
+    raw_data = request.get_json(silent=True)
+    if not isinstance(raw_data, dict) or not raw_data:
+        return jsonify({"error": "Missing JSON request body"}), 400
+
+    target_user = db.session.get(User, user_id)
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+
+    if "first_name" in raw_data:
+        first_name = str(raw_data.get("first_name") or "").strip()
+        if not first_name:
+            return jsonify({"error": "First name is required"}), 400
+        target_user.first_name = first_name
+
+    if "last_name" in raw_data:
+        last_name = str(raw_data.get("last_name") or "").strip()
+        if not last_name:
+            return jsonify({"error": "Last name is required"}), 400
+        target_user.last_name = last_name
+
+    if "email" in raw_data:
+        email = _clean_email(raw_data.get("email"))
+        if not email:
+            return jsonify({"error": "A valid email is required"}), 400
+        taken = User.query.filter(
+            func.lower(User.email) == email.lower(),
+            User.id != target_user.id,
+        ).first()
+        if taken:
+            return jsonify({"error": "A user with this email already exists"}), 409
+        target_user.email = email
+
+    password = raw_data.get("password")
+    if password not in (None, ""):
+        password = str(password)
+        if len(password) < 8:
+            return jsonify({"error": "Password must be at least 8 characters"}), 400
+        target_user.password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    student_keys = ("grade_level", "guardian_name", "guardian_email", "consent_given")
+    if target_user.role != "student" and any(key in raw_data for key in student_keys):
+        return jsonify({"error": "Grade and guardian fields apply to student accounts only"}), 400
+
+    if target_user.role == "student" and any(key in raw_data for key in student_keys):
+        profile = target_user.student_profile
+        if profile is None:
+            return jsonify({"error": "Student profile not found"}), 400
+
+        if "grade_level" in raw_data:
+            grade_name = str(raw_data.get("grade_level") or "").strip()
+            if not grade_name:
+                profile.grade_level = None
+            else:
+                grade = GradeLevel.query.filter(func.lower(GradeLevel.name) == grade_name.lower()).first()
+                if not grade:
+                    return jsonify({"error": "Unknown grade level"}), 400
+                profile.grade_level = grade.name
+
+        if any(key in raw_data for key in ("guardian_name", "guardian_email", "consent_given")):
+            consent = profile.guardian_consent
+            guardian_name = str(raw_data.get("guardian_name") or "").strip()
+            guardian_email = _clean_email(raw_data.get("guardian_email")) if "guardian_email" in raw_data else None
+
+            if consent is None:
+                if not guardian_name or not guardian_email:
+                    return jsonify({"error": "Guardian name and email are required"}), 400
+                consent = GuardianConsent(
+                    student_id=profile.id,
+                    guardian_name=guardian_name,
+                    guardian_email=guardian_email,
+                    consent_given=False,
+                )
+                db.session.add(consent)
+                profile.guardian_consent = consent
+            else:
+                if "guardian_name" in raw_data:
+                    if not guardian_name:
+                        return jsonify({"error": "Guardian name is required"}), 400
+                    consent.guardian_name = guardian_name
+                if "guardian_email" in raw_data:
+                    if not guardian_email:
+                        return jsonify({"error": "A valid guardian email is required"}), 400
+                    consent.guardian_email = guardian_email
+
+            if "consent_given" in raw_data:
+                if not isinstance(raw_data.get("consent_given"), bool):
+                    return jsonify({"error": "'consent_given' must be true or false"}), 400
+                consent.consent_given = raw_data["consent_given"]
+                consent.consented_at = datetime.utcnow() if consent.consent_given else None
+
+    db.session.commit()
+    return jsonify(_user_admin_dict(target_user)), 200
 
 
 @admin_bp.route("/users/bulk-import", methods=["POST"])

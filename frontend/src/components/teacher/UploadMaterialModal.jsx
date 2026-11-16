@@ -10,14 +10,25 @@ const emptyMilestone = () => ({
   sequence_order: 1,
 });
 
-export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) => {
+export const UploadMaterialModal = ({
+  isOpen,
+  moduleId,
+  moduleContents = [],
+  onClose,
+  onSuccess,
+}) => {
   const [title, setTitle] = useState('');
   const [contentType, setContentType] = useState('document');
   const [fileUrl, setFileUrl] = useState('');
   const [description, setDescription] = useState('');
   const [summary, setSummary] = useState('');
   const [milestones, setMilestones] = useState([]);
+  const [remediationForId, setRemediationForId] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [altTitle, setAltTitle] = useState('');
+  const [altFileUrl, setAltFileUrl] = useState('');
+  const [altUploading, setAltUploading] = useState(false);
+  const [lessonQuestions, setLessonQuestions] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -26,6 +37,8 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
 
   if (!isOpen) return null;
 
+  const videoOptions = (moduleContents || []).filter((c) => c.content_type === 'video');
+
   const handleResetAndClose = () => {
     setTitle('');
     setContentType('document');
@@ -33,9 +46,32 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
     setDescription('');
     setSummary('');
     setMilestones([]);
+    setRemediationForId('');
     setSelectedFile(null);
+    setAltTitle('');
+    setAltFileUrl('');
+    setLessonQuestions([]);
     setError(null);
     onClose();
+  };
+
+  const handleAltFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAltUploading(true);
+    setError(null);
+    try {
+      const data = await courseService.uploadMaterialFile(file);
+      setAltFileUrl(data.file_url);
+      if (!altTitle.trim()) {
+        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+        setAltTitle(base);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to upload the other version.');
+    } finally {
+      setAltUploading(false);
+    }
   };
 
   const handleFileChange = async (e) => {
@@ -132,16 +168,52 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
       }))
       .filter((m) => m.options.length >= 2);
 
+    if (contentType === 'video' && (altTitle.trim() || altFileUrl.trim()) && !altFileUrl.trim()) {
+      setError('Upload the other version (PDF, slides, or mind map) or clear its title.');
+      return;
+    }
+
+    const cleanedLessonQuiz = lessonQuestions
+      .map((q) => ({
+        question: q.question.trim(),
+        options: (q.options || []).map((o) => o.trim()).filter(Boolean),
+        correct_option: q.correct_option || 0,
+      }))
+      .filter((q) => q.question || q.options.length);
+    if (contentType === 'video' && cleanedLessonQuiz.some((q) => !q.question || q.options.length < 2)) {
+      setError('Each lesson question needs a prompt and at least two answers.');
+      return;
+    }
+    if (
+      contentType === 'video' &&
+      cleanedLessonQuiz.some((q) => q.correct_option >= q.options.length)
+    ) {
+      setError('Mark a correct answer that is one of the options you filled in.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await courseService.createMaterial(moduleId, {
+      const created = await courseService.createMaterial(moduleId, {
         title: title.trim(),
         content_type: contentType,
         file_url: fileUrl.trim() || null,
         summary: summary.trim() || null,
+        remediation_for_content_id:
+          contentType === 'video' ? null : remediationForId ? Number(remediationForId) : null,
         milestones: cleanedMilestones.length ? cleanedMilestones : undefined,
+        video_quiz:
+          contentType === 'video' && cleanedLessonQuiz.length ? cleanedLessonQuiz : undefined,
       });
+      if (contentType === 'video' && altFileUrl.trim()) {
+        await courseService.createMaterial(moduleId, {
+          title: altTitle.trim() || `${title.trim()} — another way`,
+          content_type: 'document',
+          file_url: altFileUrl.trim(),
+          remediation_for_content_id: created.id,
+        });
+      }
       onSuccess();
       handleResetAndClose();
     } catch (err) {
@@ -169,7 +241,8 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
                 Add Learning Material
               </h2>
               <p className="text-xs text-text-muted font-medium">
-                Describe the content, generate a summary + milestone quiz, then edit before saving.
+                Prepare materials ahead of time. AI can draft a summary and checkpoints — review
+                them before saving. Students only see what you approve.
               </p>
             </div>
           </div>
@@ -246,15 +319,186 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
             />
           </div>
 
+          {contentType === 'video' && (
+            <div className="rounded-xl border border-primary/30 bg-primary-soft/40 p-4 space-y-3">
+              <div>
+                <p className="font-bold text-text uppercase tracking-wider">
+                  If they fail, deliver it another way
+                </p>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  Optional. Attach a written version — PDF, slides, or a mind map. Students who
+                  fail this video&apos;s quiz are offered this instead of watching again.
+                </p>
+              </div>
+              <div>
+                <label className="block font-bold text-text uppercase tracking-wider mb-1">
+                  Other version title
+                </label>
+                <input
+                  type="text"
+                  maxLength={150}
+                  value={altTitle}
+                  onChange={(e) => setAltTitle(e.target.value)}
+                  placeholder="e.g. Chapter 1 mind map"
+                  className="w-full bg-surface border border-border focus:border-primary focus:outline-none rounded-lg p-2.5 text-text"
+                />
+              </div>
+              <div className="bg-surface p-3 rounded-xl border border-dashed border-border space-y-2">
+                <label className="block font-bold text-text uppercase tracking-wider text-[11px]">
+                  Upload the other version
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                  onChange={handleAltFileChange}
+                  className="text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-on-primary hover:file:bg-primary-hover cursor-pointer"
+                />
+                {altUploading && <span className="text-primary font-bold">Uploading...</span>}
+                {altFileUrl && !altUploading && (
+                  <p className="text-[11px] text-primary font-semibold break-all">
+                    Attached: {altFileUrl}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-text uppercase tracking-wider">
+                      Lesson quiz
+                    </p>
+                    <p className="mt-1 text-[11px] text-text-muted">
+                      Questions about this video. This is not the focus intervention. If a student
+                      misses them, they are asked to study the other version.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLessonQuestions((prev) => [
+                        ...prev,
+                        {
+                          question: '',
+                          options: ['', '', '', ''],
+                          correct_option: 0,
+                        },
+                      ])
+                    }
+                    className="text-[11px] font-bold text-primary hover:underline cursor-pointer shrink-0"
+                  >
+                    + Add question
+                  </button>
+                </div>
+                {lessonQuestions.length === 0 && (
+                  <p className="text-[11px] text-text-muted">
+                    Optional. Add the questions students should answer after watching.
+                  </p>
+                )}
+                {lessonQuestions.map((q, qi) => (
+                  <div key={qi} className="rounded-xl border border-border bg-surface p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="text"
+                        value={q.question}
+                        onChange={(e) =>
+                          setLessonQuestions((prev) =>
+                            prev.map((item, i) =>
+                              i === qi ? { ...item, question: e.target.value } : item
+                            )
+                          )
+                        }
+                        placeholder={`Question ${qi + 1} about the video`}
+                        className="flex-1 bg-bg border border-border rounded-lg p-2 text-text"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLessonQuestions((prev) => prev.filter((_, i) => i !== qi))
+                        }
+                        className="p-2 text-text-muted hover:text-red-600 cursor-pointer"
+                        title="Remove question"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(q.options || []).map((opt, oi) => (
+                        <label key={oi} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`lesson-correct-${qi}`}
+                            checked={q.correct_option === oi}
+                            onChange={() =>
+                              setLessonQuestions((prev) =>
+                                prev.map((item, i) =>
+                                  i === qi ? { ...item, correct_option: oi } : item
+                                )
+                              )
+                            }
+                          />
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) =>
+                              setLessonQuestions((prev) =>
+                                prev.map((item, i) => {
+                                  if (i !== qi) return item;
+                                  const options = [...item.options];
+                                  options[oi] = e.target.value;
+                                  return { ...item, options };
+                                })
+                              )
+                            }
+                            placeholder={`Answer ${String.fromCharCode(65 + oi)}`}
+                            className="flex-1 bg-bg border border-border rounded-lg p-2 text-text"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {contentType !== 'video' && (
+            <div>
+              <label className="block font-bold text-text uppercase tracking-wider mb-1">
+                Use as alternate for (optional)
+              </label>
+              <select
+                value={remediationForId}
+                onChange={(e) => setRemediationForId(e.target.value)}
+                className="w-full bg-bg border border-border focus:border-primary focus:bg-surface focus:outline-none rounded-lg p-2.5 text-text font-semibold"
+              >
+                <option value="">Not an alternate</option>
+                {videoOptions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.title}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-text-muted">
+                Link a mind map, PDF, or slides prepared for when a student fails that video&apos;s
+                quiz.
+              </p>
+              {videoOptions.length === 0 && (
+                <p className="mt-1 text-[11px] text-warning">
+                  Add a video to this module first if you want to link an alternate.
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block font-bold text-text uppercase tracking-wider mb-1">
-              Teacher description (for AI)
+              Teacher description (for AI draft)
             </label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what students should learn from this material…"
+              placeholder="Describe what students should learn — AI drafts a summary; you edit before save…"
               className="w-full bg-bg border border-border focus:border-primary focus:bg-surface focus:outline-none rounded-lg p-2.5 text-text resize-none"
             />
             <button
@@ -264,8 +508,11 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
               className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold cursor-pointer disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {generating ? 'Generating…' : 'Generate summary & quiz'}
+              {generating ? 'Generating…' : 'AI draft summary & checkpoints'}
             </button>
+            <p className="mt-1 text-[11px] text-text-muted">
+              AI only helps you prepare. Nothing reaches students until you save the reviewed draft.
+            </p>
           </div>
 
           <div>
@@ -299,6 +546,11 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
                 + Add question
               </button>
             </div>
+            {contentType === 'video' && (
+              <p className="text-[11px] text-text-muted">
+                Focus checkpoints while the video plays. The lesson quiz above is separate.
+              </p>
+            )}
 
             {milestones.length === 0 && (
               <p className="text-[11px] text-text-muted">
@@ -369,7 +621,7 @@ export const UploadMaterialModal = ({ isOpen, moduleId, onClose, onSuccess }) =>
 
             <button
               type="submit"
-              disabled={loading || uploadingFile || generating}
+              disabled={loading || uploadingFile || generating || altUploading}
               className="bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold px-5 py-2.5 rounded-lg shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />

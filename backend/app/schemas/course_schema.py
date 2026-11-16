@@ -25,6 +25,24 @@ class ModuleUpdateSchema(BaseModel):
     is_archived: Optional[bool] = None
 
 
+class VideoQuizQuestionSchema(BaseModel):
+    """Comprehension questions about a video. Not the in-lesson intervention checkpoints."""
+
+    question: str = Field(..., min_length=1)
+    options: List[str] = Field(..., min_length=2, max_length=6)
+    correct_option: int = Field(0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_correct_index(self):
+        cleaned = [opt.strip() for opt in self.options if opt and opt.strip()]
+        if len(cleaned) < 2:
+            raise ValueError("Each lesson question needs at least 2 options")
+        if self.correct_option >= len(cleaned):
+            raise ValueError("correct_option must be a valid index into options")
+        self.options = cleaned
+        return self
+
+
 class MilestoneItemSchema(BaseModel):
     question: str = Field(..., min_length=1)
     options: List[str] = Field(..., min_length=2, max_length=6)
@@ -45,7 +63,11 @@ class MaterialCreateSchema(BaseModel):
     file_url: Optional[str] = Field(None, max_length=500)
     quiz_id: Optional[int] = None
     summary: Optional[str] = None
+    remediation_for_content_id: Optional[int] = Field(
+        None, description="ModuleContent id of the video this material remediates"
+    )
     milestones: Optional[List[MilestoneItemSchema]] = None
+    video_quiz: Optional[List[VideoQuizQuestionSchema]] = None
 
     @field_validator("content_type")
     @classmethod
@@ -61,6 +83,10 @@ class MaterialCreateSchema(BaseModel):
             raise ValueError("quiz_id is required when content_type is 'quiz'")
         if self.content_type != "quiz" and self.quiz_id is not None:
             raise ValueError("quiz_id must be None when content_type is not 'quiz'")
+        if self.remediation_for_content_id is not None and self.content_type == "quiz":
+            raise ValueError("quiz materials cannot be linked as remediations")
+        if self.video_quiz and self.content_type != "video":
+            raise ValueError("video_quiz is only allowed when content_type is video")
         return self
 
 
@@ -70,7 +96,11 @@ class MaterialUpdateSchema(BaseModel):
     file_url: Optional[str] = Field(None, max_length=500)
     quiz_id: Optional[int] = None
     summary: Optional[str] = None
+    remediation_for_content_id: Optional[int] = Field(
+        None, description="ModuleContent id of the video this material remediates; null to clear"
+    )
     milestones: Optional[List[MilestoneItemSchema]] = None
+    video_quiz: Optional[List[VideoQuizQuestionSchema]] = None
 
     @field_validator("content_type")
     @classmethod

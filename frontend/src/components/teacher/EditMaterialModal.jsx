@@ -22,13 +22,26 @@ const mapMilestones = (list) =>
     sequence_order: m.sequence_order || idx + 1,
   }));
 
-export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
+export const EditMaterialModal = ({
+  isOpen,
+  material,
+  moduleContents = [],
+  onClose,
+  onSuccess,
+}) => {
   const [title, setTitle] = useState('');
   const [contentType, setContentType] = useState('document');
   const [fileUrl, setFileUrl] = useState('');
   const [description, setDescription] = useState('');
   const [summary, setSummary] = useState('');
   const [milestones, setMilestones] = useState([]);
+  const [remediationForId, setRemediationForId] = useState('');
+  const [altTitle, setAltTitle] = useState('');
+  const [altFileUrl, setAltFileUrl] = useState('');
+  const [altUploading, setAltUploading] = useState(false);
+  const [removeAlt, setRemoveAlt] = useState(false);
+  const [lessonQuestions, setLessonQuestions] = useState([]);
+  const [hasLessonQuiz, setHasLessonQuiz] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -52,6 +65,17 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
         setSummary(data.summary || '');
         setDescription('');
         setMilestones(mapMilestones(data.milestones));
+        setRemediationForId(
+          data.remediation_for_content_id != null ? String(data.remediation_for_content_id) : ''
+        );
+        const existingAlt = (moduleContents || []).find(
+          (c) => Number(c.remediation_for_content_id) === Number(material.id)
+        );
+        setAltTitle(existingAlt?.title || '');
+        setAltFileUrl(existingAlt?.file_url || '');
+        setRemoveAlt(false);
+        setLessonQuestions([]);
+        setHasLessonQuiz(Boolean(data.quiz_id));
       } catch (err) {
         if (cancelled) return;
         // Fall back to list payload if detail fetch fails
@@ -62,6 +86,19 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
         setFileUrl(material.file_url || '');
         setSummary(material.summary || '');
         setMilestones(mapMilestones(material.milestones));
+        setRemediationForId(
+          material.remediation_for_content_id != null
+            ? String(material.remediation_for_content_id)
+            : ''
+        );
+        const existingAlt = (moduleContents || []).find(
+          (c) => Number(c.remediation_for_content_id) === Number(material.id)
+        );
+        setAltTitle(existingAlt?.title || '');
+        setAltFileUrl(existingAlt?.file_url || '');
+        setRemoveAlt(false);
+        setLessonQuestions([]);
+        setHasLessonQuiz(Boolean(material.quiz_id));
         setError(err.response?.data?.error || null);
       } finally {
         if (!cancelled) setLoadingDetail(false);
@@ -71,9 +108,16 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isOpen, material]);
+  }, [isOpen, material, moduleContents]);
 
   if (!isOpen || !material) return null;
+
+  const videoOptions = (moduleContents || []).filter(
+    (c) => c.content_type === 'video' && c.id !== material.id
+  );
+  const linkedAlternate = (moduleContents || []).find(
+    (c) => Number(c.remediation_for_content_id) === Number(material.id)
+  );
 
   const handleResetAndClose = () => {
     setError(null);
@@ -92,6 +136,26 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
       setError(err.response?.data?.error || 'Failed to upload file to server.');
     } finally {
       setUploadingFile(false);
+    }
+  };
+
+  const handleAltFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAltUploading(true);
+    setRemoveAlt(false);
+    setError(null);
+    try {
+      const data = await courseService.uploadMaterialFile(file);
+      setAltFileUrl(data.file_url);
+      if (!altTitle.trim()) {
+        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+        setAltTitle(base);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to upload the other version.');
+    } finally {
+      setAltUploading(false);
     }
   };
 
@@ -158,6 +222,29 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
       }))
       .filter((m) => m.options.length >= 2);
 
+    if (
+      contentType === 'video' &&
+      !removeAlt &&
+      !linkedAlternate &&
+      altTitle.trim() &&
+      !altFileUrl.trim()
+    ) {
+      setError('Upload the other version (PDF, slides, or mind map) or clear its title.');
+      return;
+    }
+
+    const cleanedLessonQuiz = lessonQuestions
+      .map((q) => ({
+        question: q.question.trim(),
+        options: (q.options || []).map((o) => o.trim()).filter(Boolean),
+        correct_option: q.correct_option || 0,
+      }))
+      .filter((q) => q.question || q.options.length);
+    if (contentType === 'video' && cleanedLessonQuiz.some((q) => !q.question || q.options.length < 2)) {
+      setError('Each lesson question needs a prompt and at least two answers.');
+      return;
+    }
+
     setLoading(true);
     try {
       await courseService.updateMaterial(material.id, {
@@ -165,8 +252,34 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
         content_type: contentType,
         file_url: fileUrl.trim() || null,
         summary: summary.trim() || null,
+        remediation_for_content_id:
+          contentType === 'video' ? null : remediationForId ? Number(remediationForId) : null,
         milestones: cleanedMilestones,
+        video_quiz:
+          contentType === 'video' && cleanedLessonQuiz.length ? cleanedLessonQuiz : undefined,
       });
+
+      if (contentType === 'video') {
+        if (removeAlt && linkedAlternate) {
+          await courseService.updateMaterial(linkedAlternate.id, {
+            remediation_for_content_id: null,
+          });
+        } else if (linkedAlternate && (altTitle.trim() || altFileUrl.trim())) {
+          await courseService.updateMaterial(linkedAlternate.id, {
+            title: altTitle.trim() || linkedAlternate.title,
+            file_url: altFileUrl.trim() || linkedAlternate.file_url || null,
+            remediation_for_content_id: material.id,
+          });
+        } else if (!linkedAlternate && altFileUrl.trim()) {
+          await courseService.createMaterial(material.module_id, {
+            title: altTitle.trim() || `${title.trim()} — another way`,
+            content_type: 'document',
+            file_url: altFileUrl.trim(),
+            remediation_for_content_id: material.id,
+          });
+        }
+      }
+
       onSuccess();
       handleResetAndClose();
     } catch (err) {
@@ -192,7 +305,7 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
             <div>
               <h2 className="text-lg font-bold text-text leading-tight">Edit Learning Material</h2>
               <p className="text-xs text-text-muted font-medium">
-                Update file, summary, and milestone quiz items.
+                Update file, alternate link, and AI-drafted summary — review before saving.
               </p>
             </div>
           </div>
@@ -268,9 +381,184 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
               />
             </div>
 
+            {contentType === 'video' && (
+              <div className="rounded-xl border border-primary/30 bg-primary-soft/40 p-4 space-y-3">
+                <div>
+                  <p className="font-bold text-text uppercase tracking-wider">
+                    If they fail, deliver it another way
+                  </p>
+                  <p className="mt-1 text-[11px] text-text-muted">
+                    PDF, slides, or a mind map offered when a student fails this video&apos;s quiz.
+                  </p>
+                </div>
+                {linkedAlternate && !removeAlt && (
+                  <p className="text-[11px] font-semibold text-primary">
+                    Currently linked: {linkedAlternate.title}
+                  </p>
+                )}
+                {removeAlt && (
+                  <p className="text-[11px] font-semibold text-warning">
+                    The other version will be unlinked when you save. It stays in the module as a
+                    normal document.
+                  </p>
+                )}
+                <div>
+                  <label className="block font-bold text-text uppercase tracking-wider mb-1">
+                    Other version title
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={150}
+                    value={altTitle}
+                    onChange={(e) => {
+                      setAltTitle(e.target.value);
+                      setRemoveAlt(false);
+                    }}
+                    placeholder="e.g. Chapter 1 mind map"
+                    className="w-full bg-surface border border-border focus:border-primary focus:outline-none rounded-lg p-2.5 text-text"
+                  />
+                </div>
+                <div className="bg-surface p-3 rounded-xl border border-dashed border-border space-y-2">
+                  <label className="block font-bold text-text uppercase tracking-wider text-[11px]">
+                    {linkedAlternate ? 'Replace the other version' : 'Upload the other version'}
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                    onChange={handleAltFileChange}
+                    className="text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-on-primary hover:file:bg-primary-hover cursor-pointer"
+                  />
+                  {altUploading && <span className="text-primary font-bold">Uploading...</span>}
+                  {altFileUrl && !altUploading && (
+                    <p className="text-[11px] text-primary font-semibold break-all">
+                      Attached: {altFileUrl}
+                    </p>
+                  )}
+                </div>
+                {linkedAlternate && (
+                  <button
+                    type="button"
+                    onClick={() => setRemoveAlt((v) => !v)}
+                    className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
+                  >
+                    {removeAlt ? 'Keep the other version' : 'Unlink the other version'}
+                  </button>
+                )}
+
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-text uppercase tracking-wider">Lesson quiz</p>
+                      <p className="mt-1 text-[11px] text-text-muted">
+                        {hasLessonQuiz
+                          ? 'A lesson quiz is already on this video. New questions replace it, unless a student has already taken it.'
+                          : 'Questions about this video. Not the focus intervention. A miss asks the student to study the other version.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLessonQuestions((prev) => [
+                          ...prev,
+                          { question: '', options: ['', '', '', ''], correct_option: 0 },
+                        ])
+                      }
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer shrink-0"
+                    >
+                      + Add question
+                    </button>
+                  </div>
+                  {lessonQuestions.map((q, qi) => (
+                    <div key={qi} className="rounded-xl border border-border bg-surface p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="text"
+                          value={q.question}
+                          onChange={(e) =>
+                            setLessonQuestions((prev) =>
+                              prev.map((item, i) =>
+                                i === qi ? { ...item, question: e.target.value } : item
+                              )
+                            )
+                          }
+                          placeholder={`Question ${qi + 1} about the video`}
+                          className="flex-1 bg-bg border border-border rounded-lg p-2 text-text"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setLessonQuestions((prev) => prev.filter((_, i) => i !== qi))}
+                          className="p-2 text-text-muted hover:text-red-600 cursor-pointer"
+                          title="Remove question"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(q.options || []).map((opt, oi) => (
+                          <label key={oi} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`edit-lesson-correct-${qi}`}
+                              checked={q.correct_option === oi}
+                              onChange={() =>
+                                setLessonQuestions((prev) =>
+                                  prev.map((item, i) =>
+                                    i === qi ? { ...item, correct_option: oi } : item
+                                  )
+                                )
+                              }
+                            />
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) =>
+                                setLessonQuestions((prev) =>
+                                  prev.map((item, i) => {
+                                    if (i !== qi) return item;
+                                    const options = [...item.options];
+                                    options[oi] = e.target.value;
+                                    return { ...item, options };
+                                  })
+                                )
+                              }
+                              placeholder={`Answer ${String.fromCharCode(65 + oi)}`}
+                              className="flex-1 bg-bg border border-border rounded-lg p-2 text-text"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {contentType !== 'video' && (
+              <div>
+                <label className="block font-bold text-text uppercase tracking-wider mb-1">
+                  Use as alternate for (optional)
+                </label>
+                <select
+                  value={remediationForId}
+                  onChange={(e) => setRemediationForId(e.target.value)}
+                  className="w-full bg-bg border border-border focus:border-primary focus:bg-surface focus:outline-none rounded-lg p-2.5 text-text font-semibold"
+                >
+                  <option value="">Not an alternate</option>
+                  {videoOptions.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  Shown when a student fails that video&apos;s quiz (mind map, PDF, slides, notes).
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block font-bold text-text uppercase tracking-wider mb-1">
-                Teacher description (for AI regenerate)
+                Teacher description (for AI draft)
               </label>
               <textarea
                 rows={2}
@@ -286,8 +574,11 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
                 className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold cursor-pointer disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                {generating ? 'Generating…' : 'Regenerate summary & quiz'}
+                {generating ? 'Generating…' : 'AI draft summary & checkpoints'}
               </button>
+              <p className="mt-1 text-[11px] text-text-muted">
+                AI drafts for your review only — students never see unsaved drafts.
+              </p>
             </div>
 
             <div>
@@ -383,7 +674,7 @@ export const EditMaterialModal = ({ isOpen, material, onClose, onSuccess }) => {
               </button>
               <button
                 type="submit"
-                disabled={loading || uploadingFile || generating}
+                disabled={loading || uploadingFile || generating || altUploading}
                 className="bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold px-5 py-2.5 rounded-lg shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />

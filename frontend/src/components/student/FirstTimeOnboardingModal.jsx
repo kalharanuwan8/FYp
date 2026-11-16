@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import studentService from '../../services/studentService';
 import courseService from '../../services/courseService';
-import { usePreferences } from '../../context/PreferencesContext';
+import { usePreferences, THEME_OPTIONS, normalizeTheme } from '../../context/PreferencesContext';
 import { Button, Dialog, Field, Select, SegmentedControl } from '../common';
 
 const STEP_TITLES = ['Welcome to Luma', 'How your focus buddy works', 'Make it comfy'];
@@ -12,7 +12,7 @@ export default function FirstTimeOnboardingModal({ isOpen, onComplete, initialPr
   const [gradeLevels, setGradeLevels] = useState([]);
   const [gradeLevel, setGradeLevel] = useState(initialProfile?.grade_level || '');
   const [assent, setAssent] = useState(false);
-  const [localTheme, setLocalTheme] = useState(theme || 'light');
+  const [localTheme, setLocalTheme] = useState(() => normalizeTheme(theme));
   const [localText, setLocalText] = useState(textSize || 'm');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -21,6 +21,8 @@ export default function FirstTimeOnboardingModal({ isOpen, onComplete, initialPr
     if (!isOpen) return;
     setStep(0);
     setGradeLevel(initialProfile?.grade_level || '');
+    setLocalTheme(normalizeTheme(theme));
+    setLocalText(textSize || 'm');
     courseService
       .getGradeLevels()
       .then((data) => setGradeLevels(data || []))
@@ -150,15 +152,41 @@ export default function FirstTimeOnboardingModal({ isOpen, onComplete, initialPr
 
       {step === 2 && (
         <div className="space-y-4">
-          <SegmentedControl
-            label="Theme"
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'calm-dark', label: 'Calm dark' },
-            ]}
-            value={localTheme}
-            onChange={setLocalTheme}
-          />
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-text">Theme</legend>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Theme">
+              {THEME_OPTIONS.map((opt) => {
+                const selected = localTheme === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      setLocalTheme(opt.value);
+                      updatePreferences({ theme: opt.value }, { persist: false });
+                    }}
+                    className={`flex items-start gap-2.5 min-h-14 px-3 py-2.5 rounded-2xl border text-left cursor-pointer ${
+                      selected
+                        ? 'border-primary border-2 bg-primary-soft'
+                        : 'border-border bg-bg hover:border-primary/40'
+                    }`}
+                  >
+                    <span
+                      className="theme-swatch mt-0.5"
+                      style={{ background: opt.swatch }}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-text">{opt.label}</span>
+                      <span className="block text-xs text-text-muted">{opt.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
           <SegmentedControl
             label="Text size"
             options={[
